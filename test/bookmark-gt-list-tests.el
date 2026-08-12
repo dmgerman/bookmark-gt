@@ -69,7 +69,7 @@
                               '((tags . ("proj" "urgent"))))
     (bookmark-gt-list-test--in-buffer
       (goto-char (point-min))
-      (should (equal (bookmark-gt-list-test--column 5) "proj, urgent")))))
+      (should (equal (bookmark-gt-list-test--column 6) "proj, urgent")))))
 
 ;;;; Revert observer
 
@@ -100,7 +100,7 @@
       (bookmark-gt-list-mark 1)
       (goto-char (point-min))
       (should (eq (char-after) bookmark-gt-list-selection-mark))
-      (let ((marked (bookmark-gt-list--collect-tagged
+      (let ((marked (bookmark-gt-list--collect-marked
                      bookmark-gt-list-selection-mark)))
         (should (= (length marked) 1))))))
 
@@ -208,7 +208,7 @@
         (should (equal (bookmark-gt-tags-of (car bookmark-alist))
                        '("new")))
         (goto-char (point-min))
-        (should (equal (bookmark-gt-list-test--column 5) "new"))))))
+        (should (equal (bookmark-gt-list-test--column 6) "new"))))))
 
 (provide 'bookmark-gt-list-tests)
 ;;; bookmark-gt-list-tests.el ends here

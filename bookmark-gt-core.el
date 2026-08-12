@@ -303,6 +303,123 @@ other observers refresh."
       (message "%s temp on %S"
                (if current "Cleared" "Set") name))))
 
+;;;; jump-via catch tag
+;;
+;; Vanilla `bookmark--jump-via' calls the handler, then unconditionally
+;; runs `bookmark-after-jump-hook' and (if
+;; `bookmark-automatically-show-annotations' is non-nil) pops up the
+;; annotation buffer.  For handlers whose target is external — a
+;; web browser opened via `browse-url', a browser tab focused via
+;; browsel — the annotation buffer steals focus back from the
+;; browser, which is not what the user wants.
+;;
+;; The handler cannot let-bind
+;; `bookmark-automatically-show-annotations' to nil because the
+;; check happens after the handler returns and the let has unwound.
+;;
+;; Bookmark+ solves this by redefining `bookmark--jump-via' with a
+;; `(catch 'bookmark--jump-via ...)' around the body; handlers
+;; then throw to skip everything after step 2.  We do the same
+;; less intrusively via `:around' advice that wraps the vanilla
+;; body in our own catch tag; handlers throw
+;; `bookmark-gt-skip-post-handler' to opt out.
+;;
+;; The install/uninstall pair is wired to `bookmark-gt-mode' so
+;; a user who never enables the package sees plain vanilla
+;; behavior.  Handlers wrap their throw in a `condition-case' /
+;; `no-catch' shim so a throw when the advice is not installed
+;; silently degrades to a no-op.
+
+(defun bookmark-gt--jump-via-catch-advice (orig-fn &rest args)
+  "Wrap ORIG-FN (called with ARGS) in a `bookmark-gt-skip-post-handler' catch.
+Handlers throw that tag to bail out of the post-handler steps
+that vanilla `bookmark--jump-via' runs (annotation buffer,
+`bookmark-after-jump-hook', fringe mark)."
+  (catch 'bookmark-gt-skip-post-handler
+    (apply orig-fn args)))
+
+(defun bookmark-gt-install-jump-via-catch ()
+  "Install the `bookmark--jump-via' catch advice.  Idempotent."
+  (advice-add 'bookmark--jump-via :around
+              #'bookmark-gt--jump-via-catch-advice))
+
+(defun bookmark-gt-uninstall-jump-via-catch ()
+  "Remove the `bookmark--jump-via' catch advice."
+  (advice-remove 'bookmark--jump-via
+                 #'bookmark-gt--jump-via-catch-advice))
+
+(defmacro bookmark-gt-skip-post-handler (value)
+  "Throw VALUE to the catch tag `bookmark-gt-skip-post-handler'.
+Handlers use this at their tail to abort the vanilla post-
+handler steps (annotation buffer, hooks, fringe mark) for the
+current jump.  Safe to call even when the catch is not
+installed: a `no-catch' error is silently swallowed by the
+surrounding `condition-case'."
+  `(condition-case nil
+       (throw 'bookmark-gt-skip-post-handler ,value)
+     (no-catch nil)))
+
+;;;; File-rename tracker
+;;
+;; When a file is renamed on disk, any bookmark whose `filename'
+;; matched the old path becomes stale.  This advice on
+;; `rename-file' rewrites the alist entry to the new path.
+;;
+;; Two guards:
+;;   - `bookmark-gt-track-renames' — user opt-out (default on).
+;;   - `backup-file-name-p' — the rename that Emacs performs to
+;;     create a backup file (default `backup-by-copying' nil path:
+;;     rename ORIG → ORIG~, then write new ORIG) is a spurious
+;;     match that would move the bookmark to the backup.
+;;     Bookmark+'s tracker has this bug; ours does not.
+;;
+;; Directory renames update only bookmarks whose `filename'
+;; matches the directory exactly — children are not rewritten.
+;; Documented in the defcustom.
+
+(defcustom bookmark-gt-track-renames t
+  "Non-nil: `bookmark-gt-mode' updates bookmark `filename' on rename.
+An `:around' advice on `rename-file' rewrites any bookmark
+whose `filename' matches the source path to the destination
+path.
+
+Guards:
+- Backup destinations (`backup-file-name-p') are always
+  ignored regardless of this flag — Emacs's default save mode
+  renames ORIG → ORIG~ to create backups, and chasing that
+  rename would leave the bookmark pointing at the backup.
+- Directory renames only update bookmarks whose `filename'
+  equals the directory exactly.  Children are NOT rewritten.
+
+Toggle takes effect immediately (the advice reads this
+variable at call time)."
+  :type 'boolean
+  :group 'bookmark-gt)
+
+(defun bookmark-gt--rename-file-advice (orig-fn from to &rest args)
+  "Around advice for `rename-file' that follows the rename in `bookmark-alist'.
+FROM and TO are the source/destination paths; ORIG-FN is
+`rename-file'; ARGS carries `ok-if-already-exists' and any
+further vanilla arguments.  Rewrites bookmarks whose
+`filename' exactly equals FROM to point at TO.  Gated by
+`bookmark-gt-track-renames' and skipped for backup destinations."
+  (apply orig-fn from to args)
+  (when (and bookmark-gt-track-renames
+             (not (backup-file-name-p to)))
+    (let ((from-abs (expand-file-name from))
+          (to-abs   (expand-file-name to)))
+      (dolist (rec bookmark-alist)
+        (when (equal (bookmark-gt-filename-of rec) from-abs)
+          (bookmark-prop-set (car rec) 'filename to-abs))))))
+
+(defun bookmark-gt-install-rename-tracker ()
+  "Install the `rename-file' tracker advice.  Idempotent."
+  (advice-add 'rename-file :around #'bookmark-gt--rename-file-advice))
+
+(defun bookmark-gt-uninstall-rename-tracker ()
+  "Remove the `rename-file' tracker advice."
+  (advice-remove 'rename-file #'bookmark-gt--rename-file-advice))
+
 (defun bookmark-gt--save-filter-advice (orig-fn &rest args)
   "Around advice for `bookmark-save' that excludes temp records.
 Every call binds `bookmark-alist' to a filtered copy without

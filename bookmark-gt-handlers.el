@@ -86,14 +86,108 @@
   "Face for the Name column of PDF bookmarks."
   :group 'bookmark-gt)
 
+(defface bookmark-gt-face-group
+  '((t :inherit font-lock-type-face))
+  "Face for the Group column in the bookmark list."
+  :group 'bookmark-gt)
+
+(defface bookmark-gt-face-missing-file
+  '((t :strike-through t :inherit shadow))
+  "Face for bookmarks whose `filename' does not exist on disk.
+Combined with the type-specific face at render time — applied
+as a `face-list' on the Name column so both the type color and
+the strikethrough are visible."
+  :group 'bookmark-gt)
+
+;;;; Group registry
+;;
+;; Groups sit above types.  Multiple types can share a group so a
+;; user filters/narrows by an aggregate category (web = url + eww
+;; + browser-tab) rather than one type at a time.  Groups are
+;; DERIVED from the handler registry — nothing is stored on the
+;; record — so the group of a record can change if the user re-
+;; classifies a handler entry, and nothing lives on disk that
+;; would go stale.
+;;
+;; The `other' group is the catch-all: any handler-registry entry
+;; without an explicit `:group', or any handler symbol resolved
+;; via the derive-fallback, buckets under it.
+
+(defvar bookmark-gt-group-alist nil
+  "Registry mapping group symbols to display metadata.
+Each element is (GROUP . PLIST) where PLIST carries `:name',
+`:narrow-char', and `:doc'.  Populated by
+`bookmark-gt-group-register' calls in this file and by user
+extensions.  Consulted for the list buffer's Group column, the
+`by-group' filter, and the consult narrow rows.")
+
+(defun bookmark-gt-group-register (group plist)
+  "Register GROUP with display PLIST.
+Idempotent — a repeat registration replaces the previous entry."
+  (setq bookmark-gt-group-alist
+        (cons (cons group plist)
+              (assq-delete-all group bookmark-gt-group-alist))))
+
+(defun bookmark-gt-group-name (group)
+  "Return the display name for GROUP.
+Falls back to the symbol's name (capitalized) when GROUP is not
+registered."
+  (or (plist-get (alist-get group bookmark-gt-group-alist) :name)
+      (and group (capitalize (symbol-name group)))))
+
+(defun bookmark-gt-group-narrow-char (group)
+  "Return the narrow character for GROUP, or the first char of its name."
+  (or (plist-get (alist-get group bookmark-gt-group-alist) :narrow-char)
+      (aref (downcase (bookmark-gt-group-name group)) 0)))
+
+;; Built-in groups.  Narrow chars are chosen distinct so consult's
+;; group-narrow menu is unambiguous.
+(bookmark-gt-group-register
+ 'web '(:name "Web" :narrow-char ?w
+        :doc "URL / EWW / browser-tab bookmarks."))
+
+(bookmark-gt-group-register
+ 'file '(:name "File" :narrow-char ?f
+         :doc "Filesystem-backed bookmarks (files, directories)."))
+
+(bookmark-gt-group-register
+ 'doc '(:name "Doc" :narrow-char ?d
+        :doc "Documentation and reading (Info, Org, PDF, EPUB, Help)."))
+
+(bookmark-gt-group-register
+ 'code '(:name "Code" :narrow-char ?c
+         :doc "Development-tool bookmarks (Magit, etc.)."))
+
+(bookmark-gt-group-register
+ 'media '(:name "Media" :narrow-char ?m
+          :doc "Image / audio / video bookmarks."))
+
+(bookmark-gt-group-register
+ 'other '(:name "Other" :narrow-char ?o
+          :doc "Bookmarks whose handler is unregistered or unclassified."))
+
 ;;;; Registry
 
 (defvar bookmark-gt-handler-alist nil
   "Registry mapping handler symbols to display metadata.
-Each element is (HANDLER . PLIST) where PLIST carries `:type',
-`:name', `:face', `:narrow-char', and `:doc' keys.  Populated
-by `bookmark-gt-handler-register' calls in this file and by
-user extensions.
+Each element is (HANDLER . PLIST) where PLIST carries:
+
+  :type        symbol identifying the type.
+  :name        display string.
+  :group       group symbol (see `bookmark-gt-group-alist').
+  :face        face for the Name column.
+  :narrow-char char (rarely consulted directly; consult narrow
+               uses the GROUP's narrow-char instead).
+  :doc         one-line explanation.
+  :preview     optional — a function called with the record to
+               preview the bookmark, invoked by
+               `bookmark-gt-list-preview' inside
+               `save-selected-window'.  When absent, preview
+               falls back to `bookmark-jump-other-window' via
+               the record's own handler.
+
+Populated by `bookmark-gt-handler-register' calls in this file
+and by user extensions.
 
 HANDLER may be nil (matches vanilla file+position records that
 carry no `handler' property).")
@@ -165,6 +259,14 @@ Never returns nil."
   "Return the display face for RECORD's type, or nil."
   (plist-get (cdr (bookmark-gt-handler-classify record)) :face))
 
+(defun bookmark-gt-handler-group (record)
+  "Return RECORD's group symbol.
+Reads the `:group' key from the handler registry entry; falls
+back to `other' when the entry has no `:group' or when the
+handler is unknown (derive-fallback)."
+  (or (plist-get (cdr (bookmark-gt-handler-classify record)) :group)
+      'other))
+
 ;;;; Type-based predicates
 ;;
 ;; These check `:type', which is stable across handler-symbol
@@ -218,7 +320,11 @@ Never returns nil."
 
 (defun bookmark-gt-handler-dired-jump (bookmark)
   "Vanilla-compatible bookmark handler for Dired bookmarks.
-Opens BOOKMARK's `filename' (a directory) via `dired'."
+Opens BOOKMARK's `filename' (a directory) via `dired'.
+
+Does NOT throw the `bookmark-gt-skip-post-handler' tag — the
+target IS an Emacs buffer, so the annotation buffer and the
+after-jump hook remain useful."
   (require 'dired)
   (let ((dir (bookmark-gt-filename-of bookmark)))
     (unless dir
@@ -233,11 +339,18 @@ Opens BOOKMARK's `filename' (a directory) via `dired'."
   "Vanilla-compatible bookmark handler for URL bookmarks.
 BOOKMARK is a bookmark record.  Opens the record's URL (read
 via `bookmark-gt-url-of', which accepts either the `url' or
-`location' prop for bookmark+ compat) with `browse-url'."
+`location' prop for bookmark+ compat) with `browse-url'.
+
+Throws `bookmark-gt-skip-post-handler' so vanilla does not pop
+up an annotation buffer or run `bookmark-after-jump-hook' —
+the browser has focus and an Emacs annotation buffer stealing
+it would be worse than useless.  When the catch is not
+installed (bookmark-gt-mode off) the throw silently no-ops."
   (let ((url (bookmark-gt-url-of bookmark)))
     (unless url
       (user-error "URL bookmark has no `url' or `location' property"))
-    (browse-url url)))
+    (browse-url url)
+    (bookmark-gt-skip-post-handler 'url)))
 
 ;;;###autoload
 (defun bookmark-gt-set-url (url &optional name tags)
@@ -266,7 +379,7 @@ Returns the stored (NAME . DATA) pair."
 ;; File — vanilla no-handler and the explicit default handler both map here.
 (bookmark-gt-handler-register
  '(nil bookmark-default-handler)
- (list :type 'file :name "File"
+ (list :type 'file :name "File" :group 'file
        :face 'bookmark-gt-face-file :narrow-char ?f
        :doc "Standard file+position bookmark."))
 
@@ -275,14 +388,14 @@ Returns the stored (NAME . DATA) pair."
  '(bookmark-gt-handler-url-jump
    bmkp-jump-url-browse
    bmkp-jump-url-browse-other-window)
- (list :type 'url :name "URL"
+ (list :type 'url :name "URL" :group 'web
        :face 'bookmark-gt-face-url :narrow-char ?u
        :doc "Web URL opened with `browse-url'."))
 
 ;; EWW.
 (bookmark-gt-handler-register
  '(eww-bookmark-jump)
- (list :type 'eww :name "EWW"
+ (list :type 'eww :name "EWW" :group 'web
        :face 'bookmark-gt-face-eww :narrow-char ?e
        :doc "Page bookmarked from EWW."))
 
@@ -293,14 +406,14 @@ Returns the stored (NAME . DATA) pair."
  '(bookmark-gt-handler-dired-jump
    dired-bookmark-jump
    bmkp-jump-dired)
- (list :type 'dired :name "Dired"
+ (list :type 'dired :name "Dired" :group 'file
        :face 'bookmark-gt-face-dired :narrow-char ?d
        :doc "Directory bookmarked from Dired."))
 
 ;; Info.
 (bookmark-gt-handler-register
  '(Info-bookmark-jump)
- (list :type 'info :name "Info"
+ (list :type 'info :name "Info" :group 'doc
        :face 'bookmark-gt-face-info :narrow-char ?i
        :doc "Node bookmarked from Info."))
 
@@ -309,14 +422,14 @@ Returns the stored (NAME . DATA) pair."
  '(org-bookmark-jump
    org-bookmark-heading-jump
    org-agenda-bookmark-jump)
- (list :type 'org :name "Org"
+ (list :type 'org :name "Org" :group 'doc
        :face 'bookmark-gt-face-org :narrow-char ?o
        :doc "Heading or item bookmarked from Org mode."))
 
 ;; PDF.
 (bookmark-gt-handler-register
  '(pdf-view-bookmark-jump-handler)
- (list :type 'pdf :name "PDF"
+ (list :type 'pdf :name "PDF" :group 'doc
        :face 'bookmark-gt-face-pdf :narrow-char ?p
        :doc "Location bookmarked from pdf-tools."))
 
@@ -328,7 +441,7 @@ Returns the stored (NAME . DATA) pair."
  '(bookmark-gt-handler-browser-tab-jump
    bmkp-gt-browsel-tabs-jump
    browsel-tab-manager-bookmark-jump)
- (list :type 'browser-tab :name "BrowserTab"
+ (list :type 'browser-tab :name "BrowserTab" :group 'web
        :face 'bookmark-gt-face-url :narrow-char ?b
        :doc "Browser tab bookmarked from browsel or its ecosystem."))
 
@@ -338,25 +451,25 @@ Returns the stored (NAME . DATA) pair."
 ;; `:narrow-char' and a nicer name).
 (bookmark-gt-handler-register
  '(magit--handle-bookmark)
- (list :type 'magit :name "Magit"
+ (list :type 'magit :name "Magit" :group 'code
        :face 'bookmark-gt-face-file :narrow-char ?m
        :doc "State bookmarked from Magit."))
 
 (bookmark-gt-handler-register
  '(help-bookmark-jump)
- (list :type 'help :name "Help"
+ (list :type 'help :name "Help" :group 'doc
        :face 'bookmark-gt-face-file :narrow-char ?h
        :doc "*Help* page bookmark."))
 
 (bookmark-gt-handler-register
  '(image-bookmark-jump)
- (list :type 'image :name "Image"
+ (list :type 'image :name "Image" :group 'media
        :face 'bookmark-gt-face-file :narrow-char ?I
        :doc "Location bookmarked from image-mode."))
 
 (bookmark-gt-handler-register
  '(nov-bookmark-jump-handler)
- (list :type 'epub :name "EPUB"
+ (list :type 'epub :name "EPUB" :group 'doc
        :face 'bookmark-gt-face-file :narrow-char ?E
        :doc "Location bookmarked from nov.el."))
 

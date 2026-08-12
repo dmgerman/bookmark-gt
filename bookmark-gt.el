@@ -76,11 +76,15 @@ reader, auto-update timer) attach here in later stages."
    (bookmark-gt-mode
     (bookmark-gt-tags-enable)
     (bookmark-gt-jump-enable)
-    (bookmark-gt-install-temp-save-filter))
+    (bookmark-gt-install-temp-save-filter)
+    (bookmark-gt-install-jump-via-catch)
+    (bookmark-gt-install-rename-tracker))
    (t
     (bookmark-gt-tags-disable)
     (bookmark-gt-jump-disable)
-    (bookmark-gt-uninstall-temp-save-filter))))
+    (bookmark-gt-uninstall-temp-save-filter)
+    (bookmark-gt-uninstall-jump-via-catch)
+    (bookmark-gt-uninstall-rename-tracker))))
 
 (provide 'bookmark-gt)
 

@@ -106,7 +106,12 @@ also type `browser-tab' but are left alone by our cleanup path."
 Uses `browsel-focus-tab' with the recorded `browsel-id' and
 `browsel-browser'.  If the tab is gone (`user-error' from
 browsel), falls back to `browsel-browse-url' with the recorded
-URL."
+URL.
+
+Throws `bookmark-gt-skip-post-handler' at the end so vanilla
+does not pop up an annotation buffer — the browser has focus
+and an Emacs annotation stealing it back would be worse than
+useless.  Safe when the catch is not installed."
   (unless (featurep 'browsel)
     (user-error "Browsel is not loaded"))
   (let* ((id (bookmark-prop-get bookmark 'browsel-id))
@@ -118,7 +123,8 @@ URL."
       (user-error
        (if (and url (not (string-empty-p url)))
            (browsel-browse-url url)
-         (user-error "Browser-tab bookmark has no usable URL"))))))
+         (user-error "Browser-tab bookmark has no usable URL")))))
+  (bookmark-gt-skip-post-handler 'browser-tab))
 
 ;;;; Fetch + filter
 

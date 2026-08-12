@@ -83,6 +83,27 @@
   :type 'integer
   :group 'bookmark-gt)
 
+(defcustom bookmark-gt-jump-candidate-format-function
+  #'bookmark-gt-jump-candidate-default
+  "Function that builds one `consult--read' candidate string for the jump reader.
+
+Called with one argument, the bookmark RECORD (a `(NAME . DATA)'
+cons from `bookmark-alist').  Must return a propertized string
+whose text properties carry:
+
+  `bookmark-gt-name'       — the bare bookmark name (string).
+  `consult--type'          — the narrow char (fixnum).
+  `bookmark-gt-particles'  — optional space-separated
+                             `@Type ;tag ;tag' tokens for the
+                             orderless particle dispatcher.
+
+Customize this to control the visible row layout (e.g. add
+DOMAIN / KIND / TITLE columns).  See
+`bookmark-gt-jump-candidate-default' for the default
+implementation and the token contract."
+  :type 'function
+  :group 'bookmark-gt)
+
 ;;;; Narrow chars derived from the handler registry
 ;;
 ;; `bookmark-gt-handler-alist' is keyed by handler symbol, so many
@@ -91,25 +112,23 @@
 ;; consult would show one narrow row per alias.
 
 (defun bookmark-gt-jump--narrow-alist ()
-  "Return (CHAR . NAME) alist for `consult--type-narrow' from the registry.
-Dedupes by `:type' so alias handler symbols do not produce
-duplicate narrow rows."
-  (let ((seen (make-hash-table :test #'eq))
-        result)
-    (dolist (entry bookmark-gt-handler-alist)
-      (let* ((plist (cdr entry))
-             (type (plist-get plist :type)))
-        (unless (gethash type seen)
-          (puthash type t seen)
-          (push (cons (plist-get plist :narrow-char)
-                      (plist-get plist :name))
-                result))))
-    (nreverse result)))
+  "Return (CHAR . NAME) alist for `consult--type-narrow' by GROUP.
+Now driven by `bookmark-gt-group-alist' rather than the handler
+registry — narrowing at the group level (web / file / doc /
+code / media / other) is coarser and matches how users think
+about categories.  Per-type filtering is still available via the
+orderless `,@Type' particle."
+  (mapcar (lambda (entry)
+            (cons (plist-get (cdr entry) :narrow-char)
+                  (plist-get (cdr entry) :name)))
+          bookmark-gt-group-alist))
 
 (defun bookmark-gt-jump--type-char (record)
-  "Return the narrow character for RECORD's type, or ?\\s if unknown."
-  (or (plist-get (cdr (bookmark-gt-handler-classify record)) :narrow-char)
-      ?\s))
+  "Return the narrow character for RECORD's group, or ?\\s if unknown.
+Consult's narrow menu operates at the group level, so each
+candidate's `consult--type' property is the GROUP's narrow
+char rather than the type's."
+  (bookmark-gt-group-narrow-char (bookmark-gt-handler-group record)))
 
 ;;;; Candidate construction
 
@@ -127,10 +146,16 @@ duplicate narrow rows."
     (and name (not (string= name "Unknown"))
          (concat "@" name))))
 
-(defun bookmark-gt-jump--make-candidate (record)
-  "Build a jump candidate string for RECORD.
-The visible content is the bookmark name (truncated).  Text
-properties carry:
+(defun bookmark-gt-jump-candidate-default (record)
+  "Default candidate formatter for `bookmark-gt-jump'.
+Called with RECORD (a `(NAME . DATA)' cons from
+`bookmark-alist').  Returns a propertized string whose visible
+content is the bookmark name (truncated per
+`bookmark-gt-jump-name-max-width').  The type / tag narrowing
+tokens are stored as a text property `bookmark-gt-particles'
+rather than appended as visible text.
+
+Text properties on every character:
 
   `bookmark-gt-name'      — the raw record name (for :lookup).
   `consult--type'         — the narrow char (for consult narrowing).
@@ -365,11 +390,82 @@ work because we let-bind `minibuffer-local-completion-map' via
      (completing-read (bookmark-gt-jump--prompt prompt)
                       candidates nil t nil 'bookmark-history))))
 
+(defvar bookmark-gt-jump--pool nil
+  "Dynamic override for the candidate pool during `bookmark-gt-jump--read'.
+When non-nil, `--read-once' iterates this alist instead of the
+full `bookmark-alist'.  Bound by the entry points so the elisp
+caller can restrict what the reader sees via
+`:bookmarks-list' / `:bookmarks-filter'.")
+
+(defvar bookmark-gt-jump--sort-by nil
+  "Dynamic sort order during `bookmark-gt-jump--read'.
+Values: `mru' (by `last-visited' descending), `visits' (by
+`visits' descending), or nil (leave records in the pool's
+order).  Bound by the entry points via the `:sort-by' keyword.")
+
+(defvar bookmark-gt-jump--preselect nil
+  "Dynamic preselect index during `bookmark-gt-jump--read'.
+When a positive integer, the reader positions the cursor on the
+N-th candidate by installing a one-shot `minibuffer-setup-hook'
+that calls `vertico-next' N times after a small delay.  No-op
+when vertico is not loaded or when the pool has fewer candidates
+than the requested index.  Bound by the entry points via the
+`:preselect' keyword.")
+
+(defun bookmark-gt-jump--sort-records (records)
+  "Return RECORDS sorted per `bookmark-gt-jump--sort-by'.
+The original list is not mutated."
+  (pcase bookmark-gt-jump--sort-by
+    ('mru
+     (sort (copy-sequence records)
+           (lambda (a b)
+             (time-less-p
+              (or (bookmark-prop-get b 'last-visited) '(0 0))
+              (or (bookmark-prop-get a 'last-visited) '(0 0))))))
+    ('visits
+     (sort (copy-sequence records)
+           (lambda (a b)
+             (> (or (bookmark-prop-get a 'visits) 0)
+                (or (bookmark-prop-get b 'visits) 0)))))
+    (_ records)))
+
+(declare-function vertico-next "ext:vertico")
+(declare-function vertico--exhibit "ext:vertico")
+
+(defun bookmark-gt-jump--preselect-advance ()
+  "Advance vertico's cursor `bookmark-gt-jump--preselect' rows down.
+Called from a small-delay timer inside the minibuffer.  No-op when
+vertico is not loaded — completion frameworks other than vertico
+have no equivalent primitive we can call from here."
+  (let ((n bookmark-gt-jump--preselect))
+    (when (and (integerp n) (> n 0)
+               (fboundp 'vertico-next)
+               (active-minibuffer-window))
+      (with-selected-window (active-minibuffer-window)
+        (ignore-errors
+          (dotimes (_ n) (vertico-next))
+          (when (fboundp 'vertico--exhibit)
+            (vertico--exhibit)))))))
+
+(defun bookmark-gt-jump--preselect-arm ()
+  "Install a one-shot `minibuffer-setup-hook' that advances by preselect."
+  (let ((setup-fn nil))
+    (setq setup-fn
+          (lambda ()
+            (remove-hook 'minibuffer-setup-hook setup-fn)
+            (run-at-time 0 nil #'bookmark-gt-jump--preselect-advance)))
+    (add-hook 'minibuffer-setup-hook setup-fn t)))
+
 (defun bookmark-gt-jump--read-once (prompt)
   "One iteration of the jump reader under PROMPT.
-Returns the selected bookmark name or throws `quit' on abort."
-  (let* ((records (bookmark-gt-jump--filter-alist bookmark-alist))
-         (candidates (mapcar #'bookmark-gt-jump--make-candidate records))
+Returns the selected bookmark name or throws `quit' on abort.
+Consults `bookmark-gt-jump--pool' when non-nil, otherwise
+scans `bookmark-alist'."
+  (let* ((source (or bookmark-gt-jump--pool bookmark-alist))
+         (records (bookmark-gt-jump--filter-alist source))
+         (records (bookmark-gt-jump--sort-records records))
+         (candidates (mapcar bookmark-gt-jump-candidate-format-function
+                             records))
          ;; Scope the orderless dispatcher to this read only.
          (orderless-style-dispatchers
           (if (and (featurep 'orderless)
@@ -398,47 +494,148 @@ targets) rebuild before the reader shows them."
            (signal 'quit nil)))))
     result))
 
-;;;###autoload
-(defun bookmark-gt-jump ()
-  "Jump to a bookmark chosen from the completion reader.
-Narrowing particles in the minibuffer:
+(defun bookmark-gt-jump--resolve-pool (bookmarks-list bookmarks-filter group)
+  "Return the candidate pool from BOOKMARKS-LIST, BOOKMARKS-FILTER, and GROUP.
+BOOKMARKS-LIST defaults to `bookmark-alist'.  BOOKMARKS-FILTER,
+when non-nil, is called on each record and must return non-nil
+to keep it.  GROUP, when non-nil, is a group symbol from
+`bookmark-gt-group-alist'; only records whose
+`bookmark-gt-handler-group' matches survive.  When both filters
+are supplied both must hold.
 
-  `,@TYPE'   — narrow to bookmarks of TYPE (from
-              `bookmark-gt-handler-alist').
+Returns nil (no override) when nothing narrows the pool — the
+reader then reads from `bookmark-alist' as-is."
+  (let* ((list (or bookmarks-list bookmark-alist))
+         (predicate
+          (cond
+           ((and bookmarks-filter group)
+            (lambda (r)
+              (and (funcall bookmarks-filter r)
+                   (eq (bookmark-gt-handler-group r) group))))
+           (bookmarks-filter bookmarks-filter)
+           (group (lambda (r) (eq (bookmark-gt-handler-group r) group)))
+           (t nil))))
+    (cond
+     (predicate      (seq-filter predicate list))
+     (bookmarks-list list)
+     (t              nil))))
+
+(defmacro bookmark-gt-jump--with-read-state
+    (pool sort-by preselect &rest body)
+  "Bind the jump reader's dynamic state around BODY.
+POOL, SORT-BY, and PRESELECT are let-bound into the respective
+`bookmark-gt-jump--pool' / `--sort-by' / `--preselect' dynamic
+variables so the reader picks them up.  Also arms the preselect
+minibuffer-setup hook when PRESELECT is a positive integer."
+  (declare (indent 3) (debug t))
+  `(let ((bookmark-gt-jump--pool ,pool)
+         (bookmark-gt-jump--sort-by ,sort-by)
+         (bookmark-gt-jump--preselect ,preselect)
+         (bookmark-gt-jump--active-filters nil)
+         (bookmark-gt-jump--restart-p nil))
+     (when (and (integerp bookmark-gt-jump--preselect)
+                (> bookmark-gt-jump--preselect 0))
+       (bookmark-gt-jump--preselect-arm))
+     ,@body))
+
+;;;###autoload
+(cl-defun bookmark-gt-jump
+    (&key bookmark display-function bookmarks-list bookmarks-filter
+          group sort-by preselect)
+  "Jump to BOOKMARK, reading via consult (or `completing-read') when nil.
+
+All arguments are keyword.  Interactively, none are supplied —
+the reader prompts for the bookmark.
+
+- :BOOKMARK — bookmark name or record.  When nil, prompt.
+- :DISPLAY-FUNCTION — passed to `bookmark-jump' as its optional
+  DISPLAY-FUNC (a fn of one argument, a buffer).  Defaults to
+  vanilla's same-window handler.
+- :BOOKMARKS-LIST — alist in the shape of `bookmark-alist' to
+  use as the candidate pool.  Defaults to `bookmark-alist'.
+  Ignored when :BOOKMARK is supplied.
+- :BOOKMARKS-FILTER — predicate on a record; a candidate is kept
+  when the predicate returns non-nil.  Ignored when :BOOKMARK
+  is supplied.
+- :GROUP — group symbol from `bookmark-gt-group-alist' (e.g.
+  `web', `file', `doc').  Only records whose
+  `bookmark-gt-handler-group' matches survive.  Composes AND
+  with :BOOKMARKS-FILTER when both are supplied.  Ignored when
+  :BOOKMARK is supplied.
+- :SORT-BY — sort order for the candidate pool.  `mru' sorts by
+  the record's `last-visited' prop descending; `visits' sorts by
+  the `visits' prop descending; nil (default) leaves the pool's
+  original order.
+- :PRESELECT — positive integer.  When set (and vertico is
+  loaded), the reader positions the cursor on the N-th candidate
+  via a one-shot `minibuffer-setup-hook'.
+
+Narrowing particles in the minibuffer (requires `orderless'):
+  `,@TYPE'   — narrow to bookmarks of TYPE.
   `;TAG'     — narrow to bookmarks carrying TAG.
 
 Minibuffer keys:
-
-  `M-t'      — add a tag filter to the read (restarts).
-  `M-d'      — pop the most recent tag filter.
-  `M-D'      — clear every active tag filter."
+  `M-t'  add a tag filter (restart).
+  `M-d'  pop the most recent tag filter.
+  `M-D'  clear every active tag filter."
   (interactive)
   (bookmark-maybe-load-default-file)
-  (let ((bookmark-gt-jump--active-filters nil)
-        (bookmark-gt-jump--restart-p nil))
-    (let ((name (bookmark-gt-jump--read "Jump to bookmark")))
+  (let* ((pool (bookmark-gt-jump--resolve-pool bookmarks-list
+                                               bookmarks-filter
+                                               group))
+         (name (or bookmark
+                   (bookmark-gt-jump--with-read-state pool sort-by preselect
+                     (bookmark-gt-jump--read "Jump to bookmark")))))
+    (if display-function
+        (bookmark-jump name display-function)
       (bookmark-jump name))))
 
 ;;;###autoload
-(defun bookmark-gt-jump-other-window ()
-  "Like `bookmark-gt-jump' but display in another window."
+(cl-defun bookmark-gt-jump-other-window
+    (&key bookmark bookmarks-list bookmarks-filter group sort-by preselect)
+  "Like `bookmark-gt-jump' but display in another window.
+:BOOKMARK, :BOOKMARKS-LIST, :BOOKMARKS-FILTER, :GROUP,
+:SORT-BY, and :PRESELECT have the same meaning as in
+`bookmark-gt-jump'.  :DISPLAY-FUNCTION is not accepted here —
+the display function is fixed to another window."
   (interactive)
   (bookmark-maybe-load-default-file)
-  (let ((bookmark-gt-jump--active-filters nil)
-        (bookmark-gt-jump--restart-p nil))
-    (let ((name (bookmark-gt-jump--read "Jump (other window)")))
-      (bookmark-jump-other-window name))))
+  (let* ((pool (bookmark-gt-jump--resolve-pool bookmarks-list
+                                               bookmarks-filter
+                                               group))
+         (name (or bookmark
+                   (bookmark-gt-jump--with-read-state pool sort-by preselect
+                     (bookmark-gt-jump--read "Jump (other window)")))))
+    (bookmark-jump-other-window name)))
 
 ;;;###autoload
-(defun bookmark-gt-jump-tagged (tag)
-  "Jump to a bookmark, prefiltered by TAG."
-  (interactive (list (completing-read "Tag: "
-                                      (bookmark-gt-tags-list) nil t)))
+(cl-defun bookmark-gt-jump-tagged
+    (&key tag bookmark bookmarks-list bookmarks-filter group sort-by preselect)
+  "Jump to a bookmark, prefiltered by TAG.
+:TAG (required, a string) seeds the reader's active tag filter.
+:BOOKMARK, :BOOKMARKS-LIST, :BOOKMARKS-FILTER, :GROUP,
+:SORT-BY, and :PRESELECT have the same meaning as in
+`bookmark-gt-jump'.
+
+Interactively, :TAG is prompted for from the set of known tags."
+  (interactive (list :tag (completing-read
+                           "Tag: " (bookmark-gt-tags-list) nil t)))
+  (unless (stringp tag)
+    (user-error "bookmark-gt-jump-tagged: :TAG must be a string"))
   (bookmark-maybe-load-default-file)
-  (let ((bookmark-gt-jump--active-filters (list tag))
-        (bookmark-gt-jump--restart-p nil))
-    (let ((name (bookmark-gt-jump--read (format "Jump [;%s]" tag))))
-      (bookmark-jump name))))
+  (let* ((pool (bookmark-gt-jump--resolve-pool bookmarks-list
+                                               bookmarks-filter
+                                               group))
+         (name (or bookmark
+                   (let ((bookmark-gt-jump--pool pool)
+                         (bookmark-gt-jump--sort-by sort-by)
+                         (bookmark-gt-jump--preselect preselect)
+                         (bookmark-gt-jump--active-filters (list tag))
+                         (bookmark-gt-jump--restart-p nil))
+                     (when (and (integerp preselect) (> preselect 0))
+                       (bookmark-gt-jump--preselect-arm))
+                     (bookmark-gt-jump--read (format "Jump [;%s]" tag))))))
+    (bookmark-jump name)))
 
 ;;;; Install / uninstall (called from `bookmark-gt-mode')
 
