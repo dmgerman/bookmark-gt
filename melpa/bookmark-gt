@@ -1,0 +1,12 @@
+(bookmark-gt
+ :fetcher github
+ :repo "dmgerman/bookmark-gt"
+ :files ("bookmark-gt.el"
+         "bookmark-gt-core.el"
+         "bookmark-gt-handlers.el"
+         "bookmark-gt-tags.el"
+         "bookmark-gt-list.el"
+         "bookmark-gt-jump.el"
+         "bookmark-gt-auto-update.el"
+         "bookmark-gt-default-tags.el"
+         "bookmark-gt-browsel-tabs.el"))

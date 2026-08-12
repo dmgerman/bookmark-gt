@@ -1,0 +1,481 @@
+#+TITLE: bookmark-gt — staging plan
+#+STARTUP: overview
+
+Concrete staging for the fresh rewrite specified in
+=ai/reimplement.org=.  Each stage produces a verifiable artifact.
+Stages 0–3 must land in order; 4–6 are parallelizable; 7–8 close
+out.
+
+Written 2026-08-11.  Not a schedule commitment — a work
+decomposition.
+
+* Scope reminder
+
+Fresh package =bookmark-gt= in this repo, replacing
+=bookmark-plus-gt=.  Vanilla =bookmark.el= is the substrate.  No
+runtime dependency on =bookmark+=.  Design principles (from
+=ai/reimplement.org= "Design principles"): one registry per axis;
+~tabulated-list-mode~ for the buffer; records-only mutable state;
+same alist keys as bookmark+ for data round-trip.
+
+* Decisions (all resolved)
+
+** Package prefix — ~bookmark-gt-~
+
+Every top-level symbol starts with ~bookmark-gt-~.  Long, but
+required by MELPA's naming policy: the prefix must match the
+package name and be distinctive enough to prevent collisions with
+neighboring packages (~bookmark-~, ~bookmark+-~, ~bmkp-~).  Short
+prefixes (~bkgt-~, ~bgt-~) would fail review.
+
+** List buffer name — ~*Bookmarks-gt List*~
+
+Own name during development and after release.  No conflict with
+vanilla or bookmark+ if either is loaded alongside.  Not
+reconsidered at Stage 8 — we do not claim the vanilla
+~*Bookmark List*~.
+
+** No bookmark+ dependency — hard or soft
+
+~bookmark-gt~ has no runtime dependency on ~bookmark+~ at all —
+not required, not optional, not soft.  Users who want bookmark+'s
+exotic commands (autofile bookmarks, bookmark-file-jump chaining,
+etc.) install bookmark+ separately; the two packages coexist
+without either knowing about the other.  Consequences:
+- No ~(require 'bookmark+ nil t)~ probes.
+- No ~(when (fboundp 'bmkp-*) ...)~ integration hooks.
+- No compat aliases from ~bmkp-*~ names except the optional
+  =bookmark-plus-gt-compat.el= shim covering *our old package's*
+  names (~bmkp-gt-*~), never bookmark+'s.
+
+** Region bookmarks + autonaming — deferred to v2
+
+Out of scope for v1.0.  Not in Stage 1, not in Stage 7 tests, not
+in Stage 8 docs (beyond a "not supported" note in the migration
+guide).  Revisit when v1 is stable and there is demonstrated
+demand.
+
+* Package identity (locked once Stage 0 starts)
+
+| Element              | Value                                          |
+|----------------------+------------------------------------------------|
+| Package name         | ~bookmark-gt~                                  |
+| Prefix               | ~bookmark-gt-~                                 |
+| Master switch        | ~bookmark-gt-mode~ (global minor mode)         |
+| List buffer          | ~*Bookmarks-gt List*~                          |
+| List mode            | ~bookmark-gt-list-mode~ (from ~tabulated-list-mode~) |
+| Jump command         | ~bookmark-gt-jump~ (consult-based)             |
+| Handler registry     | ~bookmark-gt-handler-alist~                    |
+| Mark registry        | ~bookmark-gt-mark-predicate-alist~             |
+| Filter registry      | ~bookmark-gt-filter-alist~                     |
+| Sort registry        | ~bookmark-gt-sort-alist~                       |
+
+* File layout (target)
+
+Flat, one file per concern.  No subdirectories except =test/=.
+
+| File                          | Purpose                                            |
+|-------------------------------+----------------------------------------------------|
+| =bookmark-gt.el=              | Entry point, master switch, autoloads, shared utils |
+| =bookmark-gt-core.el=         | Same-name disambig, tag storage API, ~bookmark-set~ extension hooks |
+| =bookmark-gt-handlers.el=     | Handler registry + non-file handlers (URL, EWW, Dired, Info, Org-heading, PDF) |
+| =bookmark-gt-tags.el=         | Tag reader (with hook into ~bookmark-set~), completion, ~;tag~ particle |
+| =bookmark-gt-list.el=         | ~*Bookmarks-gt List*~ buffer (~tabulated-list-mode~) |
+| =bookmark-gt-jump.el=         | Consult reader, marginalia annotator, orderless dispatchers, ~,@Type~ / ~;tag~ particles |
+| =bookmark-gt-auto-update.el=  | Idle timer, per-record auto-update state, refresh triggers |
+| =bookmark-gt-default-tags.el= | Default-tags DSL + registration into tag reader hook |
+| =bookmark-gt-browsel-tabs.el= | Browser-tab bookmarks (temp records via ~bookmark-gt-temp~ key) |
+| =test/*.el=                   | One test file per src file above                   |
+| =readme.org=                  | User-facing docs                                   |
+| =CLAUDE.md=                   | Repo conventions for agents                        |
+| =LICENSE=, =Makefile=, =.github/workflows/=, =melpa/= | MELPA infra (Stage 0) |
+
+* Stages
+
+Each stage lists: *goal*, *work items*, *acceptance*, and any
+*blocks-on* dependency.  Milestones inside a stage (=Sn.m=) are
+individually completable; a stage is done when all its milestones
+pass their acceptance.
+
+** Stage 0 — Foundation & contracts
+
+*Goal:* MELPA-clean skeleton and locked design contracts.  Every
+subsequent commit passes ~make check-ci~; no accumulated lint debt.
+
+*Milestones:*
+
+- =S0.1= Invoke =melpa-submit= skill.  Land =LICENSE=, =Makefile=
+  (with ~lint checkdoc check-declare compile test check~ targets),
+  =.github/workflows/ci.yml=, =melpa/bookmark-gt= recipe,
+  =.gitignore=.  Port the browsel Makefile as reference.
+- =S0.2= Write stub =.el= files for the file layout above, each
+  with the full MELPA-compliant header block (~;;; bookmark-gt-*.el ---
+  ... -*- lexical-binding: t; -*-~, Package-Requires, Homepage,
+  Keywords, Version, commentary, ~(provide 'bookmark-gt-*)~,
+  end-marker).  Contents: just the ~provide~.
+- =S0.3= Write design docs (short — one page each) as separate
+  files under =ai/design/=:
+  + =registries.org= — schema for handler / mark / filter / sort
+    registries (alist shape, required keys, lookup functions,
+    example entry).
+  + =tag-storage.org= — how tags live on records (~tags~ alist
+    key, list of strings), the tag-index API (~bookmark-gt-tags-list~,
+    ~bookmark-gt-tags-of~, ~bookmark-gt-bookmarks-with-tag~), and
+    the reader-hook contract (arguments received, return shape).
+  + =bookmark-set-hooks.org= — the extension protocol for
+    ~bookmark-set~ (tag-reader hook, after-set hook, same-name
+    policy).  Which vanilla behavior we preserve vs replace.
+  + =records-only-invariant.org= — the audit rule ("~grep -n
+    '^(defvar '~ outside of buffer-locals returns nothing that
+    stores bookmark facts").  Enforce in CI as a ~make lint~ check.
+- =S0.4= Commit and push initial CI run.
+
+*Acceptance:*
+- ~make check-ci~ green on empty stubs.
+- All four design docs exist and are internally consistent.
+
+*Blocks-on:* nothing.
+
+** Stage 1 — Substrate
+
+*Goal:* Elisp-only API to create/save/load/jump any bookmark type
+we support, with tags, no UI.
+
+*Milestones:*
+
+- =S1.1= (=bookmark-gt-core.el=) Wrap vanilla ~bookmark-store~ /
+  ~bookmark-save~ / ~bookmark-load~ with the ~bookmark-set~
+  extension hooks defined in the design doc.  Own ~bookmark-set~
+  entry point (~bookmark-gt-set~).
+- =S1.2= Same-name disambiguation: propertize bookmark name
+  strings on store so multiple records with the same visible name
+  coexist.  Reader side unwraps.  Round-trip through
+  ~bookmark-save~ / ~bookmark-load~ preserves distinctness.
+- =S1.3= (=bookmark-gt-tags.el=) Tag storage: read/write ~tags~
+  alist key (list of strings).  Tag-index API.  Tag reader
+  (~completing-read-multiple~ with tag-set completion).  Register
+  into the S1.1 tag-reader hook.
+- =S1.4= (=bookmark-gt-handlers.el=) Handler registry.  Ship one
+  handler — *URL* — as proof of the shape.  Non-file bookmarks
+  omit ~filename~ (no placeholder dance).  ~bookmark-gt-jump~
+  entry that dispatches by handler.
+- =S1.5= Remaining non-file handlers: EWW, Dired, Info,
+  Org-heading, PDF.  Each is ~10–20 lines in the registry.
+- =S1.6= File-bookmark handler (delegates to vanilla).  Register
+  as ~bookmark-gt-handler-file~ in the same registry.
+
+*Acceptance:*
+- ERT: create → save → load → jump for each of the seven handler
+  types.
+- ERT: create two bookmarks with the same visible name; both
+  survive save/load; ~bookmark-gt-jump~ disambiguates.
+- ERT: add tags to a bookmark; ~bookmark-gt-tags-list~ returns
+  them; ~bookmark-gt-bookmarks-with-tag~ finds it.
+- ERT: bookmark file written by ~bookmark-gt~ opens cleanly in
+  vanilla ~bookmark.el~ (data compat).
+- ERT: bookmark file written by =bookmark-plus-gt= (fixtures
+  copied from ../bookmark-plus-gt/test/) loads and round-trips
+  through ~bookmark-gt~ (data compat, other direction).
+
+*Blocks-on:* Stage 0.
+
+** Stage 2 — ~*Bookmarks-gt List*~ buffer
+
+*Goal:* Full-featured list buffer.  Users can do daily bookmark
+management here without touching the jump reader.
+
+*Milestones:*
+
+- =S2.1= (=bookmark-gt-list.el=) ~tabulated-list-mode~ derived
+  ~bookmark-gt-list-mode~.  Columns: Mark, Name, Type, Tags,
+  Location.  Fixed widths + sort headers.
+- =S2.2= Entry point ~bookmark-gt-list~ (interactive) that opens
+  the buffer.  ~revert-buffer~ rebuilds from ~bookmark-alist~ —
+  no advice, no ~bmkp-refresh/rebuild-menu-list~ equivalent.
+- =S2.3= Mark/unmark (=m= / =u=), delete-marked (=x=), flag for
+  deletion (=d= / =D=).  Uses ~tabulated-list~ mark column.
+- =S2.4= Jump from buffer (=RET= = same window; =o= = other
+  window).  Dispatches through the S1 handler registry.
+- =S2.5= Filter registry integration: ~bookmark-gt-list-filter-by~
+  (=/=) narrows the display.  Ship filters: by-type, by-tag,
+  by-name-regexp.  ~/ u~ clears.
+- =S2.6= Sort registry integration: sort headers use registered
+  comparators.  Ship comparators: name, type, last-visited,
+  visit-count.
+- =S2.7= Edit-in-place: rename (=r=), edit tags (=t=), edit
+  annotation (=a=).  All go through S1.1 ~bookmark-gt-set~.
+- =S2.8= Keymap review — pick ~15 essential keys; document the
+  delta from bookmark+'s bmenu in =readme.org=.
+
+*Acceptance:*
+- Manual test: open =bookmark-gt-list=, mark 3 entries, filter to
+  tagged, sort by last-visited, jump the top one.  Everything
+  round-trips.
+- ERT: sort/filter/mark ops don't mutate ~bookmark-alist~ (they
+  are display-only).
+- ERT: any mutation (rename/tag/delete) fires the after-set hook
+  and ~revert-buffer~ picks up the change.
+
+*Blocks-on:* Stage 1.
+
+*Ship point M1:* After S2.8, the package is internally usable.
+Not published yet — jump reader and auto-update still missing.
+
+** Stage 3 — Jump reader (consult + marginalia + orderless)
+
+*Goal:* Fuzzy jump with type/tag narrowing, matching current
+=bookmark-plus-gt-jump=.
+
+*Milestones:*
+
+- =S3.1= (=bookmark-gt-jump.el=) Consult reader shell
+  (~bookmark-gt-jump~).  Reads bookmark name with
+  ~consult--read~; ~:lookup~ resolves to record; jump via
+  handler-registry dispatch.
+- =S3.2= Marginalia annotator: name → type + tags + location.
+  Copied verbatim from =bookmark-plus-gt-jump.el= annotator
+  (already clean per =reimplement.org= table).
+- =S3.3= Orderless dispatchers: ~,@Type~ narrow, ~;tag~ tag
+  filter.  Copy the two matchers verbatim; rewire to the new
+  handler-registry keys.
+- =S3.4= Filter minibuffer state: =M-t= adds a tag filter and
+  restarts the reader with the filter active.  Formalize the
+  session state as let-bound closure (per =reimplement.org=
+  §"Records-only state" recommendation, not top-level defvar).
+- =S3.5= Convenience commands: ~bookmark-gt-jump-narrow~ (=,=),
+  ~bookmark-gt-jump-tagged~ (=t=), etc. — thin wrappers around
+  S3.1.
+
+*Acceptance:*
+- Manual test: =M-x bookmark-gt-jump=, type ~,@url foo~ →
+  URL bookmarks matching "foo".  Type ~;proj~ → bookmarks with
+  the "proj" tag.
+- ERT: annotator returns expected face-decorated string for each
+  handler type.
+- ERT: orderless dispatcher matches on registered handler
+  symbols, not hardcoded list.
+
+*Blocks-on:* Stage 1 (registry, tag API).  Independent of Stage 2.
+
+*Ship point M2:* After S3.5, the package covers the core
+day-to-day features.  Optional internal release for dogfooding.
+
+** Stage 4 — Auto-update
+
+*Goal:* Bookmarks tagged for auto-update stay current as the user
+edits the underlying buffer.
+
+*Milestones:*
+
+- =S4.1= (=bookmark-gt-auto-update.el=) Per-record ~auto-update~
+  alist key (boolean).  Toggle command
+  ~bookmark-gt-auto-update-toggle~.
+- =S4.2= Idle timer (single, holds process-scoped state — the one
+  ~defvar~ this file needs; documented per records-only
+  invariant).  On fire: for each visible buffer with an
+  auto-update bookmark at point, update the record's position.
+- =S4.3= ~kill-buffer-hook~ + ~window-state-change-hook~
+  triggers.  Cancel on ~bookmark-gt-mode~ off.
+- =S4.4= Buffer integration: S2 list buffer shows an indicator
+  column glyph for auto-update-tracked records.  Native column
+  def, no advice.
+
+*Acceptance:*
+- Manual test: mark a bookmark auto-update; edit above it;
+  bookmark position updates within one idle cycle.
+- ERT: toggling ~bookmark-gt-mode~ off cancels the timer;
+  toggling on re-arms.
+- ERT: the S2 list column shows the correct glyph for
+  auto-update records.
+
+*Blocks-on:* Stage 1 (records); Stage 2 (column integration).
+
+** Stage 5 — Default tags
+
+*Goal:* Tag reader offers context-appropriate defaults on
+~bookmark-gt-set~.
+
+*Milestones:*
+
+- =S5.1= (=bookmark-gt-default-tags.el=) DSL: copy verbatim from
+  =bookmark-plus-gt-default-tags.el= (empty / bare / flat / alist
+  shapes, ~--kind~ dispatch).  Marked as already-good design in
+  =reimplement.org=.
+- =S5.2= Register into the S1.1 tag-reader hook — one
+  ~add-hook~.  No dynamic markers, no around-advice.
+- =S5.3= User-facing configuration: ~bookmark-gt-default-tags~
+  defcustom.
+
+*Acceptance:*
+- ERT: with a matching default-tags rule, the tag reader's
+  initial input contains the default tags.
+- ERT: with no matching rule, reader shows no defaults.
+- ERT: user overriding the defaults in the reader stores the
+  override (defaults are seed, not force).
+
+*Blocks-on:* Stage 1 (tag reader hook).
+
+** Stage 6 — Browsel-tabs
+
+*Goal:* Browser tabs surface as bookmarks; don't persist across
+~bookmark-save~.
+
+*Milestones:*
+
+- =S6.1= Temp-bookmark support in =bookmark-gt-core.el=: the
+  ~bookmark-gt-temp~ alist key; ~bookmark-save~ filter excludes
+  records with the key.  (Same key name as bookmark+'s
+  ~bmkp-temp~ per data-compat principle — data round-trips both
+  ways.)
+- =S6.2= (=bookmark-gt-browsel-tabs.el=) Fetch tab list via
+  =browsel= WebSocket bridge; store as temp bookmarks with URL
+  handler.  Rebuild on ~window-state-change-hook~ or explicit
+  refresh command.
+- =S6.3= Handler entry ~bookmark-gt-handler-browser-tab~ in the
+  registry (thin wrapper around the URL handler that activates
+  the tab if still open, opens a new one otherwise).
+
+*Acceptance:*
+- Manual test: open 3 tabs in the browser; run
+  ~bookmark-gt-browsel-tabs-refresh~; the 3 tabs appear in the
+  S2 list buffer with the browser-tab type.  ~bookmark-save~
+  doesn't persist them; on Emacs restart they're gone.
+- ERT: temp records are excluded from ~bookmark-save~ output.
+
+*Blocks-on:* Stage 1 (temp key), Stage 2 (list column shows temp
+type).  Independent of Stages 3–5.
+
+** Stage 7 — Test coverage & migration
+
+*Goal:* Feature parity confidence + a path for existing
+bookmark-plus-gt users.
+
+*Milestones:*
+
+- =S7.1= Port the 217 tests from =../bookmark-plus-gt/test/=.
+  Update name references (~bmkp-gt-*~ → ~bookmark-gt-*~).  Some
+  survive verbatim (annotator face inheritance per
+  =reimplement.org= table); most need shallow edits.
+- =S7.2= Add new tests for shape guarantees:
+  + Registry lookup returns registered symbols only (never falls
+    back to a hardcoded switch).
+  + ~bookmark-set~ hook order is deterministic.
+  + Records-only invariant: automated check that
+    ~bookmark-gt-*~ files have no top-level ~defvar~ holding
+    per-bookmark state.  (Grep-based check in ~make lint~.)
+- =S7.3= Migration guide (=readme.org= section): "moving from
+  bookmark-plus-gt."  Reuse-same-alist-keys means no data
+  migration; document the keybinding delta and any renamed
+  commands.
+- =S7.4= Compat shim (optional): tiny =bookmark-plus-gt-compat.el=
+  that aliases ~bmkp-gt-*~ command names to ~bookmark-gt-*~
+  equivalents.  Users can =(require 'bookmark-gt-compat)= as a
+  migration bridge.  Deleted after v1.1.
+
+*Acceptance:*
+- =make check= passes with the full ported test suite.
+- =make lint= includes the records-only grep check and passes.
+- =readme.org= migration section walks through both installation
+  modes (side-by-side with old bookmark-plus-gt, and clean cutover).
+
+*Blocks-on:* Stages 1–6.
+
+** Stage 8 — Docs & MELPA submission
+
+*Goal:* Published on MELPA.
+
+*Milestones:*
+
+- =S8.1= =readme.org= full pass: overview, install, usage,
+  keybindings, extension points (how to register a handler /
+  mark / filter / sort).
+- =S8.2= Version bump to 1.0.0.  ~CHANGELOG.org~ from git log.
+- =S8.3= Fork =melpa/melpa=, add recipe file
+  (=melpa/bookmark-gt= from S0.1), submit PR.  Address review
+  feedback.
+- =S8.4= Announce.  Freeze =bookmark-plus-gt= (README pointer to
+  the new package, no new features, security-only maintenance
+  for 3 months).
+
+*Acceptance:*
+- MELPA PR merged.
+- =package-install bookmark-gt= works from MELPA in a clean
+  Emacs.
+
+*Blocks-on:* Stage 7.
+
+*Ship point M3:* User-installable.
+
+* Shippable milestones (summary)
+
+| Milestone | Reached after | User-visible state                                    |
+|-----------+---------------+-------------------------------------------------------|
+| M1        | Stage 2       | Internal use only.  List buffer works; no jump reader. |
+| M2        | Stage 3       | Optional dogfood release.  Buffer + jump both work.   |
+| M3        | Stage 8       | MELPA-installable v1.0.                               |
+
+The spec's "Nothing ships until the substrate + buffer stages are
+complete AND wired into something usable" corresponds to M2.
+
+* Parallelization
+
+After Stage 3, these can go in parallel (independent files, no
+shared internals except the S1 registries):
+
+- Stage 4 (auto-update)
+- Stage 5 (default-tags)
+- Stage 6 (browsel-tabs)
+
+Stage 7 needs all of them.  Stage 8 needs Stage 7.
+
+* Risk callouts (delta from ~reimplement.org~)
+
+Only new risks introduced by the staging shape:
+
+** Records-only invariant enforcement
+
+If S0.3's grep-based lint check has false positives (legitimate
+non-bookmark ~defvar~), we'll need a per-file allowlist.  Keep
+the allowlist small; each entry needs a comment justifying it.
+
+** Data-compat guarantee bidirectionality
+
+S1's acceptance requires that a bookmark file written by
+=bookmark-plus-gt= loads in =bookmark-gt=.  If bookmark+ writes
+alist keys we haven't planned for (esoteric handlers), the load
+must silently preserve them (round-trip unchanged) even when we
+don't act on them.  Add an ERT that mutates a preserved key and
+checks it survives.
+
+** Stage 2 buffer keymap churn
+
+The S2.8 keymap review will be contentious — users have muscle
+memory from bookmark+.  Publish the list at S2.8 for external
+comment before locking.  Not a blocker for M1 (internal only).
+
+* Non-goals (explicit)
+
+Not in scope for v1.0.  Revisit for v2 if requested:
+
+- Region bookmarks.
+- Autonaming.
+- Bookmark+'s "autofile bookmarks."
+- Bookmark-file-jump chaining.
+- Icicles integration.
+- W3M handler (dead per =reimplement.org=).
+
+* Open questions carried over from ~reimplement.org~
+
+Left open there and still open here:
+
+- Whether to break out =bookmark-gt-list.el= as a separately
+  MELPA-installable package for users who want just the buffer.
+  Recommendation: no, until there's demand.
+
+* References
+
+- =ai/reimplement.org= — the spec this staging serves.
+- =../bookmark-plus-gt/= — reference source for copy-verbatim
+  and copy-with-edit pieces per the spec's table.
+- =../bookmark-plus-gt/test/= — 217 tests to port in Stage 7.
+- =melpa-submit= skill — invoked in S0.1.
