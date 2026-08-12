@@ -27,7 +27,7 @@
 ;;; Commentary:
 ;;
 ;; `bookmark-gt-jump' — a jump reader that uses `consult--read' when
-;; consult is loaded, falls back to vanilla `completing-read'
+;; consult is loaded, falls back to built-in `completing-read'
 ;; otherwise.  When marginalia is loaded, candidates get an
 ;; annotation column (tags, type, path).  When orderless is loaded,
 ;; the reader accepts two narrowing particles:
@@ -81,6 +81,20 @@
 (defcustom bookmark-gt-jump-name-max-width 40
   "Maximum width of the bookmark name in a jump candidate."
   :type 'integer
+  :group 'bookmark-gt)
+
+(defcustom bookmark-gt-jump-default-sort 'mru
+  "Default sort order for `bookmark-gt-jump' and its variants.
+Consulted when the entry point's `:SORT-BY' keyword is not
+supplied.  Valid values match `bookmark-gt-jump--sort-records':
+
+  `mru'     Sort by `last-visited' descending — recently
+            visited records appear first.
+  `visits'  Sort by `visits' descending.
+  nil       Leave the candidate pool in its original order."
+  :type '(choice (const :tag "Most recently used" mru)
+                 (const :tag "Most visited"       visits)
+                 (const :tag "Pool order"         nil))
   :group 'bookmark-gt)
 
 (defcustom bookmark-gt-jump-candidate-format-function
@@ -374,7 +388,7 @@ Bound around the reader; outside a read, always nil.")
               (or (car (member selected cands)) selected)))))
 
 (defun bookmark-gt-jump--read-plain (prompt candidates)
-  "Read a CANDIDATES member via vanilla `completing-read' under PROMPT.
+  "Read a CANDIDATES member via built-in `completing-read' under PROMPT.
 Used when consult is not loaded.  The `M-t' filter keys still
 work because we let-bind `minibuffer-local-completion-map' via
 `make-composed-keymap'."
@@ -541,7 +555,7 @@ minibuffer-setup hook when PRESELECT is a positive integer."
 ;;;###autoload
 (cl-defun bookmark-gt-jump
     (&key bookmark display-function bookmarks-list bookmarks-filter
-          group sort-by preselect)
+          group (sort-by bookmark-gt-jump-default-sort) preselect)
   "Jump to BOOKMARK, reading via consult (or `completing-read') when nil.
 
 All arguments are keyword.  Interactively, none are supplied —
@@ -550,7 +564,7 @@ the reader prompts for the bookmark.
 - :BOOKMARK — bookmark name or record.  When nil, prompt.
 - :DISPLAY-FUNCTION — passed to `bookmark-jump' as its optional
   DISPLAY-FUNC (a fn of one argument, a buffer).  Defaults to
-  vanilla's same-window handler.
+  the built-in same-window handler.
 - :BOOKMARKS-LIST — alist in the shape of `bookmark-alist' to
   use as the candidate pool.  Defaults to `bookmark-alist'.
   Ignored when :BOOKMARK is supplied.
@@ -564,8 +578,9 @@ the reader prompts for the bookmark.
   :BOOKMARK is supplied.
 - :SORT-BY — sort order for the candidate pool.  `mru' sorts by
   the record's `last-visited' prop descending; `visits' sorts by
-  the `visits' prop descending; nil (default) leaves the pool's
-  original order.
+  the `visits' prop descending; nil leaves the pool's original
+  order.  Defaults to `bookmark-gt-jump-default-sort' (\\='mru
+  out of the box).
 - :PRESELECT — positive integer.  When set (and vertico is
   loaded), the reader positions the cursor on the N-th candidate
   via a one-shot `minibuffer-setup-hook'.
@@ -592,7 +607,8 @@ Minibuffer keys:
 
 ;;;###autoload
 (cl-defun bookmark-gt-jump-other-window
-    (&key bookmark bookmarks-list bookmarks-filter group sort-by preselect)
+    (&key bookmark bookmarks-list bookmarks-filter group
+          (sort-by bookmark-gt-jump-default-sort) preselect)
   "Like `bookmark-gt-jump' but display in another window.
 :BOOKMARK, :BOOKMARKS-LIST, :BOOKMARKS-FILTER, :GROUP,
 :SORT-BY, and :PRESELECT have the same meaning as in
@@ -610,7 +626,8 @@ the display function is fixed to another window."
 
 ;;;###autoload
 (cl-defun bookmark-gt-jump-tagged
-    (&key tag bookmark bookmarks-list bookmarks-filter group sort-by preselect)
+    (&key tag bookmark bookmarks-list bookmarks-filter group
+          (sort-by bookmark-gt-jump-default-sort) preselect)
   "Jump to a bookmark, prefiltered by TAG.
 :TAG (required, a string) seeds the reader's active tag filter.
 :BOOKMARK, :BOOKMARKS-LIST, :BOOKMARKS-FILTER, :GROUP,

@@ -1,14 +1,16 @@
 #+TITLE: bookmark-gt
 #+OPTIONS: toc:2
 
-A bookmark manager for Emacs, layered on vanilla ~bookmark.el~.
-Written to replace [[https://www.emacswiki.org/emacs/BookmarkPlus][bookmark+]] for the daily-driver workflows —
-tags, non-file bookmark types, a ~tabulated-list-mode~ list buffer,
-and a consult / marginalia / orderless-friendly jump reader — without
-inheriting bookmark+'s advice-heavy design or its bookkeeping cost.
+A bookmark manager for Emacs, layered on the built-in
+~bookmark.el~.  Written to replace [[https://www.emacswiki.org/emacs/BookmarkPlus][bookmark+]] for everyday
+workflows — tags, non-file bookmark types, a
+~tabulated-list-mode~ list buffer, and a jump reader
+integrated with consult, marginalia, and orderless — without
+inheriting bookmark+'s advice-heavy design or its bookkeeping
+cost.
 
-Vanilla ~bookmark.el~ is the substrate.  Bookmark files round-trip
-with both vanilla and bookmark+.
+The built-in ~bookmark.el~ is the substrate.  Bookmark files
+round-trip with both the built-in format and bookmark+.
 
 * Install
 
@@ -18,7 +20,7 @@ Local module (submodule, straight :local, or manual clone):
 (use-package bookmark-gt
   :straight nil
   :load-path "~/.emacs.d/modules/bookmark-gt"
-  :bind (("C-x r m" . bookmark-gt-set)         ; supersede vanilla bookmark-set
+  :bind (("C-x r m" . bookmark-gt-set)         ; supersede built-in bookmark-set
          ("C-x r l" . bookmark-gt-list)        ; supersede bookmark-bmenu-list
          ("C-x r b" . bookmark-gt-jump)        ; fuzzy jump reader
          ("C-x r u" . bookmark-gt-set-url))    ; new: bookmark a URL
@@ -47,7 +49,7 @@ Global minor mode.  When on, it wires:
   annotation-buffer popup;
 - the file-rename tracker on ~rename-file~ (see below).
 
-Turning it off cleanly removes all of the above.
+Turning it off removes all of the above.
 
 * Tag reader
 
@@ -104,7 +106,7 @@ old record behind as ~foo~ and adding ~foo<2>~.
 
 Collisions with a different handler or a different file are
 still disambiguated with a ~<N>~ suffix, so cross-source name
-reuse never silently clobbers.
+reuse never silently overwrites an existing record.
 
 Two knobs:
 
@@ -112,7 +114,7 @@ Two knobs:
   to always disambiguate, restoring the earlier behavior.
 - Prefix argument to ~M-x bookmark-gt-set~ (~NO-OVERWRITE~ from
   Lisp) — forces disambiguation for this one call, matching
-  vanilla ~bookmark-set~'s ~C-u~ semantics.
+  built-in ~bookmark-set~'s ~C-u~ semantics.
 
 * Opt-in modes
 
@@ -280,7 +282,8 @@ All three entry points take keyword arguments only:
   kept when the predicate returns non-nil.  Ignored when
   ~:BOOKMARK~ is supplied.
 - ~:SORT-BY~ — ~mru~ (by ~last-visited~ desc), ~visits~ (by
-  ~visits~ desc), or nil (default: preserve pool order).
+  ~visits~ desc), or nil (preserve pool order).  Defaults to
+  ~bookmark-gt-jump-default-sort~ (~mru~ by default).
 - ~:PRESELECT~ — positive integer.  When set (and vertico is
   loaded), the reader positions the cursor on the N-th
   candidate via a one-shot minibuffer-setup hook.  Useful for a
@@ -337,12 +340,12 @@ Elisp:
 
 The URL bookmark's handler (~bookmark-gt-handler-url-jump~) opens
 the URL via ~browse-url~.  It also throws
-~bookmark-gt-skip-post-handler~ so vanilla doesn't pop up an
-annotation buffer stealing focus back from the browser.
+~bookmark-gt-skip-post-handler~ so the built-in post-handler flow does not pop up an
+annotation buffer moving focus from the browser back to Emacs.
 
 ** Dired bookmarks — ~bookmark-gt-handler-dired-jump~
 
-Vanilla Emacs's ~dired.el~ has no bookmark handler.  We ship one
+The built-in Emacs's ~dired.el~ has no bookmark handler.  We ship one
 that just calls ~(dired FILENAME)~.  Records migrated from
 bookmark+ (~bmkp-jump-dired~) are still recognized as Dired type
 via the registry alias; you can migrate them off bookmark+ by
@@ -379,7 +382,7 @@ The optional ~:preview~ key overrides what
 ~bookmark-gt-list-preview~ (bound to ~TAB~ in the list buffer)
 does for that handler.  Called with the record; runs inside
 ~save-selected-window~ so it can pop up a preview buffer
-without stealing focus from the list.  When absent, preview
+without moving point away from the list.  When absent, preview
 falls back to ~bookmark-jump-other-window~ on the record's own
 jump handler — the current default.  Useful for e.g.
 rendering a URL in an EWW buffer as preview while ~RET~ still
@@ -458,7 +461,7 @@ Two shape differences we accommodate on read:
 
 * In-buffer cycling
 
-Two autoloaded commands walk the bookmarks that live in the
+Two autoloaded commands iterate over the bookmarks whose file matches the
 current buffer's file, sorted by position:
 
 - ~M-x bookmark-gt-cycle-next~ — jump to the next bookmark
@@ -514,8 +517,8 @@ Customization:
 - ~bookmark-gt-face-highlight~ — face for the overlay.
   Rebind to a subtler / stronger color as you prefer.
 
-Overlays are process-scoped display state; they die with the
-buffer (kill-buffer cleans up) and are cleared entirely when
+Overlays are process-scoped display state; they are removed
+when the buffer is killed, and are cleared entirely when
 ~bookmark-gt-mode~ turns off.  Nothing is written to disk.
 The post-jump position hash is likewise buffer-local and
 transient.
@@ -532,16 +535,16 @@ context strings so the region can be re-selected on jump:
   ~end-position~ (for re-anchoring)
 - ~rear-context-region-string~ = ~N~ characters following
   ~end-position~
-- ~front-context-string~ / ~rear-context-string~ = vanilla's
+- ~front-context-string~ / ~rear-context-string~ = the built-in
   standard re-anchor strings around the start
 
-Alist-key names match bookmark+ so records round-trip cleanly.
-Vanilla ~bookmark.el~ ignores the extra keys and jumps to
+Alist-key names match bookmark+ so records round-trip losslessly.
+The built-in ~bookmark.el~ ignores the extra keys and jumps to
 ~position~ only.
 
 On jump, a hook on ~bookmark-after-jump-hook~ pushes the mark
 at ~end-position~ (adjusted by the delta between the record's
-raw ~position~ and the actual point after vanilla re-anchoring)
+raw ~position~ and the actual point after built-in re-anchoring)
 and activates it — the region reappears highlighted.
 
 Customization:
@@ -591,7 +594,7 @@ the directory exactly.  Children are NOT rewritten.
 
 * Extension points
 
-Every non-trivial mechanism has a documented seam.
+Every non-trivial mechanism has a documented extension point.
 
 - ~bookmark-gt-set-name-reader-hook~ — refine the bookmark
   name before the interactive prompt.  ~(default-name context)~
@@ -621,6 +624,7 @@ Every non-trivial mechanism has a documented seam.
 | ~bookmark-gt-list-selection-mark~     | Mark char (default ~?*~)         |
 | ~bookmark-gt-list-deletion-mark~      | Deletion flag char (default ~?D~) |
 | ~bookmark-gt-jump-name-max-width~     | Jump reader name truncation (40) |
+| ~bookmark-gt-jump-default-sort~       | Jump reader default sort ('mru)  |
 | ~bookmark-gt-auto-update-interval~    | Auto-update idle seconds (60)    |
 | ~bookmark-gt-track-renames~           | Rename tracker on/off (t)        |
 | ~bookmark-gt-default-tags~            | Default-tags DSL value           |
@@ -643,7 +647,7 @@ principles:
 3. ~tabulated-list-mode~ for the list buffer — no advice on
    any other package's rendering code.
 4. Same alist keys as bookmark+ so files round-trip.
-5. Vanilla ~bookmark.el~ is the substrate — never invent our own
+5. The built-in ~bookmark.el~ is the substrate — never invent our own
    storage.
 
 * License

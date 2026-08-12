@@ -72,7 +72,7 @@
           (should (bookmark-gt-temp-p (assoc "temp" bookmark-alist))))
       (bookmark-gt-uninstall-temp-save-filter))))
 
-(ert-deftest bookmark-gt-temp-test-uninstall-restores-vanilla ()
+(ert-deftest bookmark-gt-temp-test-uninstall-restores-built-in ()
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-set-non-file "keep" 'h nil)
     (bookmark-gt-set-non-file "temp" 'h (list (cons bookmark-gt-temp-key t)))

@@ -27,7 +27,7 @@
 
 ;;; Commentary:
 ;;
-;; bookmark-gt is a bookmark manager layered on vanilla `bookmark.el'
+;; bookmark-gt is a bookmark manager layered on built-in `bookmark.el'
 ;; with tags, non-file bookmark types (URL, EWW, Dired, Info, Org
 ;; heading, PDF), a `tabulated-list-mode' buffer, and integration
 ;; with consult / marginalia / orderless when they are available.
@@ -35,7 +35,7 @@
 ;; Design principles are documented under ai/reimplement.org and
 ;; ai/staging.org in the source repository.  In short: records are
 ;; the only persistent mutable state, one registry per axis, and
-;; bookmark files round-trip with vanilla bookmark.el.
+;; bookmark files round-trip with built-in bookmark.el.
 ;;
 ;; This file is the entry point.  It provides the master switch
 ;; `bookmark-gt-mode' and shared utilities used by the other

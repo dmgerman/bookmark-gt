@@ -112,7 +112,7 @@ Uses `browsel-focus-tab' with the recorded `browsel-id' and
 browsel), falls back to `browsel-browse-url' with the recorded
 URL.
 
-Throws `bookmark-gt-skip-post-handler' at the end so vanilla
+Throws `bookmark-gt-skip-post-handler' at the end so built-in
 does not pop up an annotation buffer — the browser has focus
 and an Emacs annotation stealing it back would be worse than
 useless.  Safe when the catch is not installed."
@@ -128,7 +128,7 @@ useless.  Safe when the catch is not installed."
        (if (and url (not (string-empty-p url)))
            (browsel-browse-url url)
          (user-error "Browser-tab bookmark has no usable URL")))))
-  ;; Vanilla's after-jump-hook is bypassed by the throw below —
+  ;; The built-in's after-jump-hook is bypassed by the throw below —
   ;; record the visit directly so MRU / visit-count sort see it.
   (bookmark-gt-record-visit bookmark)
   (bookmark-gt-skip-post-handler 'browser-tab))

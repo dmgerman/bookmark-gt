@@ -18,7 +18,7 @@
 
 ;;;; Same-name disambiguation
 ;;
-;; bookmark-gt uses vanilla's own "<N>" suffix convention for
+;; bookmark-gt uses the same "<N>" suffix convention as `bookmark.el' for
 ;; collisions (see the design note in bookmark-gt-core.el).  The
 ;; visible name of the second colliding bookmark is NAME<2>, the
 ;; third is NAME<3>, etc.

@@ -8,7 +8,7 @@
 ;;
 ;; Tests for region-bookmark capture on `bookmark-gt-set' and
 ;; region restoration via `bookmark-gt--restore-region-hook'.
-;; Each test uses a temp file — vanilla `bookmark-make-record'
+;; Each test uses a temp file — built-in `bookmark-make-record'
 ;; refuses to run in a buffer with no `buffer-file-name'.
 
 ;;; Code:

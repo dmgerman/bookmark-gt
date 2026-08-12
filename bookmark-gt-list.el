@@ -30,7 +30,7 @@
 ;; `tabulated-list-mode'.  Columns: Mark, Name, Type, Tags,
 ;; Location.  Sort headers, mark / flag-for-deletion / execute,
 ;; jump-same-window / jump-other-window, filter (`/'), edit-in-
-;; place (rename / edit tags / edit annotation) all use vanilla
+;; place (rename / edit tags / edit annotation) all use built-in
 ;; tabulated-list machinery — no advice on any other package.
 ;;
 ;; Filter registry (`bookmark-gt-filter-alist') and sort registry

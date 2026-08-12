@@ -144,13 +144,13 @@ register here.")
 
 ;;;; Same-name disambiguation
 ;;
-;; Vanilla `bookmark-store' strips text properties from names and
-;; vanilla `bookmark-load' runs `bookmark-maybe-rename' which
+;; The built-in `bookmark-store' strips text properties from names and
+;; built-in `bookmark-load' runs `bookmark-maybe-rename' which
 ;; already appends "<N>" suffixes to colliding names on load.
 ;; Rather than fight both, we adopt the same convention on store:
 ;; a bookmark whose name collides with an existing one gets stored
 ;; as NAME<2>, NAME<3>, and so on.  Users see the suffix in the
-;; list buffer; it is the accepted convention across vanilla,
+;; list buffer; it is the accepted convention across built-in,
 ;; bookmark+, and every third-party bookmark front-end.
 
 (defun bookmark-gt-display-name (name)
@@ -266,7 +266,7 @@ ai/design/tag-storage.org)."
 ;; measured cases, which turns a browser-tab refresh of ~100 tabs
 ;; into a multi-second stall.
 ;;
-;; The essential vanilla `bookmark-store' contract is: push the
+;; The essential built-in `bookmark-store' contract is: push the
 ;; record onto `bookmark-alist' (with text-properties stripped
 ;; from the name), update `bookmark-current-bookmark', and bump
 ;; `bookmark-alist-modification-count'.  The bmenu rebuild is
@@ -279,8 +279,8 @@ ai/design/tag-storage.org)."
 ;; `bookmark-save-flag' to nil to prevent mid-batch saves.
 
 (defun bookmark-gt--push-record (name alist)
-  "Push (NAME . ALIST) onto `bookmark-alist' with vanilla-compat bookkeeping.
-NAME's text properties are stripped, matching what vanilla
+  "Push (NAME . ALIST) onto `bookmark-alist' compatibly with `bookmark-store'.
+NAME's text properties are stripped, matching what the built-in
 `bookmark-store' does.  Returns the stripped name."
   (let ((stripped (copy-sequence name)))
     (set-text-properties 0 (length stripped) nil stripped)
@@ -299,7 +299,7 @@ NAME's text properties are stripped, matching what vanilla
 
 PROPS is an alist of additional record entries (URL, page title,
 etc.).  Non-file bookmarks omit the `filename' key entirely so
-vanilla `bookmark-jump' dispatches on HANDLER, which must be a
+built-in `bookmark-jump' dispatches on HANDLER, which must be a
 function suitable for `bookmark-handler-function'.
 
 Runs `bookmark-gt-set-name-reader-hook',
@@ -327,9 +327,9 @@ Returns the stored (NAME . DATA) pair."
 ;; (per the data-compat design principle in ai/reimplement.org).
 ;;
 ;; The save filter is installed via advice on `bookmark-save' —
-;; vanilla has no extension hook there.  Install / uninstall is
+;; `bookmark.el' has no extension hook there.  Install / uninstall is
 ;; controlled by `bookmark-gt-mode' so a user who never enables it
-;; sees plain vanilla behavior.
+;; sees the built-in behavior unchanged.
 
 (defconst bookmark-gt-temp-key 'bmkp-temp
   "Alist key used to mark a bookmark as temporary.
@@ -362,7 +362,7 @@ other observers refresh."
 
 ;;;; jump-via catch tag
 ;;
-;; Vanilla `bookmark--jump-via' calls the handler, then unconditionally
+;; The built-in `bookmark--jump-via' calls the handler, then unconditionally
 ;; runs `bookmark-after-jump-hook' and (if
 ;; `bookmark-automatically-show-annotations' is non-nil) pops up the
 ;; annotation buffer.  For handlers whose target is external — a
@@ -377,12 +377,12 @@ other observers refresh."
 ;; Bookmark+ solves this by redefining `bookmark--jump-via' with a
 ;; `(catch 'bookmark--jump-via ...)' around the body; handlers
 ;; then throw to skip everything after step 2.  We do the same
-;; less intrusively via `:around' advice that wraps the vanilla
+;; less intrusively via `:around' advice that wraps the built-in
 ;; body in our own catch tag; handlers throw
 ;; `bookmark-gt-skip-post-handler' to opt out.
 ;;
 ;; The install/uninstall pair is wired to `bookmark-gt-mode' so
-;; a user who never enables the package sees plain vanilla
+;; a user who never enables the package sees the built-in
 ;; behavior.  Handlers wrap their throw in a `condition-case' /
 ;; `no-catch' shim so a throw when the advice is not installed
 ;; silently degrades to a no-op.
@@ -390,7 +390,7 @@ other observers refresh."
 (defun bookmark-gt--jump-via-catch-advice (orig-fn &rest args)
   "Wrap ORIG-FN (called with ARGS) in a `bookmark-gt-skip-post-handler' catch.
 Handlers throw that tag to bail out of the post-handler steps
-that vanilla `bookmark--jump-via' runs (annotation buffer,
+that built-in `bookmark--jump-via' runs (annotation buffer,
 `bookmark-after-jump-hook', fringe mark)."
   (catch 'bookmark-gt-skip-post-handler
     (apply orig-fn args)))
@@ -407,7 +407,7 @@ that vanilla `bookmark--jump-via' runs (annotation buffer,
 
 (defmacro bookmark-gt-skip-post-handler (value)
   "Throw VALUE to the catch tag `bookmark-gt-skip-post-handler'.
-Handlers use this at their tail to abort the vanilla post-
+Handlers use this at their tail to abort the built-in post-
 handler steps (annotation buffer, hooks, fringe mark) for the
 current jump.  Safe to call even when the catch is not
 installed: a `no-catch' error is silently swallowed by the
@@ -534,7 +534,7 @@ Attached to `find-file-hook' by
 
 (defun bookmark-gt-highlight--after-jump-hook ()
   "Record the just-jumped bookmark's point and refresh the buffer.
-Fires from `bookmark-after-jump-hook' after vanilla positions
+Fires from `bookmark-after-jump-hook' after built-in positions
 point.  Even records without a numeric `position' (org-heading
 bookmarks, etc.) now get an overlay, because the landed point
 is remembered in `bookmark-gt-highlight--jumped-positions' and
@@ -658,7 +658,7 @@ Wraps from start to end when before the first one."
 ;;
 ;; Alist-key names match bookmark+ (`end-position',
 ;; `front-context-region-string', `rear-context-region-string')
-;; so bookmark files round-trip.  Vanilla `bookmark.el' ignores
+;; so bookmark files round-trip.  The built-in `bookmark.el' ignores
 ;; the extra keys — the record still jumps correctly there,
 ;; just without region restore.
 
@@ -680,7 +680,7 @@ via `bookmark-gt-uninstall-region-restore'."
 
 (defcustom bookmark-gt-region-context-size 40
   "Characters of context captured around a region's end.
-Used by vanilla-style re-anchoring to relocate the end position
+Used by the re-anchoring logic to relocate the end position
 when the buffer has been edited between save and re-jump."
   :type 'integer
   :group 'bookmark-gt)
@@ -753,7 +753,7 @@ Idempotent."
 ;; jump.  These two alist keys drive `bookmark-gt-jump''s
 ;; `:sort-by 'mru' and `:sort-by 'visits' features.
 ;;
-;; Wiring: vanilla `bookmark-after-jump-hook' fires the tracker
+;; Wiring: built-in `bookmark-after-jump-hook' fires the tracker
 ;; for file-typed jumps.  Handlers that throw
 ;; `bookmark-gt-skip-post-handler' (URL, browser-tab) call
 ;; `bookmark-gt-record-visit' directly at their tail because the
@@ -777,7 +777,7 @@ disk write per jump."
 (defun bookmark-gt--record-visit-hook ()
   "Hook for `bookmark-after-jump-hook'.
 Records the visit against `bookmark-current-bookmark' (set by
-vanilla `bookmark-handle-bookmark' before the after-jump-hook
+built-in `bookmark-handle-bookmark' before the after-jump-hook
 runs).  Handlers that throw `bookmark-gt-skip-post-handler'
 bypass this hook and must call `bookmark-gt-record-visit'
 themselves."
@@ -836,7 +836,7 @@ variable at call time)."
   "Around advice for `rename-file' that follows the rename in `bookmark-alist'.
 FROM and TO are the source/destination paths; ORIG-FN is
 `rename-file'; ARGS carries `ok-if-already-exists' and any
-further vanilla arguments.  Rewrites bookmarks whose
+further built-in arguments.  Rewrites bookmarks whose
 `filename' exactly equals FROM to point at TO.  Gated by
 `bookmark-gt-track-renames' and skipped for backup destinations."
   (apply orig-fn from to args)
@@ -893,7 +893,7 @@ where handler or filename differs, is disambiguated with a
 `bookmark-gt-same-name-overwrite' to nil to always disambiguate.
 
 NO-OVERWRITE (a prefix argument interactively) forces
-disambiguation regardless of the flag, matching vanilla
+disambiguation regardless of the flag, matching built-in
 `bookmark-set'.
 
 Runs `bookmark-gt-set-name-reader-hook',
@@ -907,7 +907,7 @@ Returns the stored (NAME . DATA) pair."
          (raw-record (if region-active
                          ;; Capture context around region-start (not
                          ;; wherever point happens to be within the
-                         ;; region) so vanilla's front/rear context
+                         ;; region) so the built-in front/rear context
                          ;; strings anchor to the region's beginning.
                          (save-excursion
                            (goto-char (region-beginning))

@@ -189,7 +189,7 @@ Each element is (HANDLER . PLIST) where PLIST carries:
 Populated by `bookmark-gt-handler-register' calls in this file
 and by user extensions.
 
-HANDLER may be nil (matches vanilla file+position records that
+HANDLER may be nil (matches built-in file+position records that
 carry no `handler' property).")
 
 (defun bookmark-gt-handler-register (handlers plist)
@@ -308,7 +308,7 @@ handler is unknown (derive-fallback)."
 
 ;;;; Dired handler — bookmark-gt owns this one end-to-end
 ;;
-;; Vanilla Emacs's `dired.el' does not ship a bookmark handler;
+;; The built-in Emacs's `dired.el' does not ship a bookmark handler;
 ;; Dired bookmarks are a bookmark+ invention.  To let users
 ;; migrate off bookmark+ without breaking their existing Dired
 ;; records, this module ships its own trivial handler that just
@@ -319,7 +319,7 @@ handler is unknown (derive-fallback)."
 ;; contract (\"open the directory\") is honored.
 
 (defun bookmark-gt-handler-dired-jump (bookmark)
-  "Vanilla-compatible bookmark handler for Dired bookmarks.
+  "Bookmark handler for Dired bookmarks, compatible with `bookmark.el'.
 Opens BOOKMARK's `filename' (a directory) via `dired'.
 
 Does NOT throw the `bookmark-gt-skip-post-handler' tag — the
@@ -336,21 +336,23 @@ after-jump hook remain useful."
 ;;;; URL handler — bookmark-gt owns this one end-to-end
 
 (defun bookmark-gt-handler-url-jump (bookmark)
-  "Vanilla-compatible bookmark handler for URL bookmarks.
+  "Bookmark handler for URL bookmarks, compatible with `bookmark.el'.
 BOOKMARK is a bookmark record.  Opens the record's URL (read
 via `bookmark-gt-url-of', which accepts either the `url' or
 `location' prop for bookmark+ compat) with `browse-url'.
 
-Throws `bookmark-gt-skip-post-handler' so vanilla does not pop
-up an annotation buffer or run `bookmark-after-jump-hook' —
-the browser has focus and an Emacs annotation buffer stealing
-it would be worse than useless.  When the catch is not
-installed (bookmark-gt-mode off) the throw silently no-ops."
+Throws `bookmark-gt-skip-post-handler' so the built-in
+post-handler flow does not pop up an annotation buffer or run
+`bookmark-after-jump-hook' —
+the browser has focus, so displaying an Emacs annotation buffer
+would move focus away from the target without benefit.  When
+the catch is not installed (bookmark-gt-mode off) the throw is
+a no-op."
   (let ((url (bookmark-gt-url-of bookmark)))
     (unless url
       (user-error "URL bookmark has no `url' or `location' property"))
     (browse-url url)
-    ;; Vanilla's after-jump-hook is bypassed by the throw below, so
+    ;; The built-in's after-jump-hook is bypassed by the throw below, so
     ;; record the visit directly here.  Keeps MRU / visit-count sort
     ;; accurate for URL bookmarks.
     (bookmark-gt-record-visit bookmark)
@@ -380,7 +382,7 @@ Returns the stored (NAME . DATA) pair."
 
 ;;;; Built-in registrations
 
-;; File — vanilla no-handler and the explicit default handler both map here.
+;; File — built-in no-handler and the explicit default handler both map here.
 (bookmark-gt-handler-register
  '(nil bookmark-default-handler)
  (list :type 'file :name "File" :group 'file
@@ -404,7 +406,7 @@ Returns the stored (NAME . DATA) pair."
        :doc "Page bookmarked from EWW."))
 
 ;; Dired — our own handler (canonical, works without bookmark+)
-;; plus aliases for records still carrying bookmark+ / vanilla
+;; plus aliases for records still carrying bookmark+ / built-in
 ;; symbols so historic files classify correctly during migration.
 (bookmark-gt-handler-register
  '(bookmark-gt-handler-dired-jump

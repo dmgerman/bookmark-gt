@@ -33,7 +33,7 @@
 (ert-deftest bookmark-gt-test-classify-file-null-handler ()
   "A record with no `handler' classifies as file."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "vanilla" nil
+    (bookmark-gt-set-non-file "built-in" nil
                               '((filename . "/tmp/foo")
                                 (position . 1)))
     (should (eq (bookmark-gt-handler-type (car bookmark-alist)) 'file))))
@@ -42,7 +42,7 @@
   "`bookmark-default-handler' also classifies as file (alias)."
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-set-non-file
-     "vanilla" 'bookmark-default-handler
+     "built-in" 'bookmark-default-handler
      '((filename . "/tmp/foo") (position . 1)))
     (should (eq (bookmark-gt-handler-type (car bookmark-alist)) 'file))))
 
