@@ -1,0 +1,770 @@
+#+TITLE: Reimplementing Bookmark+ inside bookmark-plus-gt
+#+STARTUP: overview
+
+Analysis of what it would take to stop layering on top of ~bookmark+~
+and absorb the functionality we actually use into ~bookmark-plus-gt~,
+with a from-scratch ~*Bookmark List*~ buffer as the anchor piece.
+
+Written 2026-08-11 as a scoping document; not a commitment.
+
+* Goal
+
+Keep the current user-facing feature set (tags, non-file bookmark
+types, the ~*Bookmark List*~ tag/type columns, consult jump, auto-
+update, browsel-tabs, master switch) but remove ~bookmark+~ as a
+runtime dependency.  Rewrite the ~*Bookmark List*~ buffer from scratch
+against ~tabulated-list-mode~.
+
+Vanilla ~bookmark.el~ remains the substrate — every command
+ultimately calls ~bookmark-store~, ~bookmark-load~, ~bookmark-save~,
+~bookmark-prop-get/set~ — so existing bookmark files round-trip
+cleanly and users of vanilla ~bookmark-jump~ interoperate.
+
+* What we currently import from bookmark+
+
+68 ~bmkp-*~ symbols (see the =bmkp-*= inventory at
+=ai/reimplement.org= session log or =grep bmkp- bookmark-plus-gt*.el=).
+Grouped by role:
+
+** Tags — no vanilla equivalent
+
+~bmkp-add-tags~, ~bmkp-get-tags~, ~bmkp-tags-list~, ~bmkp-tags-alist~,
+~bmkp-tag-history~, ~bmkp-read-tags-completing~,
+~bmkp-prompt-for-tags-flag~, ~bmkp-properties-to-keep~,
+~bmkp-after-set-hook~.
+
+Central to the annotator, ~*Bookmark List*~ tags column, jump filter
+minibuffer (=M-t=), default-tags-mode, and the ~;tag~ particle.
+Vanilla has zero tag support.
+
+** Non-file bookmark types + placeholder — no vanilla equivalent
+
+~bmkp-non-file-filename~ marker, ~bmkp-file-bookmark-p~,
+~bmkp-url-bookmark-p~, and 15 per-type ~bmkp-jump-*~ handlers (URL,
+EWW, Dired, Gnus, Man, Woman, W3M, desktop, snippet, function,
+variable-list, sequence, bookmark-list, bookmark-file).
+
+Vanilla only knows file+position bookmarks.  URL/EWW/Dired/Gnus are
+entirely a bookmark+ invention.  ~bmkp-gt-jump-narrow~ (the type
+taxonomy driving the =,= narrow key, the ~@Type~ particle, the type
+column) is built around bookmark+'s handler set.
+
+** ~*Bookmark List*~ buffer decoration — structurally incompatible
+
+~bmkp-bmenu-list-1~, ~bmkp-bmenu-goto-bookmark-named~,
+~bmkp-bmenu-mode-status-help~, ~bmkp-bmenu-header-lines~,
+~bmkp-bmenu-marks-width~, ~bmkp-bmenu-buffer~,
+~bmkp-refresh/rebuild-menu-list~, ~bmkp-bmenu-show-only-urls~.
+
+Bookmark+'s list buffer is built by hand — ~bmkp-bmenu-list-1~
+renders each row imperatively and maintains column-position
+bookkeeping.  Our entire =bookmark-plus-gt-tags.el= advises this
+function to insert tag/type columns.  Vanilla uses
+~tabulated-list-mode~ — totally different render model.  Our
+column-splicing advice cannot apply to it.
+
+** Jump dispatcher — partially replaceable
+
+~bmkp-jump-1~, ~bmkp-select-buffer-other-window~,
+~bmkp--pop-to-buffer-same-window~, ~bmkp-record-visit~,
+~bmkp-jump-to-current-annotation-position~.
+
+~bmkp-jump-1~ is what our ~bmkp-gt-jump*~ commands call.  Vanilla
+~bookmark-jump~ is less pluggable but usable.  The upstream
+~bookmark--jump-via~ fix (issue #1) already covers the display-
+function behavior we care about.  Losing ~bmkp-record-visit~ breaks
+~bmkp-gt-jump-sort-by 'mru~ — visit tracking needs its own home.
+
+** Record accessors and sort helpers — easy to replace or drop
+
+~bmkp-get-bookmark~, ~bmkp-bookmark-name-from-record~,
+~bmkp-sort-comparer~, ~bmkp-sorted-alist~, ~bmkp-alpha-p~,
+~bmkp-float-time~, ~bmkp-with-help-window~, ~bmkp-looking-at-p~,
+~bmkp-default-bookmark-name~, ~bmkp-same-file-p~.
+
+Vanilla equivalents exist (~assoc~, ~sort~, ~time-less-p~,
+~with-help-window~, ~looking-at-p~).
+
+** Same-name bookmark disambiguation
+
+~bmkp-propertize-bookmark-names-flag~,
+~bmkp-bookmark-set-confirms-overwrite-p~.
+
+Bookmark+ lets you have multiple bookmarks with the same literal
+name (disambiguated by text properties on the name string).  Vanilla
+silently merges.  We rely on this; the master switch even forces
+~bmkp-bookmark-set-confirms-overwrite-p t~.
+
+** Highlighting
+
+~bmkp-lighted-p~, ~bmkp-light-bookmark~, ~bmkp-unlight-bookmark~.
+
+We already fall back to vanilla ~bookmark--set-fringe-mark~ (Emacs
+28+) alongside these.  Could drop lit integration entirely without
+loss.
+
+** Temporary bookmarks — used by browsel-tabs only
+
+~bmkp-temp~ property, ~bmkp-make-bookmark-temporary~,
+~bmkp-toggle-temporary-bookmark~, ~bmkp-modified-bookmarks~.
+
+The browsel-tabs feature depends on temp bookmarks (browser tabs
+shouldn't persist).  Vanilla has no concept.
+
+** Save / load persistence
+
+~bmkp-maybe-save-bookmarks~, ~bmkp-last-as-first-bookmark-file~.
+
+Mostly already handled by the master switch's state-file persistence
+intercept.  Would need to drop the intercept target variable when
+bookmark+ goes.
+
+* Where the bloat lives in bookmark+
+
+Bookmark+ runtime is ~25,800 lines across 5 files.  Structural
+sources of size, in rough size order:
+
+** Per-handler duplication instead of data-driven dispatch
+
+~50 handler types (URL, EWW, W3M, Dired, Gnus, Org-heading, Info,
+PDF, snippet, sequence, function, variable-list, ...).  For each
+type, bookmark+ has its own ~bmkp-jump-*~, ~bmkp-*-jump-other-window~,
+~bmkp-*-p~ predicate, list-buffer face rule, filter predicate, mark
+command, sort variant.  Same shape 50 times.  A single alist ~handler
+→ (predicate jumper display-fn face)~ collapses this.
+
+Estimated shrinkage: ~2,000–3,000 lines in =bookmark+-1.el=.
+
+** Hand-rolled *Bookmark List* buffer (=bookmark+-bmu.el=, 7,384 lines)
+
+Imperative rendering + column-position bookkeeping.
+~tabulated-list-mode~ gives sort headers, column widths,
+mark/unmark/execute-deletions, and the dired-style flow for free.
+
+Estimated shrinkage: 7,384 → ~1,500 lines (~5×).
+
+** Multiple mark/filter/sort systems
+
+~bmkp-bmenu-mark-url-bookmarks~, ~bmkp-bmenu-mark-file-bookmarks~,
+~bmkp-bmenu-mark-lighted-bookmarks~, ~bmkp-bmenu-mark-tagged~,
+~bmkp-bmenu-mark-flagged-for-modification~, ... — same pattern per
+dimension.  Consolidate to ~bmkp-gt-mark-by (predicate)~ + a
+predicate registry.  Same for filters and sorts.
+
+Estimated shrinkage: ~1,500 lines.
+
+** =bookmark+-lit.el= (1,679 lines) predates modern APIs
+
+Written before ~bookmark--set-fringe-mark~ (Emacs 28) and modern
+overlay conventions.  A modern port using ~bookmark--set-fringe-mark~
++ one overlay per lit bookmark is ~250 lines.
+
+Estimated shrinkage: ~6×.
+
+** Pre-Emacs-24 compat and dead handlers
+
+W3M is effectively dead; Icicles integration is niche;
+snippet/sequence/function/variable-list bookmarks are rarely used.
+Defer to a compatibility file or drop entirely.
+
+Estimated shrinkage: ~1,000 lines.
+
+** Documentation as .el files
+
+=bookmark+-doc.el= (4,532 lines) and =bookmark+-chg.el= (4,137 lines)
+are pure =;;= commentary as source files.  Move to org docs.
+
+Estimated shrinkage: 8,669 → 0 lines of source (become docs).
+
+** Macro layer (=bookmark+-mac.el=, 680 lines)
+
+Used sparingly; several are one-line inline candidates.
+
+Estimated shrinkage: ~400 lines to plain functions.
+
+* Bloat in our own code from working with bookmark+
+
+The costs are not only in bookmark+.  Layering on top of it means
+we carry glue whose only purpose is to route around bookmark+'s
+shape.  ~18% of the current 3,838-line codebase is
+bookmark+-driven overhead.  Written 2026-08-11.
+
+** Column-splicing advice against the hand-rolled bmenu (~450 lines)
+
+=bookmark-plus-gt-tags.el= is 536 lines; ~450 exist because
+~bmkp-bmenu-list-1~ renders imperatively with column-position
+bookkeeping.  Every advice is glue to inject tag/type columns into a
+system that doesn't want columns:
+
+- ~bmkp-gt-bmenu-list-1-advice~ — suppresses the filename pass,
+  inserts tag column, inserts type column, re-runs the filename pass
+  with ~bookmark-bmenu-file-column~ adjusted.
+- ~bmkp-gt-bmenu-toggle-filenames-advice~ — let-binds
+  ~bookmark-bmenu-file-column~ to the columns-aware position.
+- ~bmkp-gt-bmenu-help-advice~ — after advice on the help buffer to
+  insert the toggle-block section.
+- ~bmkp-gt-bmenu--compute-name-end~, ~bmkp-gt-bmenu--compute-tags-width~,
+  ~bmkp-gt-bmenu--truncate~, ~bmkp-gt-bmenu--format-tags~,
+  ~bmkp-gt-bmenu--format-type~ — width/format helpers that would be
+  ~tabulated-list-format~ entries in a native buffer.
+
+Under ~tabulated-list-mode~, this whole file collapses to ~80
+lines: two column defs, a revert-function, and the marginalia
+annotator registration.
+
+** Refresh coordination (~40 lines across 4 files)
+
+We call ~bmkp-refresh/rebuild-menu-list~ from
+=bookmark-plus-gt-auto-update.el=, =bookmark-plus-gt-browsel-tabs.el=,
+=bookmark-plus-gt-tags.el=, plus 5 comments about it in the entry
+file.  Every mutation has to manually poke the bmenu buffer to
+rebuild.  ~tabulated-list-mode~ ships ~revert-buffer~ for free.
+
+** ~bmkp-non-file-filename~ placeholder dance (~40 lines)
+
+Bookmark+ requires a placeholder string in ~filename~ for URL /
+browser-tab / EWW bookmarks (vanilla ~bookmark-set~ chokes on nil
+~filename~, and bookmark+ needed something round-trippable).  We
+work around the workaround:
+
+- =browsel-tabs.el:270= — stuffs the placeholder when creating
+  browser-tab bookmarks.
+- =jump.el:1054= — the annotator has to detect it and pick alignment
+  direction.
+- =bookmark-plus-gt.el:513= — the rename tracker has to skip it.
+
+In a clean design, non-file bookmarks omit ~filename~.  All three
+sites go away.
+
+** ~customize-save-variable~ persistence intercept (~90 lines)
+
+The entire "Persistence backend for bookmark-plus runtime state"
+section in the entry file — the ~bmkp-gt-state-file~ defcustom,
+~bmkp-gt--persisted-vars~, ~bmkp-gt--write-state~,
+~bmkp-gt-load-state~, ~bmkp-gt--customize-save-around~ advice, plus
+their commentary — exists purely because bookmark+ persists
+~bmkp-last-as-first-bookmark-file~ through ~customize-save-variable~,
+which errors on ~/dev/null~ ~custom-file~ (users doing
+config-is-code, no Customize crumbs).  In a clean design, we own
+persistence directly; no intercept, no ~15 lines of =littering.org=
+explanation baked into commentary.
+
+** Same-name safety guards (~30 lines)
+
+~bmkp-bookmark-set-confirms-overwrite-p~ save/restore + the
+propertize-flag warning + the "Same-named bookmarks — safety
+guards" commentary block.  Exists because bookmark+'s default is
+unsafe (silently merges same-named records).  Clean design owns
+~bookmark-set~; no unsafe default to guard against.
+
+** Default-tags reader substitution (~80 lines)
+
+~bmkp-gt-default-tags--bookmark-set-around~ and
+~bmkp-gt-default-tags--read-tags-around~ advices, plus the two
+dynamic markers (~bmkp-gt-default-tags--in-bookmark-set~,
+~bmkp-gt-default-tags--custom-reader-ran~), plus the whole
+tags-with-defaults reader that duplicates
+~bmkp-read-tags-completing~'s shape.  In a clean design,
+~bookmark-set~ gets a proper tags-reader hook and we register into
+it — one ~add-hook~, no dynamic markers.
+
+** Auto-update ↔ bmenu integration (~40 lines)
+
+~bmkp-gt-auto-update--list-1-advice~,
+~bmkp-gt-auto-update--legend-advice~,
+~bmkp-gt-auto-update--describe-advice~ — three advices to draw the
+auto-update fringe indicator into the list buffer and augment the
+help/describe text.  In a native buffer, auto-update marks a state
+and the column definition renders it.
+
+** Workaround commentary (~30 lines across files)
+
+Comment blocks explaining bookmark+ quirks and why our code shapes
+itself around them.  Removed with the workarounds.
+
+** ~declare-function~ on bookmark+ symbols (~50 lines across files)
+
+~50 ~(declare-function bmkp-* "bookmark+-1")~ lines.  Each is a
+manual "this symbol lives over there" note that a clean design
+doesn't need.
+
+** Totals
+
+| Category                                 | Current | After clean design | Saving |
+|------------------------------------------+---------+--------------------+--------|
+| Column-splicing advice (tags-mode)       |     450 |                 80 |   -370 |
+| Refresh coordination                     |      40 |                  0 |    -40 |
+| Placeholder dance                        |      40 |                  0 |    -40 |
+| Persistence intercept                    |      90 |                 30 |    -60 |
+| Same-name guards                         |      30 |                  0 |    -30 |
+| Default-tags reader substitution         |      80 |                 30 |    -50 |
+| Auto-update ↔ bmenu integration          |      40 |                  5 |    -35 |
+| Workaround commentary                    |      30 |                  0 |    -30 |
+| ~declare-function bmkp-*~ blocks         |      50 |                  5 |    -45 |
+|------------------------------------------+---------+--------------------+--------|
+| *Total*                                  |    *850* |             *150* |  *-700* |
+
+~700 lines of net reduction — about 18% of the current 3,838-line
+codebase — is bookmark+-driven overhead.  Not accidental
+complexity; it is the cost of running alongside a system that
+wasn't designed to be layered on top of.
+
+The tags-mode column-splicing dominates (370 of the 700).  Stage 1
+of the staging plan below (the buffer rewrite alone) claims that
+~370 back — the biggest single win.  The other categories fall out
+over Stages 2 and 3.
+
+Line count understates the maintenance cost.  The *shape* of the
+above — advice on internals, dynamic markers, layered workarounds
+— is the biggest ongoing pain source.  Every bookmark+ upstream
+change potentially breaks our advice; every user issue in that
+surface starts with "which of the three layers is misbehaving?"
+
+* LOC budget for a clean-design port
+
+Keeping the feature set we actually use:
+
+| Piece                                        | Bookmark+ | Clean-design | Reduction |
+|----------------------------------------------+-----------+--------------+-----------|
+| ~*Bookmark List*~ buffer                     |     7,384 |        1,500 |        5× |
+| Handler registry (10 std types + shared)     |     2,000 |          600 |      3.3× |
+| Tags subsystem                               |     1,500 |          400 |      3.8× |
+| Highlighting                                 |     1,679 |          250 |      6.7× |
+| Jump dispatcher                              |       600 |          150 |        4× |
+| Same-name disambiguation                     |       500 |          150 |      3.3× |
+| Sort + visit counts                          |       400 |          150 |      2.7× |
+| Temp bookmarks                               |       200 |           80 |      2.5× |
+| Persistence intercept                        |       300 |           80 |      3.8× |
+| All bmenu commands (mark/filter/sort/edit)   |     2,500 |          500 |        5× |
+|----------------------------------------------+-----------+--------------+-----------|
+| *Runtime total*                              |   *17,000* |      *3,860* |    *4.4×* |
+
+Plus dropping =bookmark+-doc.el= / =bookmark+-chg.el= (8,669 lines)
+outright — they become =readme.org= / =CHANGELOG.org= entries.
+
+Current bookmark-plus-gt is 3,838 lines.  End state after absorbing
+this: ~7,700 lines.
+
+* Effort estimate
+
+Focused-developer hours.  Assumes design work happens up front, not
+during coding.
+
+| Piece                                       | Focused-hours |
+|---------------------------------------------+---------------|
+| Up-front design (registries, protocol)      |         10–20 |
+| ~*Bookmark List*~ buffer, tabulated-list    |         40–60 |
+| Handler registry + non-file types           |         20–35 |
+| Tags subsystem                              |         20–30 |
+| Highlighting                                |         15–25 |
+| Jump dispatcher                             |         15–20 |
+| Sort + visit tracking                       |         10–15 |
+| Same-name disambiguation                    |         10–15 |
+| Temp bookmarks                              |          5–10 |
+| Persistence + master switch integration     |          5–10 |
+| Bmenu commands (mark/filter/sort/edit)      |         20–30 |
+| Cross-piece integration + testing           |         30–50 |
+| User migration compat + docs                |         15–25 |
+|---------------------------------------------+---------------|
+| *Total*                                     |    *165–265*  |
+
+Translation: ~1 focused month full-time, or ~2–3 months at ~half
+time.  A clean rewrite is *faster* than a fidelity port (my earlier
+175–300 hour estimate for the port) because no time is spent deciding
+"keep this bookmark+ quirk or not."
+
+* Suggested three-stage staging
+
+Each stage is shippable — you can stop after any of them and still
+have a coherent package.
+
+** Stage 1 — Buffer only (1–2 weeks focused)
+
+Ship =bookmark-plus-gt-list.el= — a ~tabulated-list-mode~-based
+buffer that reads current ~bookmark-alist~.  Bookmark+ stays as a
+runtime dep for everything else.
+
+- Tags/type columns become ~tabulated-list-format~ entries, no
+  advice on ~bmkp-bmenu-list-1~.
+- Sort headers native.  Mark/unmark/execute-deletions native.
+- =bookmark-plus-gt-tags.el= collapses (or dies).
+
+Highest-value, lowest-risk chunk.  Removes our biggest source of
+current advice pain.
+
+** Stage 2 — Tags + non-file handlers (3–4 weeks)
+
+Absorb tag storage, URL / EWW / Dired / Info / Org-heading handlers.
+End of this stage: bookmark+ becomes optional.  Users can install
+bmkp-gt against vanilla ~bookmark.el~ and get ~90% of features.
+
+- Handler registry lands.
+- Tags subsystem lands.
+- Non-file bookmark storage lands with same alist keys as bookmark+
+  (data round-trips).
+
+** Stage 3 — Cleanup (2–3 weeks)
+
+Highlighting, sort/visit tracking, temp bookmarks, name
+disambiguation, migration compat.  Drop the bookmark+ dependency
+entirely.
+
+At the end: MELPA-submittable (the ~bookmark+~ prereq unblocks; only
+the short-prefix naming decision remains).
+
+* Design principles
+
+Non-negotiable:
+
+1. *One registry per axis.*  Handlers, marks, filters, sorts, sort-
+   comparers — each is an alist of ~symbol → function~.  No
+   ~bmkp-mark-url-bookmarks~ + ~bmkp-mark-file-bookmarks~ + ...; just
+   ~bmkp-gt-mark-by (predicate-symbol)~.
+2. *~tabulated-list-mode~ for the buffer.*  Everything else follows
+   from this.
+3. *Bookmark records are the only persistent mutable state.*
+   Everything a feature needs to remember about a bookmark lives as
+   an alist entry on the record itself.  Derived facts (widths,
+   counters, sort orders) are recomputed from records or memoized
+   by alist identity — never stored as a parallel truth.  Per-read
+   session state (filter builders, minibuffer state machines) let-
+   binds inside its scope and unwinds on exit.  Cross-cutting
+   features register into hooks that receive the bookmark as an
+   argument; no dynamic markers exist to coordinate side-effects.
+   Consequence: undo, snapshotting, and transactional edits fall
+   out for free; the answer to "why is state X out of sync?" is
+   always "did the alist change?"  Elaborated below under
+   "Records-only state — classification of current mutable vars."
+4. *Same alist keys as bookmark+*: ~tags~, ~bmkp-temp~, ~visits~,
+   ~last-visited~, etc.  Not for code compat — for *data compat*.
+   Bookmark files round-trip unchanged; users who go back to
+   bookmark+ still work.
+5. *~bookmark.el~ is the substrate.*  Every command ultimately calls
+   a vanilla primitive.  If we invent our own storage, we cannot co-
+   exist with vanilla ~bookmark-jump~.
+
+** Records-only state — classification of current mutable vars
+
+Audit of every mutable non-record variable in the current codebase,
+with the disposition each takes under principle #3.
+
+*** Already record-shaped (pure — stays the same)
+
+Every persistent fact about a bookmark is an alist entry on the
+record: ~tags~, ~visits~, ~last-visited~, ~auto-update~,
+~bmkp-gt-load-index~, ~bmkp-temp~, plus the standard
+~filename~/~position~/~handler~/etc.  No side tables.  This part
+of the current design is already what we want; the rewrite
+preserves it verbatim.
+
+*** Session state that becomes derived or one-shot let-bound
+
+- ~bmkp-gt--load-counter~ (monotonic counter incremented per
+  ~bookmark-load~) — *goes away*.  Compute ~1 + max(existing
+  bmkp-gt-load-index)~ at each ~bookmark-load~ return.  Pure
+  derivation, one alist scan per load.
+- ~bmkp-gt--tags-segment-width-cache~ (cached widest tag segment)
+  — *goes away*.  Recompute per annotation call; at any realistic
+  bookmark count it's fast enough.  If perf ever matters, memoize
+  by ~(eq _ bookmark-alist)~ — an alist-identity cache is still
+  pure (invalidation is automatic on any structural change).
+- ~bmkp-gt--previous-confirms-overwrite-p~ (save/restore of the
+  user's prior confirms-overwrite pref) — *goes away entirely*.
+  In the rewrite we own ~bookmark-set~; there is no unsafe default
+  to force and restore.
+
+*** Cross-cutting feature markers (the ugliest current state)
+
+- ~bmkp-gt-default-tags--in-bookmark-set~ — dynamic marker set by
+  around-advice to signal "we're inside a ~bookmark-set~ call."
+- ~bmkp-gt-default-tags--custom-reader-ran~ — dynamic marker set by
+  the tags-reader advice so the after-set hook knows not to
+  re-apply tags.
+
+Both are pure debt from the fact that we cannot cleanly extend
+~bmkp-read-tags-completing~ — so we advise around it and use
+dynamic scope to coordinate.  *Both go away* under the rewrite:
+~bookmark-set~ in a clean design has a proper tags-reader hook
+that takes ~(bookmark existing-tags)~ and returns the new tag
+list.  Register, don't mark.
+
+*** Minibuffer-local dynamic scope (kept, but formalized)
+
+- ~bmkp-gt-jump--active-filters~ — filter set the user builds
+  during the minibuffer read (~M-t~ adds a tag filter).
+- ~bmkp-gt-jump--restart-flag~ — signals the restart loop after
+  ~abort-minibuffers~ from a filter command.
+- ~bmkp-gt-default-tags--edit-state~ / ~--edit-restart~ — same
+  shape for the default-tags reader.
+
+Per-read session state.  Exists for the lifetime of one minibuffer
+interaction and vanishes.  Not global; closer to a state machine
+local to one command.  Fighting this with
+continuation-passing or state monads doesn't buy purity in Emacs,
+just alien code.
+
+*Reasonable line*: let-bind inside the read function so the
+dynamic scope unwinds automatically on exit.  Already the pattern;
+the "top-level ~defvar~" appearance is a lie of the syntax.  The
+rewrite formalizes this by moving to closure-captured state or
+explicit let-bound dynamic scope — a stylistic upgrade, not a
+semantic one.
+
+*** Genuinely process-scoped state (unavoidable, minimized)
+
+- ~bmkp-gt-auto-update--timer~ — the idle timer object.  We hold a
+  reference so we can ~cancel-timer~ on mode-off.  No way around
+  this in Emacs.
+- Buffer-local: ~bmkp-gt-list-preview--last-line~,
+  ~bmkp-gt-list-preview--saved-window-config~.  Encapsulated to
+  the buffer, which is a form of pure containment.
+
+Kept, but bounded to their scope.
+
+*** What the "records-only" principle buys
+
+1. *Undo becomes trivial.*  Snapshot ~bookmark-alist~ before a
+   mutation; restore on undo.  Bookmark+ can't do this cleanly
+   because 15 side vars would also need snapshotting.
+2. *Transactional edits become possible.*  "Add these tags to
+   these 5 bookmarks, atomically" is ~(let ((snapshot
+   (copy-alist bookmark-alist))) ...)~ with rollback on error.
+3. *Debugging shrinks to one place.*  Every "why doesn't this
+   refresh" question resolves to "did the alist change?"  There is
+   no second answer.
+4. *Testing shrinks.*  Tests set up an alist, run a function, check
+   the alist.  No fixture teardown of dynamic vars, hook state,
+   marker flags, caches.
+5. *Persistence is automatic.*  ~bookmark-save~ already round-trips
+   the alist.  If we haven't stored the fact anywhere else, we
+   haven't lost it.
+6. *Reasoning about concurrency* (idle timers, hooks firing during
+   redisplay) collapses.  There is one thing that can be
+   inconsistent, not fifteen.
+
+*** What it costs
+
+1. *Some perf* on recomputes we currently cache.  Fine at any
+   realistic bookmark count.
+2. *We must own ~bookmark-set~ and the tags reader* to eliminate
+   the dynamic markers.  Already in the Stage 2 plan; the purity
+   principle just makes it non-optional.
+3. *We cannot opportunistically stash a "convenience marker"* as a
+   top-level ~defvar~.  Every time it is tempting, the pure design
+   says: put it on the record, or let-bind it in a closure, or
+   reconsider whether the marker is needed at all.
+
+* Risk callouts
+
+** User data migration
+
+Bookmark+ stores tags, temp-flag, visits, last-visited as
+bookmark-alist properties: ~tags~, ~bmkp-temp~, ~visits~,
+~last-visited~.  If we reuse the same key names, existing bookmark
+files round-trip cleanly and no migration is needed.  If we invent
+new names, we need a load-time migration pass.
+
+*Recommendation:* reuse bookmark+'s alist keys verbatim.
+
+** Muscle memory in ~bookmark-bmenu-mode-map~
+
+Bookmark+ users have many keybindings (=P= filter by predicate, =S=
+sort, =T= tag ops, =L= load, mark-by-* variants).  A from-scratch
+buffer will pick an essential subset (~15 keys covering
+marks/delete/jump/sort/filter).  Users of bookmark+'s more exotic
+commands will notice.  Document the delta up front.
+
+** Region bookmarks and autonaming
+
+Two bookmark+ features that are commonly used without being noticed.
+Region bookmarks store a start+end and re-select the region on jump;
+autonaming names bookmarks by context automatically.  ~300 lines
+each.  If they matter, add ~15–25 hours to the estimate.
+
+** Consult / marginalia / orderless integration parity
+
+The current jump reader and marginalia annotator already work
+against ~bookmark-alist~ directly.  They keep working through the
+rewrite as long as the alist shape stays the same.  Test after each
+stage.
+
+** browsel-tabs handler compatibility
+
+The browsel-tabs feature registers ~bmkp-gt-browsel-tabs-jump~ as a
+bookmark handler.  New handler registry must accept it, and the
+temp-bookmark filter must exclude persisted-on-save.  Kept in mind
+during Stage 3.
+
+* Not decided yet
+
+- Package name after the rewrite (~bookmark-plus-gt~ vs. ~bmkp-gt~
+  — the short-prefix MELPA question).
+- Whether to keep bookmark+ as an *optional* soft dep for users who
+  want bookmark+'s more exotic commands (autofile bookmarks,
+  bookmark-file-jump chaining, etc.).
+- Whether to include region bookmarks / autonaming in the initial
+  scope, or defer to a v2.
+- Whether to break out the tabulated-list buffer as a separately
+  MELPA-installable package (~bmkp-gt-list~) so users can adopt just
+  the buffer without the rest.
+
+* Fresh rewrite vs morphing the current code
+
+Later analysis (2026-08-11).  The three-stage staging plan above was
+written as if we would morph the current package in place — Stage 1
+replaces the buffer, Stage 2 absorbs tags + handlers, Stage 3 cleans
+up.  On reflection, a *fresh rewrite* is the honest choice, not
+morph.  This section supersedes the staging plan for that reason
+and adds a fresh-rewrite plan alongside it.
+
+** Why morphing loses
+
+The current code's *shape* is constrained by bookmark+.  Every
+workaround (cl-letf around marginalia, column-splicing advice,
+placeholder detection, dynamic markers coordinating the tags
+reader, refresh-menu-list dance) was designed around bookmark+'s
+peculiarities.  Under the records-only-mutable-state design with
+~tabulated-list-mode~ and one-registry-per-axis, those shapes are
+wrong from the start.
+
+Trying to morph in place produces hybrid weirdness — code that is
+half-refactored, carrying the mental model of "advise bookmark+"
+while pretending to be autonomous.  The rewrite time is spent
+fighting the old shape instead of expressing the new one.  Every
+commit in the middle is a mess where "advice on
+~bmkp-bmenu-list-1~" coexists with "tabulated-list column def" in
+the same file.  Users installing intermediate versions would hit
+inconsistent behavior.
+
+There is a mental cost too.  Under morph, "does this new thing
+satisfy the design principle?" often has the answer "kind of,
+alongside the old thing that doesn't."  A fresh codebase makes
+principle #3 (records are the only mutable state) *auditable* —
+you can ~grep~ for top-level ~defvar~ and know the answer.
+
+** What "fresh" means concretely — liberal copying, not from-zero
+
+Fresh does not mean "throw everything away and retype."  It means:
+new repo layout, new design principles applied everywhere, copy
+code that fits with edits, delete code that does not.  Piece by
+piece:
+
+| Current piece                                                     | Under fresh rewrite                                                    | Why                                                                                                                       |
+|-------------------------------------------------------------------+------------------------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------|
+| Marginalia annotator (~bmkp-gt-bookmark-annotation~ w/ ~marginalia--fields~) | *Copy verbatim.*                                                       | Just rewrote it; already clean.                                                                                           |
+| Orderless dispatchers (~bmkp-gt--jump-orderless-dispatcher~ + two matchers)   | *Copy verbatim.*                                                       | Idiomatic orderless code; bookmark+-independent.                                                                          |
+| Consult reader (~bmkp-gt--jump-read-once~, ~bmkp-gt-jump*~ commands)          | *Copy with shallow edits.*                                             | Reader shell is sound; ~:annotate~ / ~:lookup~ closures rewire to the new registry-based data model.                      |
+| ~bmkp-gt-jump-narrow~ type taxonomy                                           | *Copy with edits.*                                                     | Data-driven already; becomes an entry in the new handler registry.                                                        |
+| Auto-update triggers (timer + kill-buffer-hook + window-state-change-hook)    | *Copy with edits.*                                                     | Trigger logic is sound.  The 40 lines of bmenu-integration advice go away.                                                |
+| Master switch pattern (~bmkp-gt-mode~ on/off body)                            | *Copy the pattern; heavy edits to contents.*                           | Pattern is right.  Persistence intercept goes away entirely, same-name guards go away, advice targets shift to new buffer. |
+| Default-tags DSL (empty / bare / flat / alist shape, ~--kind~)                | *Copy verbatim.*                                                       | Genuinely good design; bookmark+-independent.                                                                             |
+| Default-tags reader substitution (advices + dynamic markers)                  | *Delete; register a proper hook.*                                      | Bookmark+-shaped debt.                                                                                                    |
+| Browsel-tabs fetching + store logic                                           | *Copy with edits.*                                                     | Portable.  Placeholder stuffing, ~bmkp-url-bookmark-p~ advice, refresh dance all go away.                                 |
+| Tags-mode column-splicing advice (~bmkp-gt-bmenu-list-1-advice~ etc.)         | *Delete entirely; write native ~tabulated-list-format~ from scratch.*  | 450 lines shaped around a rendering model we're leaving.  Nothing portable.                                               |
+| Persistence intercept (state file, ~customize-save-variable~ advice)          | *Delete entirely.*                                                     | Exists only because bookmark+ persists through ~customize-save-variable~.  Gone with bookmark+.                           |
+| Same-name safety guards                                                       | *Delete entirely.*                                                     | Gone with bookmark+'s unsafe default.                                                                                     |
+| ~50 ~declare-function bmkp-*~ lines across files                              | *Delete.*                                                              | No bookmark+ to declare.                                                                                                  |
+| 217 tests                                                                     | *Port one-at-a-time as features are reimplemented.*                    | Behavior anchors, not shape anchors.  Some update for name changes; some (annotator face inheritance) survive verbatim.   |
+
+Split: ~*40% copy verbatim, ~30% copy-with-edit, ~30% delete-and-
+rewrite*.  Still substantially a fresh codebase — the old repo is
+a reference, not a starting point.
+
+** Process suggestion
+
+New module directory =~/.emacs.d/modules/bmkp-gt/= (matching the new
+package name we would rename to anyway).  Old module stays put,
+frozen except for critical bug fixes.  Ship the new package as
+~bmkp-gt~ on MELPA when the substrate + buffer stages complete;
+users install alongside the old one and migrate when they want.
+Deprecate the old package in a release announcement after ~3 months
+of the new one being stable.
+
+*** Development order — different from the morph staging
+
+1. *Week 1: Design docs + MELPA infrastructure.*  Registry
+   schemas (handler, mark, filter, sort), ~tabulated-list~ column
+   layout, hook protocol for ~bookmark-set~ extensions, tag
+   storage/lookup API.  Small file per registry: schema + example
+   entry + rationale.  In parallel, invoke the ~melpa-submit~
+   skill to land the full MELPA infrastructure on day one:
+   =LICENSE=, =Makefile= (browsel-ported), =.github/workflows/=,
+   =melpa/= recipe + README, =.gitignore=, and stub ~.el~ files
+   with the full MELPA-compliant header block.  Every subsequent
+   commit passes ~make check-ci~; there is no accumulated
+   checkdoc / package-lint backlog to defer.  See
+   =ai/design-bookmark-gt.org= section "MELPA-clean from day one."
+2. *Weeks 2–4: Substrate.*  Handler registry, non-file bookmark
+   handlers (URL, EWW, Dired, Info, Org-heading, PDF), tag
+   storage/reader, save/load with propertized names for same-name
+   disambig.  Bookmark+ not involved at all — this is vanilla
+   ~bookmark.el~ + our layer.
+3. *Weeks 4–6: ~*Bookmark List*~ buffer.*  Fresh
+   ~tabulated-list-mode~ implementation.  Copy the tag/type column
+   *ideas* from the current tags-mode, but the code is new.
+4. *Weeks 6–8: Consult reader + annotator + orderless dispatchers.*
+   Copy verbatim + reweave against the new registries.
+5. *Weeks 8–9: Auto-update tracker.*  Copy triggers with edits.
+6. *Weeks 9–10: Default-tags mode.*  DSL from current code; reader
+   integration through the new bookmark-set hook.
+7. *Weeks 10–11: Browsel-tabs.*  Copy with edits.
+8. *Week 11: Tests.*  Port all 217, update as needed.  Add new
+   tests for registry lookups, buffer refresh, hook protocol.
+9. *Week 12: Docs + MELPA prep.*  New readme, migration guide,
+   submit.
+
+~12 weeks focused, or 5–6 months at half time.  The 165–265 focused-
+hour range from the earlier effort estimate still holds — the delta
+is that calendar time is longer because up-front design work is
+real and shouldn't be rushed.
+
+** Trade-offs of fresh vs morph
+
+*Fresh gains:*
+
+- Codebase that reflects the design principles rather than fighting
+  them.
+- Auditability — ~grep~ for top-level ~defvar~ tells the state
+  boundary; under morph, half the answers would be "well, that one
+  is legacy."
+- No hybrid intermediates that users install and get confused by.
+- Clean deprecation story for the old package.
+
+*Fresh costs:*
+
+- No incremental delivery.  Nothing ships until the substrate +
+  buffer stages are complete AND wired into something usable.
+  Under morph you would have a slightly-better package after each
+  week; under fresh you have nothing usable until ~week 6.
+- Two packages coexist for a few months (until deprecation).
+- Design-first weeks feel unproductive if you're used to shipping.
+
+** Recommendation
+
+*Fresh.*  The morph plan looks cheaper on paper because it lets you
+keep shipping small improvements, but every one of those
+improvements pays maintenance cost on the bookmark+-shaped code we
+are trying to leave.  Fresh is the honest way to make principle #3
+real.
+
+** Impact on the earlier staging plan
+
+The "Suggested three-stage staging" section above assumed morph.
+Under fresh, the stages are *phases inside a new-repo build*, not
+sequential rewrites of an existing one:
+
+- *Old Stage 1 (buffer only, bookmark+ stays)* — no longer a
+  distinct stage.  The new-repo buffer is week 4–6 and does not
+  ship until the substrate under it exists.
+- *Old Stage 2 (absorb tags + handlers)* — becomes the substrate
+  stage, weeks 2–4, and runs *before* the buffer, not alongside a
+  half-migrated one.
+- *Old Stage 3 (cleanup)* — folds into weeks 8–11 (auto-update,
+  default-tags, browsel-tabs, tests).
+
+* References
+
+- =ai/porting.org= — earlier bookmark-x → bookmark-plus-gt notes.
+- =readme.org= — current user-facing feature docs.
+- =CLAUDE.md= — repo conventions (this rewrite would supersede the
+  "layered extensions on top of bookmark-plus" positioning).
