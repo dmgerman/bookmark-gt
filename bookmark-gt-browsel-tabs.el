@@ -61,6 +61,10 @@
 (declare-function browsel-focus-tab "ext:browsel")
 (declare-function browsel-browse-url "ext:browsel")
 
+;; Defined in `bookmark-gt-tags'; declared here so the byte-compiler
+;; treats it as dynamic when the refresh loop let-binds it.
+(defvar bookmark-gt-prompt-for-tags-flag)
+
 ;;;; Customization
 
 (defcustom bookmark-gt-browsel-tabs-browsers nil
@@ -124,6 +128,9 @@ useless.  Safe when the catch is not installed."
        (if (and url (not (string-empty-p url)))
            (browsel-browse-url url)
          (user-error "Browser-tab bookmark has no usable URL")))))
+  ;; Vanilla's after-jump-hook is bypassed by the throw below —
+  ;; record the visit directly so MRU / visit-count sort see it.
+  (bookmark-gt-record-visit bookmark)
   (bookmark-gt-skip-post-handler 'browser-tab))
 
 ;;;; Fetch + filter
@@ -230,7 +237,9 @@ during a manual refresh, the second call is a no-op."
       ;; syntax-propertize because of narrowing\" warnings from the
       ;; bookmark-file write path.
       (let ((bookmark-gt-set-after-hook nil)
-            (bookmark-save-flag nil))
+            (bookmark-save-flag nil)
+            ;; Silence per-tab tag prompt during the batch.
+            (bookmark-gt-prompt-for-tags-flag nil))
         (bookmark-gt-browsel-tabs--clear)
         (dolist (tab (bookmark-gt-browsel-tabs--fetch))
           (let ((url (plist-get tab :url)))

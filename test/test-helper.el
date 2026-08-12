@@ -44,7 +44,10 @@ Inside BODY: `bookmark-alist' starts nil,
           (bookmarks-already-loaded          nil)
           (bookmark-gt-set-name-reader-hook  nil)
           (bookmark-gt-set-tag-reader-hook   nil)
-          (bookmark-gt-set-after-hook        nil))
+          (bookmark-gt-set-after-hook        nil)
+          ;; Silence the tag reader during tests.  Individual
+          ;; tests that need the tag prompt behavior can override.
+          (bookmark-gt-prompt-for-tags-flag  nil))
      (unwind-protect
          (progn ,@body)
        (dolist (f bookmark-gt-test--temp-files)

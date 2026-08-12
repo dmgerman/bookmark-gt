@@ -101,6 +101,33 @@
     (should (equal (bookmark-gt-tags-of (car bookmark-alist))
                    '("a" "c")))))
 
+;;;; MRU candidate ordering
+
+(ert-deftest bookmark-gt-test-tags-candidates-mru-history-first ()
+  "Tags present in `bookmark-gt-tags-history' precede unseen tags."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-test--make "a" 'h '("alpha" "beta" "gamma" "delta"))
+    ;; Simulate a history where user picked gamma then alpha most recently.
+    (let ((bookmark-gt-tags-history '("alpha" "gamma")))
+      (should (equal (bookmark-gt-tags--candidates-mru)
+                     '("alpha" "gamma" "beta" "delta"))))))
+
+(ert-deftest bookmark-gt-test-tags-candidates-mru-empty-history ()
+  "With no history, candidates fall back to `bookmark-gt-tags-list' order."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-test--make "a" 'h '("gamma" "alpha" "beta"))
+    (let ((bookmark-gt-tags-history nil))
+      (should (equal (bookmark-gt-tags--candidates-mru)
+                     '("alpha" "beta" "gamma"))))))
+
+(ert-deftest bookmark-gt-test-tags-candidates-mru-drops-unknown ()
+  "History entries not present in the current tag universe are ignored."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-test--make "a" 'h '("alpha" "beta"))
+    (let ((bookmark-gt-tags-history '("ghost" "alpha")))
+      (should (equal (bookmark-gt-tags--candidates-mru)
+                     '("alpha" "beta"))))))
+
 ;;;; Save / load round-trip
 
 (ert-deftest bookmark-gt-test-tags-survive-save-load ()

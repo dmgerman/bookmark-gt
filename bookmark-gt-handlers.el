@@ -350,6 +350,10 @@ installed (bookmark-gt-mode off) the throw silently no-ops."
     (unless url
       (user-error "URL bookmark has no `url' or `location' property"))
     (browse-url url)
+    ;; Vanilla's after-jump-hook is bypassed by the throw below, so
+    ;; record the visit directly here.  Keeps MRU / visit-count sort
+    ;; accurate for URL bookmarks.
+    (bookmark-gt-record-visit bookmark)
     (bookmark-gt-skip-post-handler 'url)))
 
 ;;;###autoload

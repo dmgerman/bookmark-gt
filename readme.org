@@ -49,6 +49,71 @@ Global minor mode.  When on, it wires:
 
 Turning it off cleanly removes all of the above.
 
+* Tag reader
+
+~bookmark-gt-tags-read~ prompts for tags one at a time.  Each
+prompt is a plain ~completing-read~ against every tag that
+currently appears in ~bookmark-alist~, ordered
+most-recently-used first (based on ~bookmark-gt-tags-history~;
+completion history is the MRU signal).
+
+Terminators:
+- Empty ~RET~ — finish, return the accumulated list.
+- ~M-RET~ — submit the current input (if non-empty), then finish.
+
+Any non-empty ~RET~ accepts the current tag and prompts for
+another.  The running accumulator is shown in the prompt as
+~Tags [foo,bar] (M-RET or empty RET to finish): ~.
+
+The reader is invoked by ~bookmark-gt-set~ when
+~bookmark-gt-prompt-for-tags-flag~ is non-nil (default) and
+seeds itself with any tags provided by
+~bookmark-gt-default-tags-mode~ or another
+~bookmark-gt-set-tag-reader-hook~ contributor.
+
+* Relocate: change a bookmark's target
+
+~M-x bookmark-gt-relocate NAME~ changes where an existing
+bookmark points, dispatching on the record's shape:
+
+- File records (a ~filename~ key) prompt via ~read-file-name~;
+  default is the current filename so a rename is a matter of
+  editing.  ~position~ is left unchanged — the common trigger
+  is a file rename, and the offset is still valid.
+- URL records (a ~url~ key: URL bookmarks, browser-tab
+  bookmarks) prompt for the new URL via ~read-string~.
+- Records with neither key raise a ~user-error~.
+
+In the list buffer, ~R~ relocates the row's record.  The
+after-hook fires so the list, highlight overlays, and any
+other observer refresh automatically.
+
+For a genuinely new position within a different file, jump to
+the target, place point, and re-invoke ~bookmark-gt-set~ with
+the same name — the same-name-overwrite policy (below) updates
+~position~ in place.
+
+* Same-name policy
+
+~bookmark-gt-set~ overwrites in place when the chosen name
+collides with an existing record that shares the same handler
+AND the same filename (nil equals nil).  This is the common
+"update this bookmark's location" case: setting ~foo~ again in
+the same file replaces ~foo~'s position instead of leaving the
+old record behind as ~foo~ and adding ~foo<2>~.
+
+Collisions with a different handler or a different file are
+still disambiguated with a ~<N>~ suffix, so cross-source name
+reuse never silently clobbers.
+
+Two knobs:
+
+- ~bookmark-gt-same-name-overwrite~ (default ~t~) — set to nil
+  to always disambiguate, restoring the earlier behavior.
+- Prefix argument to ~M-x bookmark-gt-set~ (~NO-OVERWRITE~ from
+  Lisp) — forces disambiguation for this one call, matching
+  vanilla ~bookmark-set~'s ~C-u~ semantics.
+
 * Opt-in modes
 
 Three independent global minor modes, off by default.  Enable
@@ -159,6 +224,7 @@ local only.
 | ~^~   | Toggle ~auto-update~ on row                                  |
 | ~T~   | Toggle temp on row                                           |
 | ~r~   | Rename bookmark                                              |
+| ~R~   | Relocate (change filename or URL)                            |
 | ~t~   | Edit tags                                                    |
 | ~a~   | Edit annotation                                              |
 | ~/~   | Filter (choose by-type / by-tag / by-name-regexp / unfilter) |
@@ -390,6 +456,118 @@ Two shape differences we accommodate on read:
   Bookmark-gt writes it under ~url~.  Both are read by
   ~bookmark-gt-url-of~.
 
+* In-buffer cycling
+
+Two autoloaded commands walk the bookmarks that live in the
+current buffer's file, sorted by position:
+
+- ~M-x bookmark-gt-cycle-next~ — jump to the next bookmark
+  position after point.
+- ~M-x bookmark-gt-cycle-prev~ — jump to the previous one.
+
+Both wrap around at the ends of the sequence.  Print the
+bookmark's name via ~message~ so you know where you landed.
+No overlay dependency — cycling uses record data directly, so
+it works whether or not ~bookmark-gt-highlight-enable~ is on.
+
+Records without a numeric ~position~ (e.g. Dired records) are
+skipped; bookmarks pointing at other files are ignored.
+
+Convenient bindings (in your init):
+
+#+begin_src emacs-lisp
+(global-set-key (kbd "C-c n") #'bookmark-gt-cycle-next)
+(global-set-key (kbd "C-c p") #'bookmark-gt-cycle-prev)
+#+end_src
+
+* Per-bookmark highlighting
+
+When ~bookmark-gt-mode~ is on, every file-visiting buffer gets
+an overlay per bookmark that points at that file.  Overlays
+use ~bookmark-gt-face-highlight~ (inherits ~hl-line~ by
+default) and span:
+
+- The bookmark's line, for point bookmarks.
+- The whole region (from ~position~ line-start to
+  ~end-position~ line-end), for region bookmarks.
+
+Hovering shows the bookmark name via ~help-echo~.
+
+Triggers:
+- ~find-file-hook~ paints overlays as files are opened.
+- ~bookmark-gt-set-after-hook~ refreshes overlays after any
+  mutation.  Targeted single-file refresh when the mutation
+  affects a specific record; full sweep only when a batch
+  operation fires the hook with the ~nil~ sentinel.
+- ~bookmark-after-jump-hook~ records the landed point in a
+  buffer-local hash so records that carry no numeric
+  ~position~ (e.g. org-heading bookmarks, whose target is
+  resolved by ~org-bookmark-heading-jump~ at jump time) still
+  get an overlay after the user visits them.  The recorded
+  position is consulted by
+  ~bookmark-gt-highlight--effective-position~ as a fallback
+  when ~position~ is absent.
+
+Customization:
+- ~bookmark-gt-highlight-enable~ (default ~t~) — opt out.  Set
+  to nil to suppress highlighting even while the mode is on.
+- ~bookmark-gt-face-highlight~ — face for the overlay.
+  Rebind to a subtler / stronger color as you prefer.
+
+Overlays are process-scoped display state; they die with the
+buffer (kill-buffer cleans up) and are cleared entirely when
+~bookmark-gt-mode~ turns off.  Nothing is written to disk.
+The post-jump position hash is likewise buffer-local and
+transient.
+
+* Region bookmarks
+
+When ~bookmark-gt-mode~ is on and the region is active on
+~M-x bookmark-gt-set~, the record captures both anchors plus
+context strings so the region can be re-selected on jump:
+
+- ~position~ = ~(region-beginning)~
+- ~end-position~ = ~(region-end)~
+- ~front-context-region-string~ = ~N~ characters preceding
+  ~end-position~ (for re-anchoring)
+- ~rear-context-region-string~ = ~N~ characters following
+  ~end-position~
+- ~front-context-string~ / ~rear-context-string~ = vanilla's
+  standard re-anchor strings around the start
+
+Alist-key names match bookmark+ so records round-trip cleanly.
+Vanilla ~bookmark.el~ ignores the extra keys and jumps to
+~position~ only.
+
+On jump, a hook on ~bookmark-after-jump-hook~ pushes the mark
+at ~end-position~ (adjusted by the delta between the record's
+raw ~position~ and the actual point after vanilla re-anchoring)
+and activates it — the region reappears highlighted.
+
+Customization:
+- ~bookmark-gt-use-region~ (default ~t~) — opt out of capture
+  and restore.  Records that already carry region info keep it;
+  this flag only gates the set/restore paths.
+- ~bookmark-gt-region-context-size~ (default 40) — chars of
+  context captured around ~end-position~.
+
+* Visit tracker
+
+When ~bookmark-gt-mode~ is on, an entry on
+~bookmark-after-jump-hook~ increments each jumped bookmark's
+~visits~ property by one and refreshes its ~last-visited~ prop
+to the current time.  URL and browser-tab handlers throw
+~bookmark-gt-skip-post-handler~ (which bypasses the hook), so
+they call ~bookmark-gt-record-visit~ directly at their tail —
+same effect.
+
+Enables ~:sort-by 'mru~ and ~:sort-by 'visits~ in the jump
+reader for every bookmark type without user action.
+
+Visit tracking does NOT bump ~bookmark-alist-modification-count~,
+so every jump does not force an auto-save.  Changes persist to
+disk at the next explicit ~bookmark-save~ (or on Emacs exit).
+
 * File-rename tracker
 
 When ~bookmark-gt-mode~ is on, an ~:around~ on ~rename-file~
@@ -446,6 +624,9 @@ Every non-trivial mechanism has a documented seam.
 | ~bookmark-gt-auto-update-interval~    | Auto-update idle seconds (60)    |
 | ~bookmark-gt-track-renames~           | Rename tracker on/off (t)        |
 | ~bookmark-gt-default-tags~            | Default-tags DSL value           |
+| ~bookmark-gt-prompt-for-tags-flag~    | Prompt for tags on set (t)       |
+| ~bookmark-gt-same-name-overwrite~     | Overwrite same-name+handler+file (t) |
+| ~bookmark-gt-highlight-enable~        | Per-bookmark overlays (t)        |
 | ~bookmark-gt-browsel-tabs-browsers~   | Which browser clients to query   |
 | ~bookmark-gt-browsel-tabs-filter~     | Per-tab accept filter            |
 

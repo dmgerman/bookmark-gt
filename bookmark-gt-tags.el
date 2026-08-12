@@ -135,37 +135,117 @@ storing.  Fires `bookmark-gt-set-after-hook'."
 ;;;; Interactive reader
 
 (defvar bookmark-gt-tags-history nil
-  "History for `bookmark-gt-tags-read'.")
+  "History for `bookmark-gt-tags-read'.
+Populated by `completing-read' inside the sequential loop; the
+most-recently-entered tags appear first, and the reader uses
+this order to present candidates MRU-first.")
+
+(defun bookmark-gt-tags--candidates-mru ()
+  "Return every known tag ordered MRU-first.
+Tags present in `bookmark-gt-tags-history' come first, in
+history order; tags never chosen come next in the sort order
+returned by `bookmark-gt-tags-list'."
+  (let* ((all (bookmark-gt-tags-list))
+         (all-set (make-hash-table :test #'equal))
+         (seen (make-hash-table :test #'equal))
+         (front nil)
+         (back nil))
+    (dolist (tag all) (puthash tag t all-set))
+    (dolist (h bookmark-gt-tags-history)
+      (when (and (gethash h all-set) (not (gethash h seen)))
+        (push h front)
+        (puthash h t seen)))
+    (dolist (tag all)
+      (unless (gethash tag seen) (push tag back)))
+    (nconc (nreverse front) (nreverse back))))
+
+(defun bookmark-gt-tags--completion-table (candidates)
+  "Return a completion table that preserves the order of CANDIDATES.
+The default completion machinery sorts alphabetically; MRU
+ordering is only visible if `display-sort-function' and
+`cycle-sort-function' are pinned to `identity'."
+  (lambda (str pred action)
+    (if (eq action 'metadata)
+        '(metadata
+          (display-sort-function . identity)
+          (cycle-sort-function . identity))
+      (complete-with-action action candidates str pred))))
 
 (defun bookmark-gt-tags-read (prompt &optional initial)
-  "Read a list of tags from the minibuffer.
-PROMPT is the completion prompt.  INITIAL, if non-nil, seeds the
-minibuffer with a comma-separated form of the given tag list.
+  "Read tags one at a time with completion.
+Prompts repeatedly; each accepted tag is added to the
+accumulator.  The loop ends on empty input (\\`RET') or on
+\\`M-RET' (submit current input, then finish).  INITIAL, if
+non-nil, seeds the accumulator with a starting tag list.
 
-Completion candidates come from `bookmark-gt-tags-list'.
-Returns a normalized list of strings."
-  (let* ((candidates (bookmark-gt-tags-list))
-         (initial-text (and initial (mapconcat #'identity initial ", ")))
-         (raw (completing-read-multiple
-               (format-prompt prompt (or initial-text ""))
-               candidates
-               nil nil initial-text
-               'bookmark-gt-tags-history)))
-    (bookmark-gt--normalize-tags raw)))
+PROMPT is the base prompt; the running accumulator and the
+finish hint are appended.  Candidates come from
+`bookmark-gt-tags--candidates-mru' — most-recently-entered
+first.  Returns the normalized (trimmed, deduplicated) tag
+list."
+  (let* ((candidates (bookmark-gt-tags--candidates-mru))
+         (table (bookmark-gt-tags--completion-table candidates))
+         (accum (and initial (copy-sequence initial))))
+    (catch 'done
+      (while t
+        (let* ((finished nil)
+               (seen (and accum
+                          (format " [%s]"
+                                  (mapconcat #'identity accum ","))))
+               (fmt (format "%s%s (M-RET or empty RET to finish): "
+                            prompt (or seen "")))
+               (input
+                (minibuffer-with-setup-hook
+                    (lambda ()
+                      (let ((m (make-sparse-keymap)))
+                        (set-keymap-parent m (current-local-map))
+                        (define-key m (kbd "M-RET")
+                                    (lambda ()
+                                      (interactive)
+                                      (setq finished t)
+                                      (exit-minibuffer)))
+                        (use-local-map m)))
+                  (completing-read fmt table nil nil nil
+                                   'bookmark-gt-tags-history))))
+          (cond
+           (finished
+            (unless (string-empty-p input) (push input accum))
+            (throw 'done nil))
+           ((string-empty-p input) (throw 'done nil))
+           (t (push input accum))))))
+    (bookmark-gt--normalize-tags (nreverse accum))))
 
 ;;;; Tag-reader hook integration
 ;;
 ;; Registered into `bookmark-gt-set-tag-reader-hook' when a
 ;; bookmark-gt session is active.  The hook receives (RECORD
 ;; SEED-TAGS); we ignore RECORD and read from the user, using
-;; SEED-TAGS as initial input so default-tags rules (S5) chain
+;; SEED-TAGS as initial input so default-tags rules chain
 ;; naturally into the reader.
+;;
+;; Gated by `bookmark-gt-prompt-for-tags-flag' — a defcustom so
+;; users can disable prompts globally, and batch callers
+;; (`bookmark-gt-browsel-tabs-refresh', tests) let-bind it to
+;; nil around their loops.  Previously this check was
+;; `called-interactively-p 'any', which is unreliable when the
+;; hook is invoked via funcall through seq-reduce (the
+;; interactive frame of `bookmark-gt-set' does not always reach
+;; the check).
+
+(defcustom bookmark-gt-prompt-for-tags-flag t
+  "Non-nil means the tag reader prompts on `bookmark-gt-set'.
+Set to nil to suppress the prompt globally, or let-bind around
+a batch operation that stores many records without user
+interaction."
+  :type 'boolean
+  :group 'bookmark-gt)
 
 (defun bookmark-gt-tags--reader-hook (_record seed-tags)
   "Interactive tag-reader hook for `bookmark-gt-set-tag-reader-hook'.
 Reads tags via `bookmark-gt-tags-read', using SEED-TAGS as the
-minibuffer's initial content."
-  (if (called-interactively-p 'any)
+minibuffer's initial content.  Gated by
+`bookmark-gt-prompt-for-tags-flag'."
+  (if bookmark-gt-prompt-for-tags-flag
       (bookmark-gt-tags-read "Tags" seed-tags)
     seed-tags))
 

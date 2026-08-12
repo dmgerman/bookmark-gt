@@ -78,13 +78,19 @@ reader, auto-update timer) attach here in later stages."
     (bookmark-gt-jump-enable)
     (bookmark-gt-install-temp-save-filter)
     (bookmark-gt-install-jump-via-catch)
-    (bookmark-gt-install-rename-tracker))
+    (bookmark-gt-install-rename-tracker)
+    (bookmark-gt-install-visit-tracker)
+    (bookmark-gt-install-region-restore)
+    (bookmark-gt-install-highlight))
    (t
     (bookmark-gt-tags-disable)
     (bookmark-gt-jump-disable)
     (bookmark-gt-uninstall-temp-save-filter)
     (bookmark-gt-uninstall-jump-via-catch)
-    (bookmark-gt-uninstall-rename-tracker))))
+    (bookmark-gt-uninstall-rename-tracker)
+    (bookmark-gt-uninstall-visit-tracker)
+    (bookmark-gt-uninstall-region-restore)
+    (bookmark-gt-uninstall-highlight))))
 
 (provide 'bookmark-gt)
 

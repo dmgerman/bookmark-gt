@@ -259,6 +259,7 @@ sorting."
   "d"   #'bookmark-gt-list-flag-for-deletion
   "x"   #'bookmark-gt-list-execute-deletions
   "r"   #'bookmark-gt-list-rename
+  "R"   #'bookmark-gt-list-relocate
   "t"   #'bookmark-gt-list-edit-tags
   "a"   #'bookmark-gt-list-edit-annotation
   "/"   #'bookmark-gt-list-filter-by
@@ -303,6 +304,7 @@ Inspect: \\[bookmark-gt-list-describe-record] displays the raw
 record's alist in a popup for debugging.
 
 Edit in place: \\[bookmark-gt-list-rename] rename,
+\\[bookmark-gt-list-relocate] relocate (change filename or URL),
 \\[bookmark-gt-list-edit-tags] edit tags,
 \\[bookmark-gt-list-edit-annotation] edit annotation.
 
@@ -591,6 +593,15 @@ and you can walk down the list previewing each row."
     (bookmark-rename (car record) unique)
     (run-hook-with-args 'bookmark-gt-set-after-hook
                         (cons unique (cdr record)))))
+
+(defun bookmark-gt-list-relocate ()
+  "Relocate the bookmark on the current line.
+Dispatches to `bookmark-gt-relocate' with the row's record
+name so the user gets file-name completion for file
+bookmarks and a plain string prompt for URL bookmarks."
+  (interactive nil bookmark-gt-list-mode)
+  (let ((record (bookmark-gt-list--require-record)))
+    (bookmark-gt-relocate (car record))))
 
 (defun bookmark-gt-list-edit-tags ()
   "Prompt for a new tag list for the bookmark on the current line."
