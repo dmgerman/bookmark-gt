@@ -173,6 +173,24 @@ the composed name is free."
             (iter (1+ n))
           candidate)))))
 
+(defcustom bookmark-gt-allow-duplicate-names t
+  "Non-nil means two records may share the same literal name.
+When set (which is the default), storing a bookmark whose name
+already exists in `bookmark-alist' does not force a `<N>' suffix
+as long as the collision is not a same-handler+same-filename
+full collision (that case is still resolved by
+`bookmark-gt-same-name-overwrite').
+
+Rationale: users often want the same short name for a bookmark
+in each of several files (e.g. `todo' in every project).  A
+`<N>' suffix in that case is noise.  Set to nil to restore the
+old behavior of always disambiguating on any name collision.
+
+The `C-u' prefix (NO-OVERWRITE) still forces disambiguation
+regardless of this flag."
+  :type 'boolean
+  :group 'bookmark-gt)
+
 (defcustom bookmark-gt-same-name-overwrite t
   "Non-nil means `bookmark-gt-set' overwrites in place on a name collision.
 A collision here means: an existing bookmark shares the target's
@@ -216,17 +234,25 @@ accessors are not interchangeable."
 
 (defun bookmark-gt--resolve-collision (name record no-overwrite)
   "Return the name to store RECORD under.
-When NO-OVERWRITE is non-nil, always disambiguate.  Otherwise,
-if `bookmark-gt-same-name-overwrite' is non-nil and NAME
-collides with a same-handler+same-filename record, delete the
-old record and return NAME so the fresh push overwrites it.
-For everything else, disambiguate with `<N>'."
+Decision order:
+
+1. NO-OVERWRITE non-nil (the `C-u' prefix): always disambiguate
+   with `<N>' — matches the built-in `bookmark-set' escape
+   hatch, and takes precedence over both customizations below.
+2. `bookmark-gt-same-name-overwrite' non-nil AND NAME collides
+   with a same-handler+same-filename record: delete the old
+   record and return NAME so the fresh push overwrites it.
+3. `bookmark-gt-allow-duplicate-names' non-nil (the default):
+   return NAME literally, allowing multiple records to share
+   the same name (typically distinguished by file).
+4. Otherwise: disambiguate with `<N>'."
   (cond
    (no-overwrite (bookmark-gt-disambiguate-name name))
    ((and bookmark-gt-same-name-overwrite
          (bookmark-gt--collision-record name record))
     (setq bookmark-alist (assoc-delete-all name bookmark-alist))
     name)
+   (bookmark-gt-allow-duplicate-names name)
    (t (bookmark-gt-disambiguate-name name))))
 
 ;;;; Hook runners (internal)
@@ -884,17 +910,24 @@ NAME is the bookmark name.  When called interactively with NAME
 nil, prompt for it using the current buffer's default.  When
 called from Lisp with NAME non-nil, no prompt is shown.
 
-Same-name policy: when the chosen name collides with an
-existing bookmark that has the same handler and filename, the
-existing record is overwritten in place — the common case of
-\"update this bookmark's location.\"  A collision on name alone,
-where handler or filename differs, is disambiguated with a
-`<N>' suffix so cross-source names never clobber.  Set
-`bookmark-gt-same-name-overwrite' to nil to always disambiguate.
+Same-name policy (in decision order):
+
+- When the chosen name collides with an existing bookmark that
+  has the same handler and filename,
+  `bookmark-gt-same-name-overwrite' (default t) makes the fresh
+  record replace the old one in place — the common case of
+  \"update this bookmark's location.\"
+- Otherwise, `bookmark-gt-allow-duplicate-names' (default t)
+  allows the new record to share the literal name of another
+  existing record (e.g. two `todo' bookmarks in two different
+  files).
+- With both flags off, or with a different handler or filename
+  when overwrite is off, the name is disambiguated with a
+  `<N>' suffix.
 
 NO-OVERWRITE (a prefix argument interactively) forces
-disambiguation regardless of the flag, matching built-in
-`bookmark-set'.
+disambiguation regardless of the flags, matching the built-in
+`bookmark-set' escape hatch.
 
 Runs `bookmark-gt-set-name-reader-hook',
 `bookmark-gt-set-tag-reader-hook', and

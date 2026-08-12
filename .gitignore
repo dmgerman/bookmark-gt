@@ -1,3 +1,13 @@
 *.elc
 *~
 .elpa/
+
+# Generated documentation artifacts (built by `make info` / `make pdf`).
+bookmark-gt.info
+bookmark-gt.pdf
+bookmark-gt.texi
+bookmark-gt.tex
+bookmark-gt.aux
+bookmark-gt.log
+bookmark-gt.out
+bookmark-gt.toc

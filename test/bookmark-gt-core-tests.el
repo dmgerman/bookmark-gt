@@ -36,20 +36,23 @@
 
 (ert-deftest bookmark-gt-test-disambiguate-multiple-collisions ()
   "Third bookmark with the same name is renamed to NAME<3>.
-Rebinds `bookmark-gt-same-name-overwrite' to nil so both
-earlier `set-non-file' calls actually coexist for the check."
+Rebinds both `bookmark-gt-same-name-overwrite' and
+`bookmark-gt-allow-duplicate-names' to nil so the store path
+runs through the `<N>' disambiguation branch."
   (bookmark-gt-test-with-clean-bookmarks
-    (let ((bookmark-gt-same-name-overwrite nil))
+    (let ((bookmark-gt-same-name-overwrite nil)
+          (bookmark-gt-allow-duplicate-names nil))
       (bookmark-gt-set-non-file "foo" 'ignore nil)
       (bookmark-gt-set-non-file "foo" 'ignore nil)
       (should (equal (bookmark-gt-disambiguate-name "foo") "foo<3>")))))
 
 (ert-deftest bookmark-gt-test-disambiguated-names-coexist ()
   "Both same-named bookmarks are present in `bookmark-alist' after store.
-Same-name overwrite is disabled here — this test exercises the
-pure disambiguation path."
+Both overwrite AND allow-duplicate-names are disabled here so
+the test exercises the pure `<N>' disambiguation path."
   (bookmark-gt-test-with-clean-bookmarks
-    (let ((bookmark-gt-same-name-overwrite nil))
+    (let ((bookmark-gt-same-name-overwrite nil)
+          (bookmark-gt-allow-duplicate-names nil))
       (bookmark-gt-set-non-file "foo" 'ignore nil)
       (bookmark-gt-set-non-file "foo" 'ignore nil)
       (should (= (length bookmark-alist) 2))
@@ -71,31 +74,54 @@ pure disambiguation path."
     (should (equal (bookmark-prop-get (car bookmark-alist) 'url)
                    "https://b.example"))))
 
-(ert-deftest bookmark-gt-test-overwrite-different-handler-disambigs ()
-  "Same name but different handler: still disambiguated with `<N>'."
+(ert-deftest bookmark-gt-test-overwrite-different-handler-coexists ()
+  "Same name but different handler: two literal records coexist by default."
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-set-non-file "foo" 'h-a '((url . "https://a")))
     (bookmark-gt-set-non-file "foo" 'h-b '((url . "https://b")))
     (should (= (length bookmark-alist) 2))
-    (should (equal (sort (mapcar #'car bookmark-alist) #'string<)
-                   '("foo" "foo<2>")))))
+    (should (equal (mapcar #'car bookmark-alist) '("foo" "foo")))))
 
-(ert-deftest bookmark-gt-test-overwrite-different-filename-disambigs ()
-  "Same name + same handler but different filenames: disambiguated."
+(ert-deftest bookmark-gt-test-overwrite-different-handler-disambigs-when-off ()
+  "With `bookmark-gt-allow-duplicate-names' nil, different-handler collision
+still disambiguates with `<N>'."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((bookmark-gt-allow-duplicate-names nil))
+      (bookmark-gt-set-non-file "foo" 'h-a '((url . "https://a")))
+      (bookmark-gt-set-non-file "foo" 'h-b '((url . "https://b")))
+      (should (equal (sort (mapcar #'car bookmark-alist) #'string<)
+                     '("foo" "foo<2>"))))))
+
+(ert-deftest bookmark-gt-test-overwrite-different-filename-coexists ()
+  "Same name + same handler but different filenames: both stored literally.
+That is the primary use case for `bookmark-gt-allow-duplicate-names'."
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-set-non-file "foo" 'h
                               '((filename . "/tmp/a") (position . 1)))
     (bookmark-gt-set-non-file "foo" 'h
                               '((filename . "/tmp/b") (position . 1)))
-    (should (= (length bookmark-alist) 2))))
+    (should (= (length bookmark-alist) 2))
+    (should (equal (mapcar #'car bookmark-alist) '("foo" "foo")))))
 
-(ert-deftest bookmark-gt-test-overwrite-flag-off-preserves ()
-  "With `bookmark-gt-same-name-overwrite' nil, collisions always disambig."
+(ert-deftest bookmark-gt-test-overwrite-flag-off-allows-duplicates ()
+  "With `bookmark-gt-same-name-overwrite' nil (but allow-duplicate-names
+default t), same-file collisions produce two records with the same name."
   (bookmark-gt-test-with-clean-bookmarks
     (let ((bookmark-gt-same-name-overwrite nil))
       (bookmark-gt-set-non-file "foo" 'my-h '((url . "https://a")))
       (bookmark-gt-set-non-file "foo" 'my-h '((url . "https://b")))
-      (should (= (length bookmark-alist) 2)))))
+      (should (= (length bookmark-alist) 2))
+      (should (equal (mapcar #'car bookmark-alist) '("foo" "foo"))))))
+
+(ert-deftest bookmark-gt-test-no-overwrite-forces-disambig ()
+  "The NO-OVERWRITE arg forces `<N>' disambiguation even with the
+default policy (both flags on)."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-set-non-file "foo" 'h '((filename . "/tmp/a")))
+    ;; Interactive-style: pass NAME + NO-OVERWRITE (non-nil).
+    (let ((chosen (bookmark-gt--resolve-collision
+                   "foo" '((filename . "/tmp/b") (handler . h)) t)))
+      (should (equal chosen "foo<2>")))))
 
 ;;;; Hook chain
 
@@ -148,10 +174,12 @@ pure disambiguation path."
 
 (ert-deftest bookmark-gt-test-save-load-disambig-names ()
   "Disambiguated `<N>' names survive save/load.
-Same-name overwrite is disabled here so both records coexist
-and reach the file."
+Both overwrite and allow-duplicate-names are disabled here so
+the pure `<N>' path runs and produces two distinctly-named
+records for the round-trip."
   (bookmark-gt-test-with-clean-bookmarks
-    (let ((bookmark-gt-same-name-overwrite nil))
+    (let ((bookmark-gt-same-name-overwrite nil)
+          (bookmark-gt-allow-duplicate-names nil))
       (bookmark-gt-set-non-file "foo" 'ignore nil)
       (bookmark-gt-set-non-file "foo" 'ignore nil)
       (bookmark-save)

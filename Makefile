@@ -86,7 +86,8 @@ EMACS_BATCH = $(EMACS) -Q --batch \
         lint-30 lint-31 lint-all \
         compile-30 compile-31 compile-all \
         test-30 test-31 test-all \
-        version set-version check-version
+        version set-version check-version \
+        info pdf docs clean-docs
 
 # Default target: byte-compile.  Lint is not included here so the
 # common edit-then-`make' loop stays fast; run `make check' or
@@ -109,6 +110,10 @@ help:
 	@echo "  make set-version VERSION=X.Y.Z"
 	@echo "                     update every source's version to X.Y.Z"
 	@echo "  make check-version verify every source agrees on the version"
+	@echo "  make info          build bookmark-gt.info from readme.org"
+	@echo "  make pdf           build bookmark-gt.pdf  from readme.org (needs TeX)"
+	@echo "  make docs          build both bookmark-gt.info and bookmark-gt.pdf"
+	@echo "  make clean-docs    remove generated .info / .pdf / .texi / .tex artifacts"
 
 # assert-emacs: verify a named Emacs binary exists before delegating.
 define assert-emacs
@@ -199,6 +204,34 @@ test: $(ELPA_DIR)/.installed
 
 clean:
 	rm -f *.elc test/*.elc
+
+# ---------------------------------------------------------------------------
+# Documentation targets
+#
+# readme.org is the single source of truth.  Info output requires
+# `makeinfo' (bundled with Emacs / Homebrew).  PDF output requires
+# a TeX distribution — BasicTeX (~100 MB) is enough.
+
+info: bookmark-gt.info
+
+bookmark-gt.info: readme.org
+	$(CI_EMACS) -Q --batch $< \
+	  --eval "(require 'ox-texinfo)" \
+	  -f org-texinfo-export-to-info
+
+pdf: bookmark-gt.pdf
+
+bookmark-gt.pdf: readme.org
+	$(CI_EMACS) -Q --batch $< \
+	  --eval "(require 'ox-latex)" \
+	  -f org-latex-export-to-pdf
+
+docs: info pdf
+
+clean-docs:
+	rm -f bookmark-gt.info bookmark-gt.texi bookmark-gt.pdf \
+	      bookmark-gt.tex bookmark-gt.aux bookmark-gt.log \
+	      bookmark-gt.out bookmark-gt.toc
 
 check: compile lint checkdoc check-declare check-version
 
