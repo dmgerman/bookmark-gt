@@ -210,28 +210,37 @@ clean:
 #
 # readme.org is the single source of truth.  Info output requires
 # `makeinfo' (bundled with Emacs / Homebrew).  PDF output requires
-# a TeX distribution — BasicTeX (~100 MB) is enough.
+# a TeX distribution — BasicTeX (~100 MB) is enough.  Both
+# artifacts land under docs/ (see `#+EXPORT_FILE_NAME' in
+# readme.org).
 
-info: bookmark-gt.info
+info: docs/bookmark-gt.info
 
-bookmark-gt.info: readme.org
+docs/bookmark-gt.info: readme.org
+	@mkdir -p docs
 	$(CI_EMACS) -Q --batch $< \
 	  --eval "(require 'ox-texinfo)" \
 	  -f org-texinfo-export-to-info
+	@rm -f docs/bookmark-gt.texi
 
-pdf: bookmark-gt.pdf
+pdf: docs/bookmark-gt.pdf
 
-bookmark-gt.pdf: readme.org
+docs/bookmark-gt.pdf: readme.org
+	@mkdir -p docs
 	$(CI_EMACS) -Q --batch $< \
 	  --eval "(require 'ox-latex)" \
 	  -f org-latex-export-to-pdf
+	@rm -f docs/bookmark-gt.tex docs/bookmark-gt.aux \
+	       docs/bookmark-gt.log docs/bookmark-gt.out \
+	       docs/bookmark-gt.toc
 
 docs: info pdf
 
 clean-docs:
-	rm -f bookmark-gt.info bookmark-gt.texi bookmark-gt.pdf \
-	      bookmark-gt.tex bookmark-gt.aux bookmark-gt.log \
-	      bookmark-gt.out bookmark-gt.toc
+	rm -f docs/bookmark-gt.info docs/bookmark-gt.texi \
+	      docs/bookmark-gt.pdf docs/bookmark-gt.tex \
+	      docs/bookmark-gt.aux docs/bookmark-gt.log \
+	      docs/bookmark-gt.out docs/bookmark-gt.toc
 
 check: compile lint checkdoc check-declare check-version
 

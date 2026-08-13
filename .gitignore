@@ -2,12 +2,12 @@
 *~
 .elpa/
 
-# Generated documentation artifacts (built by `make info` / `make pdf`).
-bookmark-gt.info
-bookmark-gt.pdf
-bookmark-gt.texi
-bookmark-gt.tex
-bookmark-gt.aux
-bookmark-gt.log
-bookmark-gt.out
-bookmark-gt.toc
+# Intermediate documentation artifacts (built by `make info` /
+# `make pdf`; the final .info and .pdf live under docs/ and are
+# committed).
+docs/bookmark-gt.texi
+docs/bookmark-gt.tex
+docs/bookmark-gt.aux
+docs/bookmark-gt.log
+docs/bookmark-gt.out
+docs/bookmark-gt.toc

@@ -4,8 +4,8 @@
 #+EMAIL: dmg@turingmachine.org
 #+LANGUAGE: en
 #+OPTIONS: toc:3
-#+EXPORT_FILE_NAME: bookmark-gt
-#+TEXINFO_FILENAME: bookmark-gt.info
+#+EXPORT_FILE_NAME: docs/bookmark-gt
+#+TEXINFO_FILENAME: docs/bookmark-gt.info
 #+TEXINFO_DIR_CATEGORY: Emacs
 #+TEXINFO_DIR_TITLE: bookmark-gt: (bookmark-gt)
 #+TEXINFO_DIR_DESC: Bookmark manager for Emacs.
