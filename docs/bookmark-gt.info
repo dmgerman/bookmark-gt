@@ -73,6 +73,7 @@ Non-file bookmark types
 * Dired bookmarks — bookmark-gt-handler-dired-jump::
 * Function bookmarks — bookmark-gt-set-function::
 * Sequence bookmarks — bookmark-gt-set-sequence::
+* File-type handlers — override the file-jump path per pattern::
 * View bookmarks — bookmark-gt-list-save-view-as-bookmark::
 
 Setting bookmarks
@@ -429,6 +430,7 @@ File: bookmark-gt.info,  Node: Non-file bookmark types,  Prev: Jump reader bookm
 * Dired bookmarks — bookmark-gt-handler-dired-jump::
 * Function bookmarks — bookmark-gt-set-function::
 * Sequence bookmarks — bookmark-gt-set-sequence::
+* File-type handlers — override the file-jump path per pattern::
 * View bookmarks — bookmark-gt-list-save-view-as-bookmark::
 
 
@@ -486,7 +488,7 @@ A function bookmark stores a callable (a symbol or lambda) under the
                                (lambda () (my-toggle-theme)))
 
 
-File: bookmark-gt.info,  Node: Sequence bookmarks — bookmark-gt-set-sequence,  Next: View bookmarks — bookmark-gt-list-save-view-as-bookmark,  Prev: Function bookmarks — bookmark-gt-set-function,  Up: Non-file bookmark types
+File: bookmark-gt.info,  Node: Sequence bookmarks — bookmark-gt-set-sequence,  Next: File-type handlers — override the file-jump path per pattern,  Prev: Function bookmarks — bookmark-gt-set-function,  Up: Non-file bookmark types
 
 3.3.4 Sequence bookmarks — ‘bookmark-gt-set-sequence’
 -----------------------------------------------------
@@ -503,9 +505,42 @@ bookmark names one at a time until you enter empty input.
                                '("inbox" "todo.org" "calendar"))
 
 
-File: bookmark-gt.info,  Node: View bookmarks — bookmark-gt-list-save-view-as-bookmark,  Prev: Sequence bookmarks — bookmark-gt-set-sequence,  Up: Non-file bookmark types
+File: bookmark-gt.info,  Node: File-type handlers — override the file-jump path per pattern,  Next: View bookmarks — bookmark-gt-list-save-view-as-bookmark,  Prev: Sequence bookmarks — bookmark-gt-set-sequence,  Up: Non-file bookmark types
 
-3.3.5 View bookmarks — ‘bookmark-gt-list-save-view-as-bookmark’
+3.3.5 File-type handlers — override the file-jump path per pattern
+------------------------------------------------------------------
+
+‘bookmark-gt-file-type-handlers’ is an alist mapping a filename regexp
+to a bookmark handler function.  When jumping a file bookmark whose
+‘filename’ matches, the mapped function is called with the bookmark
+record instead of the built-in ‘find-file’ path.  The function's
+contract is the same as any 'bookmark.el' handler: one argument, the
+record.
+
+   Typical use: open certain file types with an external program instead
+of an Emacs buffer.
+
+     (defun my-mac-open (bookmark)
+       "Open BOOKMARK's file with macOS's `open' command."
+       (call-process "open" nil 0 nil
+                     (bookmark-prop-get bookmark 'filename)))
+
+     (setq bookmark-gt-file-type-handlers
+           '(("\\.pdf\\'"          . my-mac-open)
+             ("\\.\\(mp4\\|mkv\\)\\'" . my-mac-open)))
+
+   If the handler opens an external target and does not want the
+built-in post-jump popup, it should end with
+‘(bookmark-gt-skip-post-handler 'file-type)’.
+
+   Entries are tried in list order; the first matching regexp wins.  The
+advice on ‘bookmark-default-handler’ is installed by ‘bookmark-gt-mode’
+and removed when the mode turns off.
+
+
+File: bookmark-gt.info,  Node: View bookmarks — bookmark-gt-list-save-view-as-bookmark,  Prev: File-type handlers — override the file-jump path per pattern,  Up: Non-file bookmark types
+
+3.3.6 View bookmarks — ‘bookmark-gt-list-save-view-as-bookmark’
 ---------------------------------------------------------------
 
 A view bookmark captures the persistent presentation state of the
@@ -984,6 +1019,7 @@ Variable                               Default                   What it does
 ‘bookmark-gt-same-name-overwrite’      ‘t’                       When a new bookmark's name matches an existing record with the same handler AND same filename, replace the record in place.
 ‘bookmark-gt-allow-duplicate-names’    ‘t’                       Allow two records to share the same literal name (typically distinguished by file).  Off falls back to ‘<N>’ suffix disambiguation.
 ‘bookmark-gt-highlight-enable’         ‘t’                       Per-bookmark line overlays in file-visiting buffers.  Off suppresses the overlays even while ‘bookmark-gt-mode’ is on.
+‘bookmark-gt-file-type-handlers’       ‘nil’                     Alist mapping filename regexp to a handler function; when a file bookmark's ‘filename’ matches, the function is called with the record instead of the built-in ‘find-file’ path.
 ‘bookmark-gt-browsel-tabs-browsers’    ‘nil’                     List of browsel browser client names to query for tabs (e.g.  ‘'("chrome" "firefox")’), or ‘nil’ to query every browser browsel is connected to.
 ‘bookmark-gt-browsel-tabs-filter’      ‘nil’                     Filter applied to each fetched tab before it is stored.  ‘nil’ = accept every tab; a regexp = keep tabs whose URL matches; a function = called with the tab plist, kept when it returns non-nil.
 
@@ -1035,46 +1071,47 @@ GPL-3.0-or-later.  See ‘LICENSE’.
 
 Tag Table:
 Node: Top205
-Node: Install2194
-Node: Getting started3230
-Node: Master switch bookmark-gt-mode3428
-Node: Opt-in modes4010
-Node: bookmark-gt-auto-update-mode4361
-Node: bookmark-gt-default-tags-mode5191
-Node: bookmark-gt-browsel-tabs-mode6219
-Node: User interface7451
-Node: The *Bookmarks-gt List* buffer7701
-Node: Columns8201
-Node: Keys9368
-Node: Jump reader bookmark-gt-jump10641
-Node: Elisp signatures11614
-Node: Non-file bookmark types14370
-Node: URL bookmarks — bookmark-gt-set-url14816
-Node: Dired bookmarks — bookmark-gt-handler-dired-jump15550
-Node: Function bookmarks — bookmark-gt-set-function16246
-Node: Sequence bookmarks — bookmark-gt-set-sequence17055
-Node: View bookmarks — bookmark-gt-list-save-view-as-bookmark17802
-Node: Setting bookmarks18880
-Node: Tag reader19118
-Node: Same-name policy20123
-Node: Relocate change a bookmark's target22098
-Node: In-file behaviors23247
-Node: In-buffer cycling23476
-Node: Per-bookmark highlighting24476
-Node: Region bookmarks26433
-Node: Trackers27954
-Node: Visit tracker28130
-Node: File-rename tracker28980
-Node: Extension API30024
-Node: Handler registry30225
-Node: Group registry32264
-Node: Extension points33917
-Node: Compatibility35094
-Node: Data compat with bookmark+35266
-Node: Reference36245
-Node: Selected customization36408
-Node: Acknowledgements40466
-Node: License42351
+Node: Install2261
+Node: Getting started3297
+Node: Master switch bookmark-gt-mode3495
+Node: Opt-in modes4077
+Node: bookmark-gt-auto-update-mode4428
+Node: bookmark-gt-default-tags-mode5258
+Node: bookmark-gt-browsel-tabs-mode6286
+Node: User interface7518
+Node: The *Bookmarks-gt List* buffer7768
+Node: Columns8268
+Node: Keys9435
+Node: Jump reader bookmark-gt-jump10708
+Node: Elisp signatures11681
+Node: Non-file bookmark types14437
+Node: URL bookmarks — bookmark-gt-set-url14950
+Node: Dired bookmarks — bookmark-gt-handler-dired-jump15684
+Node: Function bookmarks — bookmark-gt-set-function16380
+Node: Sequence bookmarks — bookmark-gt-set-sequence17189
+Node: File-type handlers — override the file-jump path per pattern17941
+Node: View bookmarks — bookmark-gt-list-save-view-as-bookmark19478
+Node: Setting bookmarks20571
+Node: Tag reader20809
+Node: Same-name policy21814
+Node: Relocate change a bookmark's target23789
+Node: In-file behaviors24938
+Node: In-buffer cycling25167
+Node: Per-bookmark highlighting26167
+Node: Region bookmarks28124
+Node: Trackers29645
+Node: Visit tracker29821
+Node: File-rename tracker30671
+Node: Extension API31715
+Node: Handler registry31916
+Node: Group registry33955
+Node: Extension points35608
+Node: Compatibility36785
+Node: Data compat with bookmark+36957
+Node: Reference37936
+Node: Selected customization38099
+Node: Acknowledgements42415
+Node: License44300
 
 End Tag Table
 

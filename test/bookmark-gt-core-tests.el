@@ -235,5 +235,65 @@ records for the round-trip."
       (should (equal (bookmark-prop-get (car seen) 'filename)
                      "/tmp/b.txt")))))
 
+;;;; File-type handler dispatch
+
+(ert-deftest bookmark-gt-file-type-handler-test-dispatches-on-match ()
+  "On regexp match, the mapped function is called with the record."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-set-non-file
+     "f" nil (list (cons 'filename "/tmp/report.pdf")))
+    (let* ((called nil)
+           (bookmark-gt-file-type-handlers
+            `(("\\.pdf\\'" . ,(lambda (bmk) (setq called bmk))))))
+      (bookmark-gt--file-type-handler-advice
+       (lambda (&rest _) (error "orig-fn should not be called"))
+       (assoc "f" bookmark-alist))
+      (should called)
+      (should (equal (bookmark-prop-get called 'filename)
+                     "/tmp/report.pdf")))))
+
+(ert-deftest bookmark-gt-file-type-handler-test-delegates-when-no-match ()
+  "When no regexp matches, the original handler is invoked."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-set-non-file
+     "f" nil (list (cons 'filename "/tmp/report.txt")))
+    (let* ((delegated nil)
+           (bookmark-gt-file-type-handlers
+            '(("\\.pdf\\'" . ignore))))
+      (bookmark-gt--file-type-handler-advice
+       (lambda (bmk &rest _) (setq delegated bmk))
+       (assoc "f" bookmark-alist))
+      (should delegated)
+      (should (equal (bookmark-prop-get delegated 'filename)
+                     "/tmp/report.txt")))))
+
+(ert-deftest bookmark-gt-file-type-handler-test-empty-list-delegates ()
+  "With `bookmark-gt-file-type-handlers' nil, the advice is a no-op."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-set-non-file
+     "f" nil (list (cons 'filename "/tmp/anything")))
+    (let* ((delegated nil)
+           (bookmark-gt-file-type-handlers nil))
+      (bookmark-gt--file-type-handler-advice
+       (lambda (bmk &rest _) (setq delegated bmk))
+       (assoc "f" bookmark-alist))
+      (should delegated))))
+
+(ert-deftest bookmark-gt-file-type-handler-test-first-match-wins ()
+  "Regexps are tried in list order; earlier entry wins."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-set-non-file
+     "f" nil (list (cons 'filename "/tmp/report.pdf")))
+    (let* ((first-called nil)
+           (second-called nil)
+           (bookmark-gt-file-type-handlers
+            `(("\\.pdf\\'" . ,(lambda (_bmk) (setq first-called t)))
+              ("\\.pdf\\'" . ,(lambda (_bmk) (setq second-called t))))))
+      (bookmark-gt--file-type-handler-advice
+       (lambda (&rest _) nil)
+       (assoc "f" bookmark-alist))
+      (should first-called)
+      (should-not second-called))))
+
 (provide 'bookmark-gt-core-tests)
 ;;; bookmark-gt-core-tests.el ends here

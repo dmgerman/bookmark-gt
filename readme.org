@@ -347,6 +347,37 @@ Elisp:
                           '("inbox" "todo.org" "calendar"))
 #+end_src
 
+*** File-type handlers — override the file-jump path per pattern
+
+~bookmark-gt-file-type-handlers~ is an alist mapping a
+filename regexp to a bookmark handler function.  When jumping
+a file bookmark whose ~filename~ matches, the mapped function
+is called with the bookmark record instead of the built-in
+~find-file~ path.  The function's contract is the same as any
+`bookmark.el' handler: one argument, the record.
+
+Typical use: open certain file types with an external program
+instead of an Emacs buffer.
+
+#+begin_src emacs-lisp
+(defun my-mac-open (bookmark)
+  "Open BOOKMARK's file with macOS's `open' command."
+  (call-process "open" nil 0 nil
+                (bookmark-prop-get bookmark 'filename)))
+
+(setq bookmark-gt-file-type-handlers
+      '(("\\.pdf\\'"          . my-mac-open)
+        ("\\.\\(mp4\\|mkv\\)\\'" . my-mac-open)))
+#+end_src
+
+If the handler opens an external target and does not want the
+built-in post-jump popup, it should end with
+~(bookmark-gt-skip-post-handler 'file-type)~.
+
+Entries are tried in list order; the first matching regexp
+wins.  The advice on ~bookmark-default-handler~ is installed
+by ~bookmark-gt-mode~ and removed when the mode turns off.
+
 *** View bookmarks — ~bookmark-gt-list-save-view-as-bookmark~
 
 A view bookmark captures the persistent presentation state of
@@ -741,6 +772,7 @@ Two shape differences we accommodate on read:
 | ~bookmark-gt-same-name-overwrite~     | ~t~       | When a new bookmark's name matches an existing record with the same handler AND same filename, replace the record in place. |
 | ~bookmark-gt-allow-duplicate-names~   | ~t~       | Allow two records to share the same literal name (typically distinguished by file).  Off falls back to ~<N>~ suffix disambiguation. |
 | ~bookmark-gt-highlight-enable~        | ~t~       | Per-bookmark line overlays in file-visiting buffers.  Off suppresses the overlays even while ~bookmark-gt-mode~ is on.    |
+| ~bookmark-gt-file-type-handlers~      | ~nil~     | Alist mapping filename regexp to a handler function; when a file bookmark's ~filename~ matches, the function is called with the record instead of the built-in ~find-file~ path. |
 | ~bookmark-gt-browsel-tabs-browsers~   | ~nil~     | List of browsel browser client names to query for tabs (e.g. ~'("chrome" "firefox")~), or ~nil~ to query every browser browsel is connected to. |
 | ~bookmark-gt-browsel-tabs-filter~     | ~nil~     | Filter applied to each fetched tab before it is stored.  ~nil~ = accept every tab; a regexp = keep tabs whose URL matches; a function = called with the tab plist, kept when it returns non-nil. |
 

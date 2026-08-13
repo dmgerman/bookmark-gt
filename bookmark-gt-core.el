@@ -800,6 +800,48 @@ filter is only applied to what gets written to disk."
          (seq-remove #'bookmark-gt-temp-p bookmark-alist)))
     (apply orig-fn args)))
 
+;;;; File-type handler dispatch
+;;
+;; A regexp → function table consulted when jumping a file
+;; bookmark.  On match, the associated function is called with
+;; the whole bookmark record instead of the built-in
+;; `find-file' path.  The function's contract matches a
+;; standard `bookmark.el' handler (one argument, the record).
+;; See `bookmark-gt-file-type-handlers'.
+
+(defcustom bookmark-gt-file-type-handlers nil
+  "Alist mapping filename regexp to a bookmark handler function.
+When jumping a file bookmark whose `filename' matches one of
+the regexps, the corresponding function is called with the
+bookmark record and takes over the jump.  The function's
+contract is the same as a standard `bookmark.el' handler: one
+argument, the bookmark record; it may read any record prop —
+`filename', `position', `tags', and so on.
+
+If the function opens an external target and does not want
+the built-in post-jump popup, it should end with
+`(bookmark-gt-skip-post-handler \\='file-type)'.
+
+Entries are tried in order; the first matching regexp wins."
+  :type '(alist :key-type regexp :value-type function)
+  :group 'bookmark-gt)
+
+(defun bookmark-gt--file-type-handler-advice (orig-fn bookmark &rest args)
+  "Around advice for `bookmark-default-handler'.
+If BOOKMARK's `filename' matches an entry in
+`bookmark-gt-file-type-handlers', call that entry's function
+with BOOKMARK.  Otherwise delegate to ORIG-FN with ARGS."
+  (let ((filename (bookmark-prop-get bookmark 'filename))
+        (matched  nil))
+    (when filename
+      (dolist (entry bookmark-gt-file-type-handlers)
+        (unless matched
+          (when (string-match-p (car entry) filename)
+            (setq matched (cdr entry))))))
+    (if matched
+        (funcall matched bookmark)
+      (apply orig-fn bookmark args))))
+
 ;;;; Public: interactive entry point
 
 (defun bookmark-gt-set (&optional name no-overwrite)
