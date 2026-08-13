@@ -62,6 +62,7 @@ The ‘*Bookmarks-gt List*’ buffer
 
 * Columns::
 * Keys::
+* Persisting view state::
 
 Jump reader: ‘bookmark-gt-jump’
 
@@ -312,6 +313,7 @@ sort column through the marker and data columns.
 
 * Columns::
 * Keys::
+* Persisting view state::
 
 
 File: bookmark-gt.info,  Node: Columns,  Next: Keys,  Up: The *Bookmarks-gt List* buffer
@@ -335,7 +337,7 @@ with a strikethrough (‘bookmark-gt-face-missing-file’).  Remote (Tramp)
 paths are not probed — the existence check is local only.
 
 
-File: bookmark-gt.info,  Node: Keys,  Prev: Columns,  Up: The *Bookmarks-gt List* buffer
+File: bookmark-gt.info,  Node: Keys,  Next: Persisting view state,  Prev: Columns,  Up: The *Bookmarks-gt List* buffer
 
 3.1.2 Keys
 ----------
@@ -362,6 +364,7 @@ Key         Action
 ‘a’         Edit annotation
 ‘/’         Filter (choose by-type / by-tag / by-name-regexp / unfilter)
 ‘s’         Cycle sort column
+‘V’         Reset view (sort → Name, clear filters, restore 'bookmark-gt-list-default-show-temp')
 ‘g’         Revert: refresh browser tabs and auto-update positions (if their modes are on), then redraw
 ‘C-x C-s’   Save the bookmark file ('bookmark-save')
 ‘i’         Inspect record (pretty-print alist in a popup)
@@ -369,6 +372,29 @@ Key         Action
 
    Selection marks are stored in a buffer-local hash keyed by record
 cons identity — they survive sort, revert, and after-hook re-renders.
+
+
+File: bookmark-gt.info,  Node: Persisting view state,  Prev: Keys,  Up: The *Bookmarks-gt List* buffer
+
+3.1.3 Persisting view state
+---------------------------
+
+The list buffer's sort column, ‘show-temp’ toggle, and active filters
+are preserved across repeated invocations of ‘bookmark-gt-list’ within a
+session.
+
+   To also carry the view across Emacs sessions, set
+‘bookmark-gt-list-persist-state’ to a non-nil value.  When enabled, the
+three values are written to ‘bookmark-gt-list-state-file’ (default:
+‘(locate-user-emacs-file "bookmark-gt-list-state")’) on every
+state-changing command and on ‘kill-emacs-hook’, and re-read on the next
+'bookmark-gt-list-mode' entry.
+
+     (setq bookmark-gt-list-persist-state t)
+
+   Selection marks and point are never persisted.  Use ‘V’ or ‘M-x
+bookmark-gt-list-reset-view’ to restore defaults; the reset itself is
+persisted when the file is enabled.
 
 
 File: bookmark-gt.info,  Node: Jump reader bookmark-gt-jump,  Next: Non-file bookmark types,  Prev: The *Bookmarks-gt List* buffer,  Up: User interface
@@ -1170,48 +1196,49 @@ GPL-3.0-or-later.  See ‘LICENSE’.
 
 Tag Table:
 Node: Top205
-Node: Install2287
-Node: Getting started3830
-Node: Master switch bookmark-gt-mode4028
-Node: Opt-in modes6356
-Node: bookmark-gt-auto-update-mode6707
-Node: bookmark-gt-default-tags-mode7572
-Node: bookmark-gt-browsel-tabs-mode8600
-Node: User interface9723
-Node: The *Bookmarks-gt List* buffer9973
-Node: Columns10473
-Node: Keys11695
-Node: Jump reader bookmark-gt-jump13354
-Node: Elisp signatures14741
-Node: Non-file bookmark types17497
-Node: URL bookmarks — bookmark-gt-set-url18007
-Node: Dired bookmarks — bookmark-gt-handler-dired-jump18741
-Node: Function bookmarks — bookmark-gt-set-function19437
-Node: Sequence bookmarks — bookmark-gt-set-sequence20246
-Node: File-type handlers — override the file-jump path per pattern20998
-Node: View bookmarks — save the list buffer's current view22532
-Node: Setting bookmarks23694
-Node: Tag reader23932
-Node: Same-name policy24937
-Node: Relocate change a bookmark's target26912
-Node: In-file behaviors28061
-Node: In-buffer cycling28290
-Node: Per-bookmark highlighting29290
-Node: Region bookmarks31247
-Node: Trackers32768
-Node: Visit tracker32944
-Node: File-rename tracker33794
-Node: Extension API34781
-Node: Handler registry34982
-Node: Group registry37021
-Node: Extension points38674
-Node: Compatibility40370
-Node: Data compat with bookmark+40571
-Node: Migrating from bookmark+41701
-Node: Reference43678
-Node: Selected customization43841
-Node: Acknowledgements48599
-Node: License50484
+Node: Install2313
+Node: Getting started3856
+Node: Master switch bookmark-gt-mode4054
+Node: Opt-in modes6382
+Node: bookmark-gt-auto-update-mode6733
+Node: bookmark-gt-default-tags-mode7598
+Node: bookmark-gt-browsel-tabs-mode8626
+Node: User interface9749
+Node: The *Bookmarks-gt List* buffer9999
+Node: Columns10525
+Node: Keys11747
+Node: Persisting view state13540
+Node: Jump reader bookmark-gt-jump14468
+Node: Elisp signatures15855
+Node: Non-file bookmark types18611
+Node: URL bookmarks — bookmark-gt-set-url19121
+Node: Dired bookmarks — bookmark-gt-handler-dired-jump19855
+Node: Function bookmarks — bookmark-gt-set-function20551
+Node: Sequence bookmarks — bookmark-gt-set-sequence21360
+Node: File-type handlers — override the file-jump path per pattern22112
+Node: View bookmarks — save the list buffer's current view23646
+Node: Setting bookmarks24808
+Node: Tag reader25046
+Node: Same-name policy26051
+Node: Relocate change a bookmark's target28026
+Node: In-file behaviors29175
+Node: In-buffer cycling29404
+Node: Per-bookmark highlighting30404
+Node: Region bookmarks32361
+Node: Trackers33882
+Node: Visit tracker34058
+Node: File-rename tracker34908
+Node: Extension API35895
+Node: Handler registry36096
+Node: Group registry38135
+Node: Extension points39788
+Node: Compatibility41484
+Node: Data compat with bookmark+41685
+Node: Migrating from bookmark+42815
+Node: Reference44792
+Node: Selected customization44955
+Node: Acknowledgements49713
+Node: License51598
 
 End Tag Table
 

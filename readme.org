@@ -226,6 +226,7 @@ local only.
 | ~a~   | Edit annotation                                              |
 | ~/~   | Filter (choose by-type / by-tag / by-name-regexp / unfilter) |
 | ~s~   | Cycle sort column                                            |
+| ~V~   | Reset view (sort → Name, clear filters, restore `bookmark-gt-list-default-show-temp`) |
 | ~g~   | Revert: refresh browser tabs and auto-update positions (if their modes are on), then redraw |
 | ~C-x C-s~ | Save the bookmark file (`bookmark-save`)                 |
 | ~i~   | Inspect record (pretty-print alist in a popup)               |
@@ -234,6 +235,28 @@ local only.
 Selection marks are stored in a buffer-local hash keyed by
 record cons identity — they survive sort, revert, and
 after-hook re-renders.
+
+*** Persisting view state
+
+The list buffer's sort column, ~show-temp~ toggle, and active
+filters are preserved across repeated invocations of
+~bookmark-gt-list~ within a session.
+
+To also carry the view across Emacs sessions, set
+~bookmark-gt-list-persist-state~ to a non-nil value.  When
+enabled, the three values are written to
+~bookmark-gt-list-state-file~ (default:
+~(locate-user-emacs-file "bookmark-gt-list-state")~) on every
+state-changing command and on ~kill-emacs-hook~, and re-read on
+the next `bookmark-gt-list-mode' entry.
+
+#+begin_src emacs-lisp
+(setq bookmark-gt-list-persist-state t)
+#+end_src
+
+Selection marks and point are never persisted.  Use ~V~ or
+~M-x bookmark-gt-list-reset-view~ to restore defaults; the
+reset itself is persisted when the file is enabled.
 
 ** Jump reader: ~bookmark-gt-jump~
 

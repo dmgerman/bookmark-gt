@@ -98,6 +98,46 @@ with `bookmark-gt-list-show-temp'."
   :type 'character
   :group 'bookmark-gt)
 
+;;;; State persistence
+
+(defcustom bookmark-gt-list-persist-state nil
+  "Non-nil to persist list-buffer view state across Emacs sessions.
+When enabled, the sort column, `show-temp' toggle, and active
+filters are written to `bookmark-gt-list-state-file' whenever
+they change and on `kill-emacs-hook', and re-read the next time
+`bookmark-gt-list-mode' is entered.  Selection marks and point
+are not persisted.
+
+When nil (the default) the state file is neither read nor
+written.  In-session state — the sort key, filters, and
+`show-temp' toggle set in a live buffer — is still preserved
+across repeated invocations of `bookmark-gt-list' regardless
+of this setting."
+  :type 'boolean
+  :group 'bookmark-gt)
+
+(defcustom bookmark-gt-list-state-file
+  (locate-user-emacs-file "bookmark-gt-list-state")
+  "File that persists list-buffer view state across Emacs sessions.
+Only consulted when `bookmark-gt-list-persist-state' is
+non-nil.  Contains a single alist with keys `sort-key',
+`show-temp', and `filters'."
+  :type 'file
+  :group 'bookmark-gt)
+
+(defvar bookmark-gt-list--state nil
+  "In-memory copy of the persisted list-buffer view state.
+Alist with keys `sort-key' (cons of column-name and reversep),
+`show-temp' (boolean), and `filters' (alist of (FILTER-KEY .
+ARG)).  Loaded from `bookmark-gt-list-state-file' on first
+`bookmark-gt-list-mode' entry when
+`bookmark-gt-list-persist-state' is non-nil.")
+
+(defvar bookmark-gt-list--state-loaded nil
+  "Non-nil once the state file has been read this session.
+Prevents re-reading on subsequent mode entries.  Reset by
+disabling and re-enabling `bookmark-gt-mode'.")
+
 ;;;; Filter registry
 
 (defvar bookmark-gt-filter-alist nil
@@ -278,6 +318,78 @@ sorting."
               (list record (bookmark-gt-list--entry-vector record)))
             records)))
 
+;;;; State-file persistence
+
+(defun bookmark-gt-list--state-load ()
+  "Read `bookmark-gt-list-state-file' into `bookmark-gt-list--state'.
+Sets `bookmark-gt-list--state-loaded' to t whether or not the
+file existed.  A missing or unreadable file, or a read error,
+leaves the state alist nil (defaults apply)."
+  (setq bookmark-gt-list--state-loaded t)
+  (when (and bookmark-gt-list-persist-state
+             bookmark-gt-list-state-file
+             (file-readable-p bookmark-gt-list-state-file))
+    (with-demoted-errors "bookmark-gt-list: state read failed: %S"
+      (with-temp-buffer
+        (insert-file-contents bookmark-gt-list-state-file)
+        (goto-char (point-min))
+        (let ((v (read (current-buffer))))
+          (when (listp v)
+            (setq bookmark-gt-list--state v)))))))
+
+(defun bookmark-gt-list--state-capture ()
+  "Return an alist of the current buffer's persisted view state."
+  (list (cons 'sort-key  tabulated-list-sort-key)
+        (cons 'show-temp bookmark-gt-list--show-temp)
+        (cons 'filters   bookmark-gt-list--filters)))
+
+(defun bookmark-gt-list--state-apply ()
+  "Apply `bookmark-gt-list--state' to the current buffer.
+No-op when the state alist is empty."
+  (when-let ((v (alist-get 'sort-key bookmark-gt-list--state)))
+    (setq tabulated-list-sort-key v))
+  (when (assq 'show-temp bookmark-gt-list--state)
+    (setq bookmark-gt-list--show-temp
+          (alist-get 'show-temp bookmark-gt-list--state)))
+  (setq bookmark-gt-list--filters
+        (alist-get 'filters bookmark-gt-list--state)))
+
+(defun bookmark-gt-list-save-state ()
+  "Write the current list-buffer view state to `bookmark-gt-list-state-file'.
+Reads state from the live `*Bookmarks-gt List*' buffer if one
+exists; otherwise from `bookmark-gt-list--state'.  No-op when
+`bookmark-gt-list-persist-state' is nil."
+  (interactive)
+  (when (and bookmark-gt-list-persist-state
+             bookmark-gt-list-state-file)
+    (let* ((buf (get-buffer bookmark-gt-list-buffer-name))
+           (state (if (buffer-live-p buf)
+                      (with-current-buffer buf
+                        (bookmark-gt-list--state-capture))
+                    bookmark-gt-list--state)))
+      (with-demoted-errors "bookmark-gt-list: state write failed: %S"
+        (with-temp-file bookmark-gt-list-state-file
+          (let ((print-level nil)
+                (print-length nil))
+            (insert ";;; bookmark-gt list-buffer state  -*- lexical-binding: t; -*-\n")
+            (prin1 state (current-buffer))
+            (insert "\n")))))))
+
+(defun bookmark-gt-list--state-changed ()
+  "Recapture the buffer's view state and persist it.
+Called from every command that changes sort, filters, or the
+`show-temp' toggle.  Persistence itself is gated by
+`bookmark-gt-list-persist-state'."
+  (setq bookmark-gt-list--state (bookmark-gt-list--state-capture))
+  (bookmark-gt-list-save-state))
+
+(defun bookmark-gt-list--tabulated-sort-observer (&rest _)
+  "Persist state after `tabulated-list-sort' reorders a column.
+Attached as `:after' advice by `bookmark-gt-mode'.  A no-op in
+buffers not derived from `bookmark-gt-list-mode'."
+  (when (derived-mode-p 'bookmark-gt-list-mode)
+    (bookmark-gt-list--state-changed)))
+
 ;;;; Mode + keymap
 
 (defvar-keymap bookmark-gt-list-mode-map
@@ -304,6 +416,7 @@ sorting."
   "t r" #'bookmark-gt-list-remove-tags
   "a"   #'bookmark-gt-list-edit-annotation
   "/"   #'bookmark-gt-list-filter-by
+  "V"   #'bookmark-gt-list-reset-view
   "g"     #'revert-buffer
   "C-x C-s" #'bookmark-save
   "q"     #'quit-window)
@@ -358,6 +471,7 @@ Buffer-scoped commands:
   \\[bookmark-gt-list-filter-by] filter (by-type / by-tag / by-name-regexp / unfilter)
   \\[bookmark-gt-list-show-temp] toggle display of temporary bookmarks
   \\[bookmark-gt-list-sort-cycle] cycle the sort column
+  \\[bookmark-gt-list-reset-view] reset sort, filters, and `show-temp' to defaults
   \\[revert-buffer] revert (refresh, then redraw)
   \\[bookmark-save] save the bookmark file
   \\[quit-window] quit
@@ -386,6 +500,9 @@ Sorting: click a column header, or press `S' for column-at-point sort.
   (setq-local revert-buffer-function #'bookmark-gt-list--revert)
   (setq-local bookmark-make-record-function
               #'bookmark-gt-list--make-record)
+  (unless bookmark-gt-list--state-loaded
+    (bookmark-gt-list--state-load))
+  (bookmark-gt-list--state-apply)
   (tabulated-list-init-header))
 
 ;;;; Refresh
@@ -443,13 +560,21 @@ Callable directly, and used as the observer on
 
 ;;;###autoload
 (defun bookmark-gt-list ()
-  "Display the bookmark-gt list buffer."
+  "Display the bookmark-gt list buffer.
+When the buffer already exists and is in `bookmark-gt-list-mode',
+reuse it: sort key, filters, `show-temp' toggle, and marks are
+preserved and the buffer is redrawn from the current
+`bookmark-alist'.  When creating the buffer, initial view state
+comes from `bookmark-gt-list-state-file' when
+`bookmark-gt-list-persist-state' is enabled, otherwise from the
+mode defaults."
   (interactive)
   (bookmark-maybe-load-default-file)
   (let ((buf (get-buffer-create bookmark-gt-list-buffer-name)))
     (with-current-buffer buf
-      (bookmark-gt-list-mode)
-      (tabulated-list-print))
+      (unless (derived-mode-p 'bookmark-gt-list-mode)
+        (bookmark-gt-list-mode))
+      (tabulated-list-print t))
     (pop-to-buffer-same-window buf)))
 
 (defun bookmark-gt-list--revert (&rest _args)
@@ -692,8 +817,24 @@ remain in `bookmark-alist' regardless of this setting."
   (interactive nil bookmark-gt-list-mode)
   (setq bookmark-gt-list--show-temp (not bookmark-gt-list--show-temp))
   (bookmark-gt-list--redraw-preserving-point)
+  (bookmark-gt-list--state-changed)
   (message "Temporary bookmarks: %s"
            (if bookmark-gt-list--show-temp "shown" "hidden")))
+
+(defun bookmark-gt-list-reset-view ()
+  "Reset this buffer's sort, filters, and `show-temp' to defaults.
+Sort returns to Name ascending, filters clear, and `show-temp'
+returns to `bookmark-gt-list-default-show-temp'.  Persists the
+reset to `bookmark-gt-list-state-file' when
+`bookmark-gt-list-persist-state' is enabled."
+  (interactive nil bookmark-gt-list-mode)
+  (setq bookmark-gt-list--filters nil)
+  (setq bookmark-gt-list--show-temp bookmark-gt-list-default-show-temp)
+  (setq tabulated-list-sort-key '("Name" . nil))
+  (tabulated-list-init-header)
+  (tabulated-list-print t)
+  (bookmark-gt-list--state-changed)
+  (message "View reset."))
 
 (defcustom bookmark-gt-list-record-buffer-name "*Bookmark-gt Record*"
   "Name of the buffer that displays a single bookmark's record."
@@ -782,6 +923,7 @@ toggle."
     (setq tabulated-list-sort-key (cons next nil))
     (tabulated-list-init-header)
     (tabulated-list-print t)
+    (bookmark-gt-list--state-changed)
     (message "Sorted by: %s" next)))
 
 (defun bookmark-gt-list-describe-record ()
@@ -825,6 +967,7 @@ The special KEY `unfilter' clears every active filter."
       (setq bookmark-gt-list--filters
             (cons (cons key arg)
                   (assq-delete-all key bookmark-gt-list--filters))))))
+  (bookmark-gt-list--state-changed)
   (revert-buffer))
 
 ;;;; Built-in filter entries

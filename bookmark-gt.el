@@ -77,10 +77,13 @@ bookmark-gt*.el file by scripts/update-version.sh; the CI target
     (advice-add 'bookmark-default-handler
                 :around #'bookmark-gt--file-type-handler-advice)
     (advice-add 'bookmark-store    :after  #'bookmark-gt--auto-temp-advice)
+    (advice-add 'tabulated-list-sort :after
+                #'bookmark-gt-list--tabulated-sort-observer)
     (add-hook 'bookmark-after-jump-hook #'bookmark-gt--on-jump-record-visit)
     (add-hook 'bookmark-after-jump-hook #'bookmark-gt--on-jump-restore-region)
     (add-hook 'bookmark-after-jump-hook #'bookmark-gt-highlight--on-jump)
     (add-hook 'find-file-hook           #'bookmark-gt-highlight--on-find-file)
+    (add-hook 'kill-emacs-hook          #'bookmark-gt-list-save-state)
     (bookmark-gt-highlight--refresh-all-visible)
     (bookmark-gt-jump--install-marginalia))
    (t
@@ -90,10 +93,13 @@ bookmark-gt*.el file by scripts/update-version.sh; the CI target
     (advice-remove 'bookmark-default-handler
                    #'bookmark-gt--file-type-handler-advice)
     (advice-remove 'bookmark-store    #'bookmark-gt--auto-temp-advice)
+    (advice-remove 'tabulated-list-sort
+                   #'bookmark-gt-list--tabulated-sort-observer)
     (remove-hook 'bookmark-after-jump-hook #'bookmark-gt--on-jump-record-visit)
     (remove-hook 'bookmark-after-jump-hook #'bookmark-gt--on-jump-restore-region)
     (remove-hook 'bookmark-after-jump-hook #'bookmark-gt-highlight--on-jump)
     (remove-hook 'find-file-hook           #'bookmark-gt-highlight--on-find-file)
+    (remove-hook 'kill-emacs-hook          #'bookmark-gt-list-save-state)
     (bookmark-gt-highlight--clear-all-visible)
     (bookmark-gt-jump--uninstall-marginalia))))
 
