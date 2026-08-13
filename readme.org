@@ -76,11 +76,19 @@ When enabled:
   ~org-capture-last-stored~) are marked temporary at store
   time, which excludes them from ~bookmark-save~ output.
 - *Jump operations.*  Every jump increments the record's
-  ~visits~ property and updates ~last-visited~, values used
-  by the jump reader's MRU sort.  File bookmarks display as
-  line overlays in their visited buffers.  Region bookmarks
-  reselect their region on jump.  URL and browser-tab
-  handlers suppress the built-in annotation-buffer display.
+  ~visits~ property and updates ~last-visited~.  File
+  bookmarks display as line overlays in their visited
+  buffers.  Region bookmarks reselect their region on jump.
+  URL and browser-tab handlers suppress the built-in
+  annotation-buffer display.
+- *Jump reader.*  ~bookmark-gt-jump~ is the recommended
+  replacement for the built-in ~bookmark-jump~.  It sorts
+  candidates MRU-first using the ~visits~ / ~last-visited~
+  values above, integrates with ~marginalia~ annotations
+  and the ~consult~ / ~orderless~ narrowing particles
+  (~,@TYPE~ / ~;TAG~) when those packages are loaded, and
+  supports a mid-read tag filter (~M-t~ adds, ~M-d~ pops,
+  ~M-D~ clears).
 - *File-type dispatch.*  File bookmarks whose ~filename~
   matches a regexp in ~bookmark-gt-file-type-handlers~ are
   handled by the associated function instead of the built-in
@@ -91,9 +99,6 @@ When enabled:
 - *Temp filter on save.*  Records carrying ~bmkp-temp~ are
   excluded from ~bookmark-save~ output; the live alist
   retains them for the session.
-- *Completion integration.*  The jump reader uses
-  ~marginalia~ annotations and the ~consult~ / ~orderless~
-  narrowing particles when those packages are loaded.
 
 Disabling the mode removes every advice and hook that
 enabling installed.  The three opt-in modes described below

@@ -173,11 +173,17 @@ unmodified.
      marked temporary at store time, which excludes them from
      ‘bookmark-save’ output.
    • *Jump operations.*  Every jump increments the record's ‘visits’
-     property and updates ‘last-visited’, values used by the jump
-     reader's MRU sort.  File bookmarks display as line overlays in
-     their visited buffers.  Region bookmarks reselect their region on
-     jump.  URL and browser-tab handlers suppress the built-in
-     annotation-buffer display.
+     property and updates ‘last-visited’.  File bookmarks display as
+     line overlays in their visited buffers.  Region bookmarks reselect
+     their region on jump.  URL and browser-tab handlers suppress the
+     built-in annotation-buffer display.
+   • *Jump reader.*  ‘bookmark-gt-jump’ is the recommended replacement
+     for the built-in ‘bookmark-jump’.  It sorts candidates MRU-first
+     using the ‘visits’ / ‘last-visited’ values above, integrates with
+     ‘marginalia’ annotations and the ‘consult’ / ‘orderless’ narrowing
+     particles (‘,@TYPE’ / ‘;TAG’) when those packages are loaded, and
+     supports a mid-read tag filter (‘M-t’ adds, ‘M-d’ pops, ‘M-D’
+     clears).
    • *File-type dispatch.*  File bookmarks whose ‘filename’ matches a
      regexp in ‘bookmark-gt-file-type-handlers’ are handled by the
      associated function instead of the built-in ‘find-file’ path.
@@ -187,9 +193,6 @@ unmodified.
    • *Temp filter on save.*  Records carrying ‘bmkp-temp’ are excluded
      from ‘bookmark-save’ output; the live alist retains them for the
      session.
-   • *Completion integration.*  The jump reader uses ‘marginalia’
-     annotations and the ‘consult’ / ‘orderless’ narrowing particles
-     when those packages are loaded.
 
    Disabling the mode removes every advice and hook that enabling
 installed.  The three opt-in modes described below (auto-update,
@@ -1165,45 +1168,45 @@ Node: Top205
 Node: Install2287
 Node: Getting started3830
 Node: Master switch bookmark-gt-mode4028
-Node: Opt-in modes6104
-Node: bookmark-gt-auto-update-mode6455
-Node: bookmark-gt-default-tags-mode7285
-Node: bookmark-gt-browsel-tabs-mode8313
-Node: User interface9545
-Node: The *Bookmarks-gt List* buffer9795
-Node: Columns10295
-Node: Keys11517
-Node: Jump reader bookmark-gt-jump13106
-Node: Elisp signatures14493
-Node: Non-file bookmark types17249
-Node: URL bookmarks — bookmark-gt-set-url17759
-Node: Dired bookmarks — bookmark-gt-handler-dired-jump18493
-Node: Function bookmarks — bookmark-gt-set-function19189
-Node: Sequence bookmarks — bookmark-gt-set-sequence19998
-Node: File-type handlers — override the file-jump path per pattern20750
-Node: View bookmarks — save the list buffer's current view22284
-Node: Setting bookmarks23446
-Node: Tag reader23684
-Node: Same-name policy24689
-Node: Relocate change a bookmark's target26664
-Node: In-file behaviors27813
-Node: In-buffer cycling28042
-Node: Per-bookmark highlighting29042
-Node: Region bookmarks30999
-Node: Trackers32520
-Node: Visit tracker32696
-Node: File-rename tracker33546
-Node: Extension API34590
-Node: Handler registry34791
-Node: Group registry36830
-Node: Extension points38483
-Node: Compatibility39660
-Node: Data compat with bookmark+39861
-Node: Migrating from bookmark+40991
-Node: Reference42968
-Node: Selected customization43131
-Node: Acknowledgements47889
-Node: License49774
+Node: Opt-in modes6356
+Node: bookmark-gt-auto-update-mode6707
+Node: bookmark-gt-default-tags-mode7537
+Node: bookmark-gt-browsel-tabs-mode8565
+Node: User interface9797
+Node: The *Bookmarks-gt List* buffer10047
+Node: Columns10547
+Node: Keys11769
+Node: Jump reader bookmark-gt-jump13358
+Node: Elisp signatures14745
+Node: Non-file bookmark types17501
+Node: URL bookmarks — bookmark-gt-set-url18011
+Node: Dired bookmarks — bookmark-gt-handler-dired-jump18745
+Node: Function bookmarks — bookmark-gt-set-function19441
+Node: Sequence bookmarks — bookmark-gt-set-sequence20250
+Node: File-type handlers — override the file-jump path per pattern21002
+Node: View bookmarks — save the list buffer's current view22536
+Node: Setting bookmarks23698
+Node: Tag reader23936
+Node: Same-name policy24941
+Node: Relocate change a bookmark's target26916
+Node: In-file behaviors28065
+Node: In-buffer cycling28294
+Node: Per-bookmark highlighting29294
+Node: Region bookmarks31251
+Node: Trackers32772
+Node: Visit tracker32948
+Node: File-rename tracker33798
+Node: Extension API34842
+Node: Handler registry35043
+Node: Group registry37082
+Node: Extension points38735
+Node: Compatibility39912
+Node: Data compat with bookmark+40113
+Node: Migrating from bookmark+41243
+Node: Reference43220
+Node: Selected customization43383
+Node: Acknowledgements48141
+Node: License50026
 
 End Tag Table
 
