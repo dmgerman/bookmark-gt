@@ -59,8 +59,6 @@
 ;; symbol lives in an external package that need not be present at
 ;; compile time, so it skips validation.
 (declare-function browsel-browser-tabs "ext:browsel")
-(declare-function browsel-focus-tab "ext:browsel")
-(declare-function browsel-browse-url "ext:browsel")
 
 ;; Defined in `bookmark-gt-tags'; declared here so the byte-compiler
 ;; treats it as dynamic when the refresh loop let-binds it.
@@ -86,47 +84,18 @@ Value shape:
                  (function :tag "Predicate function"))
   :group 'bookmark-gt)
 
-;;;; Predicates
+;;;; Own-record predicate
 ;;
-;; `bookmark-gt-handler-browser-tab-p' (defined in
-;; bookmark-gt-handlers.el) is a TYPE check — it matches every
-;; browser-tab bookmark regardless of which package created it.
-;; For our own bookkeeping we need a NARROWER check: only records
-;; whose handler symbol is our own, so `--clear' does not touch
-;; records owned by other browsel-related packages.
+;; Records stored by this module carry a `bookmark-gt-browsel-tab'
+;; marker; `--clear' filters on it so records owned by other
+;; browsel-related packages are not touched.
+
+(defconst bookmark-gt-browsel-tabs--marker-key 'bookmark-gt-browsel-tab
+  "Alist key that marks a record as stored by this module.")
 
 (defun bookmark-gt-browsel-tabs--own-record-p (record)
-  "Return non-nil when RECORD was created by this module.
-Matches only records whose handler symbol is exactly
-`bookmark-gt-handler-browser-tab-jump'.  Other browsel-related
-handlers (`browsel-tab-manager-bookmark-jump' and friends) are
-also type `browser-tab' but are left alone by our cleanup path."
-  (eq (bookmark-prop-get record 'handler)
-      'bookmark-gt-handler-browser-tab-jump))
-
-;;;; Handler
-
-(defun bookmark-gt-handler-browser-tab-jump (bookmark)
-  "Bookmark handler: focus the browser tab represented by BOOKMARK.
-Falls back to `browsel-browse-url' when the tab is no longer
-open.  Throws `bookmark-gt-skip-post-handler' to suppress the
-post-jump popup."
-  (unless (featurep 'browsel)
-    (user-error "Browsel is not loaded"))
-  (let* ((id (bookmark-prop-get bookmark 'browsel-id))
-         (browser (bookmark-prop-get bookmark 'browsel-browser))
-         (url (bookmark-prop-get bookmark 'url))
-         (tab (list :id id :browsel-browser browser)))
-    (condition-case _err
-        (browsel-focus-tab tab t)
-      (user-error
-       (if (and url (not (string-empty-p url)))
-           (browsel-browse-url url)
-         (user-error "Browser-tab bookmark has no usable URL")))))
-  ;; The built-in's after-jump-hook is bypassed by the throw below —
-  ;; record the visit directly so MRU / visit-count sort see it.
-  (bookmark-gt-record-visit bookmark)
-  (bookmark-gt-skip-post-handler 'browser-tab))
+  "Return non-nil when RECORD was stored by this module."
+  (bookmark-prop-get record bookmark-gt-browsel-tabs--marker-key))
 
 ;;;; Fetch + filter
 
@@ -168,23 +137,22 @@ list buffer's Tags column and in the `;tag' particle filter."
          (props (list (cons 'url url)
                       (cons 'browsel-id id)
                       (cons 'browsel-browser browser)
-                      (cons bookmark-gt-temp-key t))))
+                      (cons bookmark-gt-temp-key t)
+                      (cons bookmark-gt-browsel-tabs--marker-key t))))
     (when (and (stringp browser) (not (string-empty-p browser)))
       (push (cons 'tags (list browser)) props))
     (when (and (stringp title) (not (string-empty-p title)))
       (push (cons 'annotation title) props))
     (bookmark-gt-set-non-file base
-                              'bookmark-gt-handler-browser-tab-jump
+                              'bookmark-gt-handler-url-jump
                               props
                               t)))
 
 (defun bookmark-gt-browsel-tabs--clear ()
-  "Remove every browser-tab bookmark from `bookmark-alist'.
-Matches only records with our own handler symbol
-\(`bookmark-gt-handler-browser-tab-jump'), so tabs owned by
-other browsel-related packages
-\(`browsel-tab-manager-bookmark-jump' and friends) are left
-alone."
+  "Remove every browsel-owned record from `bookmark-alist'.
+Matches only records carrying the
+`bookmark-gt-browsel-tabs--marker-key' marker, so records
+owned by other browsel-related packages are left alone."
   (setq bookmark-alist
         (seq-remove #'bookmark-gt-browsel-tabs--own-record-p
                     bookmark-alist))

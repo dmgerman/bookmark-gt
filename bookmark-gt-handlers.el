@@ -333,16 +333,13 @@ Opens BOOKMARK's `filename' (a directory) via `dired'."
 
 (defun bookmark-gt-handler-url-jump (bookmark)
   "Bookmark handler for URL bookmark BOOKMARK.
-Opens the URL with `browse-url' and throws
+Opens the URL via `browse-url' and throws
 `bookmark-gt-skip-post-handler' to suppress the built-in
 post-jump popup."
   (let ((url (bookmark-gt-url-of bookmark)))
     (unless url
       (user-error "URL bookmark has no `url' or `location' property"))
     (browse-url url)
-    ;; The built-in's after-jump-hook is bypassed by the throw below, so
-    ;; record the visit directly here.  Keeps MRU / visit-count sort
-    ;; accurate for URL bookmarks.
     (bookmark-gt-record-visit bookmark)
     (bookmark-gt-skip-post-handler 'url)))
 
@@ -432,8 +429,7 @@ Returns the stored (NAME . DATA) pair."
 ;; membership does NOT imply cleanup ownership; the browsel-tabs
 ;; module clears only records whose handler is its OWN symbol.
 (bookmark-gt-handler-register
- '(bookmark-gt-handler-browser-tab-jump
-   bmkp-gt-browsel-tabs-jump
+ '(bmkp-gt-browsel-tabs-jump
    browsel-tab-manager-bookmark-jump)
  (list :type 'browser-tab :name "BrowserTab" :group 'web
        :face 'bookmark-gt-face-url :narrow-char ?b

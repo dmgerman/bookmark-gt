@@ -19,28 +19,32 @@
 (require 'bookmark-gt-browsel-tabs)
 
 ;;;; Registry classification
+;;
+;; Records stored by this module use the URL handler; they classify
+;; as type `url'.  External browser-tab handlers registered as
+;; aliases (`browsel-tab-manager-bookmark-jump' etc.) still
+;; classify as `browser-tab' for records that carry those handlers.
 
-(ert-deftest bookmark-gt-browsel-test-classify ()
+(ert-deftest bookmark-gt-browsel-test-own-records-classify-as-url ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "t"
-                              'bookmark-gt-handler-browser-tab-jump
-                              '((url . "https://example.org")
-                                (browsel-id . "1")
-                                (browsel-browser . "chrome")))
+    (bookmark-gt-browsel-tabs--store
+     (list :url "https://example.org"
+           :title "Example"
+           :id "1"
+           :browsel-browser "chrome"))
     (let ((record (car bookmark-alist)))
-      (should (eq (bookmark-gt-handler-type record) 'browser-tab))
-      (should (equal (bookmark-gt-handler-name record) "BrowserTab"))
-      (should (eq (plist-get (cdr (bookmark-gt-handler-classify record))
-                             :narrow-char)
-                  ?b)))))
+      (should (eq (bookmark-gt-handler-type record) 'url))
+      (should (bookmark-gt-browsel-tabs--own-record-p record)))))
 
 (ert-deftest bookmark-gt-browsel-test-predicate ()
+  "External browser-tab handlers still classify as `browser-tab'."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "t" 'bookmark-gt-handler-browser-tab-jump nil)
-    (bookmark-gt-set-non-file "u" 'bookmark-gt-handler-url-jump nil)
-    (should (bookmark-gt-handler-browser-tab-p (assoc "t" bookmark-alist)))
+    (bookmark-gt-set-non-file "external" 'browsel-tab-manager-bookmark-jump nil)
+    (bookmark-gt-set-non-file "url"      'bookmark-gt-handler-url-jump nil)
+    (should (bookmark-gt-handler-browser-tab-p
+             (assoc "external" bookmark-alist)))
     (should-not (bookmark-gt-handler-browser-tab-p
-                 (assoc "u" bookmark-alist)))))
+                 (assoc "url" bookmark-alist)))))
 
 ;;;; Store shape
 
@@ -94,49 +98,19 @@
 
 ;;;; Clear
 
-(ert-deftest bookmark-gt-browsel-test-clear-removes-only-tabs ()
+(ert-deftest bookmark-gt-browsel-test-clear-removes-only-marked ()
+  "`--clear' removes only records carrying the module's marker."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "keep" 'h nil)
-    (bookmark-gt-set-non-file "tab"
-                              'bookmark-gt-handler-browser-tab-jump nil)
+    (bookmark-gt-set-non-file "keep" 'bookmark-gt-handler-url-jump
+                              '((url . "https://example.org")))
+    (bookmark-gt-browsel-tabs--store
+     (list :url "https://tab.example"
+           :title "Tab"
+           :id "1"
+           :browsel-browser "chrome"))
     (bookmark-gt-browsel-tabs--clear)
     (should (= (length bookmark-alist) 1))
     (should (equal (caar bookmark-alist) "keep"))))
-
-;;;; Jump dispatch
-
-(ert-deftest bookmark-gt-browsel-test-jump-focuses-tab ()
-  "The handler calls `browsel-focus-tab' with id + browser."
-  (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "t" 'bookmark-gt-handler-browser-tab-jump
-                              '((url . "https://x")
-                                (browsel-id . "id-1")
-                                (browsel-browser . "chrome")))
-    (let (focused)
-      (cl-letf (((symbol-function 'featurep)
-                 (lambda (feat &rest _) (eq feat 'browsel)))
-                ((symbol-function 'browsel-focus-tab)
-                 (lambda (tab &rest _) (push tab focused))))
-        (bookmark-gt-handler-browser-tab-jump (car bookmark-alist)))
-      (should (= (length focused) 1))
-      (should (equal (plist-get (car focused) :id) "id-1")))))
-
-(ert-deftest bookmark-gt-browsel-test-jump-falls-back-to-url ()
-  "When focus-tab signals `user-error', fall back to `browsel-browse-url'."
-  (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "t" 'bookmark-gt-handler-browser-tab-jump
-                              '((url . "https://example.org")
-                                (browsel-id . "gone")
-                                (browsel-browser . "chrome")))
-    (let (opened)
-      (cl-letf (((symbol-function 'featurep)
-                 (lambda (feat &rest _) (eq feat 'browsel)))
-                ((symbol-function 'browsel-focus-tab)
-                 (lambda (&rest _) (user-error "closed")))
-                ((symbol-function 'browsel-browse-url)
-                 (lambda (url &rest _) (push url opened))))
-        (bookmark-gt-handler-browser-tab-jump (car bookmark-alist)))
-      (should (equal opened '("https://example.org"))))))
 
 (provide 'bookmark-gt-browsel-tabs-tests)
 ;;; bookmark-gt-browsel-tabs-tests.el ends here
