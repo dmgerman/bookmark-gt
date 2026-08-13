@@ -326,5 +326,49 @@ records for the round-trip."
       (let ((updated (bookmark-prop-get rec 'last-modified)))
         (should (time-less-p initial updated))))))
 
+;;;; Auto-temp on store
+
+(ert-deftest bookmark-gt-auto-temp-test-marks-matching-name ()
+  "Names matching `bookmark-gt-auto-temp-names' are marked temp on store."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((bookmark-gt-auto-temp-names '("\\`org-capture-last-stored\\'")))
+      (advice-add 'bookmark-store :after #'bookmark-gt--auto-temp-advice)
+      (unwind-protect
+          (progn
+            (bookmark-store "org-capture-last-stored"
+                            '((filename . "/tmp/x") (position . 1))
+                            nil)
+            (should (bookmark-gt-temp-p
+                     (bookmark-get-bookmark "org-capture-last-stored"))))
+        (advice-remove 'bookmark-store #'bookmark-gt--auto-temp-advice)))))
+
+(ert-deftest bookmark-gt-auto-temp-test-leaves-nonmatching-alone ()
+  "Records whose name does not match are not marked temp."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((bookmark-gt-auto-temp-names '("\\`org-capture-last-stored\\'")))
+      (advice-add 'bookmark-store :after #'bookmark-gt--auto-temp-advice)
+      (unwind-protect
+          (progn
+            (bookmark-store "regular"
+                            '((filename . "/tmp/x") (position . 1))
+                            nil)
+            (should-not (bookmark-gt-temp-p
+                         (bookmark-get-bookmark "regular"))))
+        (advice-remove 'bookmark-store #'bookmark-gt--auto-temp-advice)))))
+
+(ert-deftest bookmark-gt-auto-temp-test-empty-list-is-no-op ()
+  "An empty `bookmark-gt-auto-temp-names' marks nothing."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((bookmark-gt-auto-temp-names nil))
+      (advice-add 'bookmark-store :after #'bookmark-gt--auto-temp-advice)
+      (unwind-protect
+          (progn
+            (bookmark-store "org-capture-last-stored"
+                            '((filename . "/tmp/x") (position . 1))
+                            nil)
+            (should-not (bookmark-gt-temp-p
+                         (bookmark-get-bookmark "org-capture-last-stored"))))
+        (advice-remove 'bookmark-store #'bookmark-gt--auto-temp-advice)))))
+
 (provide 'bookmark-gt-core-tests)
 ;;; bookmark-gt-core-tests.el ends here

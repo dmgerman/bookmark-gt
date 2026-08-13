@@ -811,6 +811,37 @@ filter is only applied to what gets written to disk."
          (seq-remove #'bookmark-gt-temp-p bookmark-alist)))
     (apply orig-fn args)))
 
+;;;; Auto-temp on store for known transient names
+;;
+;; Some third-party code stores bookmarks under fixed names that
+;; are transient by design (`org-capture-last-stored', updated on
+;; every capture; similar patterns exist for other packages).
+;; Persisting them clutters the bookmark file with a moving
+;; target.  This advice marks such records temp at store time,
+;; so the save filter excludes them.
+
+(defcustom bookmark-gt-auto-temp-names
+  '("\\`org-capture-last-stored\\'")
+  "Bookmark names (regexps) auto-marked temporary on store.
+Each element is a regexp matched against the stored name.
+When any regexp matches, `bookmark-gt-temp-key' is set on the
+record so `bookmark-save' skips it via the temp filter.
+
+Default entry covers `org-capture-last-stored', the bookmark
+`org-capture' re-stores on every capture."
+  :type '(repeat regexp)
+  :group 'bookmark-gt)
+
+(defun bookmark-gt--auto-temp-advice (name &rest _)
+  "Mark NAME temp when it matches `bookmark-gt-auto-temp-names'.
+Attached as `:after' advice on `bookmark-store' so the record
+is marked immediately after storage."
+  (when (and (stringp name)
+             (seq-some (lambda (pat) (string-match-p pat name))
+                       bookmark-gt-auto-temp-names))
+    (when-let ((rec (bookmark-get-bookmark name 'noerror)))
+      (bookmark-prop-set rec bookmark-gt-temp-key t))))
+
 ;;;; File-type handler dispatch
 ;;
 ;; A regexp → function table consulted when jumping a file

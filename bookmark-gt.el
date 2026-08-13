@@ -76,6 +76,7 @@ bookmark-gt*.el file by scripts/update-version.sh; the CI target
     (advice-add 'rename-file       :around #'bookmark-gt--rename-file-advice)
     (advice-add 'bookmark-default-handler
                 :around #'bookmark-gt--file-type-handler-advice)
+    (advice-add 'bookmark-store    :after  #'bookmark-gt--auto-temp-advice)
     (add-hook 'bookmark-after-jump-hook #'bookmark-gt--on-jump-record-visit)
     (add-hook 'bookmark-after-jump-hook #'bookmark-gt--on-jump-restore-region)
     (add-hook 'bookmark-after-jump-hook #'bookmark-gt-highlight--on-jump)
@@ -88,6 +89,7 @@ bookmark-gt*.el file by scripts/update-version.sh; the CI target
     (advice-remove 'rename-file       #'bookmark-gt--rename-file-advice)
     (advice-remove 'bookmark-default-handler
                    #'bookmark-gt--file-type-handler-advice)
+    (advice-remove 'bookmark-store    #'bookmark-gt--auto-temp-advice)
     (remove-hook 'bookmark-after-jump-hook #'bookmark-gt--on-jump-record-visit)
     (remove-hook 'bookmark-after-jump-hook #'bookmark-gt--on-jump-restore-region)
     (remove-hook 'bookmark-after-jump-hook #'bookmark-gt-highlight--on-jump)

@@ -1048,28 +1048,29 @@ File: bookmark-gt.info,  Node: Selected customization,  Up: Reference
 9.1 Selected customization
 ==========================
 
-Variable                               Default                   What it does
---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-‘bookmark-gt-list-name-width’          ‘32’                      Character width of the Name column in ‘*Bookmarks-gt List*’.  Longer names are truncated with an ellipsis.
-‘bookmark-gt-list-type-width’          ‘12’                      Character width of the Type column.
-‘bookmark-gt-list-tags-width’          ‘24’                      Character width of the Tags column.
-‘bookmark-gt-list-buffer-name’         ‘"*Bookmarks-gt List*"’   Name of the buffer opened by ‘M-x bookmark-gt-list’.
-‘bookmark-gt-list-selection-mark’      ‘?*’                      Character shown in the mark column for rows marked with ‘m’ (a bulk action target).
-‘bookmark-gt-list-deletion-mark’       ‘?D’                      Character shown in the mark column for rows flagged with ‘d’; ‘x’ deletes every row bearing this mark.
-‘bookmark-gt-list-default-show-temp’   ‘t’                       Whether new list buffers show temporary bookmarks by default; toggle per-buffer with ‘H’ (‘bookmark-gt-list-show-temp’).
-—                                      —                         (View bookmarks: no defcustom; save via ‘M-x bookmark-gt-set’ inside the list buffer.)
-‘bookmark-gt-jump-name-max-width’      ‘40’                      Character width at which the jump reader truncates bookmark names in each candidate row.
-‘bookmark-gt-jump-default-sort’        ‘'mru’                    Sort order used by ‘bookmark-gt-jump’ when no ‘:sort-by’ is given.  Values: ‘'mru’ (most recently used), ‘'visits’, ‘nil’ (pool order).
-‘bookmark-gt-auto-update-interval’     ‘60’                      Seconds of idle time between ticks of ‘bookmark-gt-auto-update-mode’; each tick refreshes bookmarks carrying ‘auto-update’.
-‘bookmark-gt-track-renames’            ‘t’                       When non-nil, ‘rename-file’ rewrites any bookmark whose ‘filename’ matched the source path to the destination.
-‘bookmark-gt-default-tags’             ‘nil’                     Under ‘bookmark-gt-default-tags-mode’, seeds the tag reader.  Value can be a string, a list of strings, or a function of the record; see the mode's section.
-‘bookmark-gt-prompt-for-tags-flag’     ‘t’                       Whether the tag reader prompts on ‘bookmark-gt-set’.  Off suppresses the prompt globally; batch callers can let-bind ‘nil’.
-‘bookmark-gt-same-name-overwrite’      ‘t’                       When a new bookmark's name matches an existing record with the same handler AND same filename, replace the record in place.
-‘bookmark-gt-allow-duplicate-names’    ‘t’                       Allow two records to share the same literal name (typically distinguished by file).  Off falls back to ‘<N>’ suffix disambiguation.
-‘bookmark-gt-highlight-enable’         ‘t’                       Per-bookmark line overlays in file-visiting buffers.  Off suppresses the overlays even while ‘bookmark-gt-mode’ is on.
-‘bookmark-gt-file-type-handlers’       ‘nil’                     Alist mapping filename regexp to a handler function; when a file bookmark's ‘filename’ matches, the function is called with the record instead of the built-in ‘find-file’ path.
-‘bookmark-gt-browsel-tabs-browsers’    ‘nil’                     List of browsel browser client names to query for tabs (e.g.  ‘'("chrome" "firefox")’), or ‘nil’ to query every browser browsel is connected to.
-‘bookmark-gt-browsel-tabs-filter’      ‘nil’                     Filter applied to each fetched tab before it is stored.  ‘nil’ = accept every tab; a regexp = keep tabs whose URL matches; a function = called with the tab plist, kept when it returns non-nil.
+Variable                               Default                               What it does
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+‘bookmark-gt-list-name-width’          ‘32’                                  Character width of the Name column in ‘*Bookmarks-gt List*’.  Longer names are truncated with an ellipsis.
+‘bookmark-gt-list-type-width’          ‘12’                                  Character width of the Type column.
+‘bookmark-gt-list-tags-width’          ‘24’                                  Character width of the Tags column.
+‘bookmark-gt-list-buffer-name’         ‘"*Bookmarks-gt List*"’               Name of the buffer opened by ‘M-x bookmark-gt-list’.
+‘bookmark-gt-list-selection-mark’      ‘?*’                                  Character shown in the mark column for rows marked with ‘m’ (a bulk action target).
+‘bookmark-gt-list-deletion-mark’       ‘?D’                                  Character shown in the mark column for rows flagged with ‘d’; ‘x’ deletes every row bearing this mark.
+‘bookmark-gt-list-default-show-temp’   ‘t’                                   Whether new list buffers show temporary bookmarks by default; toggle per-buffer with ‘H’ (‘bookmark-gt-list-show-temp’).
+—                                      —                                     (View bookmarks: no defcustom; save via ‘M-x bookmark-gt-set’ inside the list buffer.)
+‘bookmark-gt-jump-name-max-width’      ‘40’                                  Character width at which the jump reader truncates bookmark names in each candidate row.
+‘bookmark-gt-jump-default-sort’        ‘'mru’                                Sort order used by ‘bookmark-gt-jump’ when no ‘:sort-by’ is given.  Values: ‘'mru’ (most recently used), ‘'visits’, ‘nil’ (pool order).
+‘bookmark-gt-auto-update-interval’     ‘60’                                  Seconds of idle time between ticks of ‘bookmark-gt-auto-update-mode’; each tick refreshes bookmarks carrying ‘auto-update’.
+‘bookmark-gt-track-renames’            ‘t’                                   When non-nil, ‘rename-file’ rewrites any bookmark whose ‘filename’ matched the source path to the destination.
+‘bookmark-gt-default-tags’             ‘nil’                                 Under ‘bookmark-gt-default-tags-mode’, seeds the tag reader.  Value can be a string, a list of strings, or a function of the record; see the mode's section.
+‘bookmark-gt-prompt-for-tags-flag’     ‘t’                                   Whether the tag reader prompts on ‘bookmark-gt-set’.  Off suppresses the prompt globally; batch callers can let-bind ‘nil’.
+‘bookmark-gt-same-name-overwrite’      ‘t’                                   When a new bookmark's name matches an existing record with the same handler AND same filename, replace the record in place.
+‘bookmark-gt-allow-duplicate-names’    ‘t’                                   Allow two records to share the same literal name (typically distinguished by file).  Off falls back to ‘<N>’ suffix disambiguation.
+‘bookmark-gt-highlight-enable’         ‘t’                                   Per-bookmark line overlays in file-visiting buffers.  Off suppresses the overlays even while ‘bookmark-gt-mode’ is on.
+‘bookmark-gt-auto-temp-names’          ‘("\\`org-capture-last-stored\\'")’   Names (regexps) auto-marked temporary on 'bookmark-store' — third-party transient bookmarks that should not persist.
+‘bookmark-gt-file-type-handlers’       ‘nil’                                 Alist mapping filename regexp to a handler function; when a file bookmark's ‘filename’ matches, the function is called with the record instead of the built-in ‘find-file’ path.
+‘bookmark-gt-browsel-tabs-browsers’    ‘nil’                                 List of browsel browser client names to query for tabs (e.g.  ‘'("chrome" "firefox")’), or ‘nil’ to query every browser browsel is connected to.
+‘bookmark-gt-browsel-tabs-filter’      ‘nil’                                 Filter applied to each fetched tab before it is stored.  ‘nil’ = accept every tab; a regexp = keep tabs whose URL matches; a function = called with the tab plist, kept when it returns non-nil.
 
 
 File: bookmark-gt.info,  Node: Acknowledgements,  Next: License,  Prev: Reference,  Up: Top
@@ -1159,8 +1160,8 @@ Node: Data compat with bookmark+37446
 Node: Migrating from bookmark+38576
 Node: Reference40553
 Node: Selected customization40716
-Node: Acknowledgements45006
-Node: License46891
+Node: Acknowledgements45474
+Node: License47359
 
 End Tag Table
 

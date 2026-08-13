@@ -596,13 +596,15 @@ is restored to the list."
 ;;;; Edit in place
 
 (defun bookmark-gt-list-rename (new-name)
-  "Rename the bookmark on the current line to NEW-NAME."
+  "Rename the bookmark on the current line to NEW-NAME.
+The current name is pre-filled in the minibuffer as editable
+initial content, so the common case is to edit a few
+characters rather than retype the whole name."
   (interactive
    (let ((record (bookmark-gt-list--require-record)))
-     (list (read-string
-            (format-prompt "Rename to"
-                           (bookmark-gt-display-name (car record)))
-            nil nil (bookmark-gt-display-name (car record)))))
+     (list (read-from-minibuffer
+            "Rename to: "
+            (bookmark-gt-display-name (car record)))))
    bookmark-gt-list-mode)
   (let* ((record (bookmark-gt-list--require-record))
          (unique (bookmark-gt-disambiguate-name new-name)))

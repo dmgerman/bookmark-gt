@@ -821,6 +821,7 @@ bookmark file before running.
 | ~bookmark-gt-same-name-overwrite~     | ~t~       | When a new bookmark's name matches an existing record with the same handler AND same filename, replace the record in place. |
 | ~bookmark-gt-allow-duplicate-names~   | ~t~       | Allow two records to share the same literal name (typically distinguished by file).  Off falls back to ~<N>~ suffix disambiguation. |
 | ~bookmark-gt-highlight-enable~        | ~t~       | Per-bookmark line overlays in file-visiting buffers.  Off suppresses the overlays even while ~bookmark-gt-mode~ is on.    |
+| ~bookmark-gt-auto-temp-names~         | ~("\\`org-capture-last-stored\\'")~ | Names (regexps) auto-marked temporary on `bookmark-store' — third-party transient bookmarks that should not persist. |
 | ~bookmark-gt-file-type-handlers~      | ~nil~     | Alist mapping filename regexp to a handler function; when a file bookmark's ~filename~ matches, the function is called with the record instead of the built-in ~find-file~ path. |
 | ~bookmark-gt-browsel-tabs-browsers~   | ~nil~     | List of browsel browser client names to query for tabs (e.g. ~'("chrome" "firefox")~), or ~nil~ to query every browser browsel is connected to. |
 | ~bookmark-gt-browsel-tabs-filter~     | ~nil~     | Filter applied to each fetched tab before it is stored.  ~nil~ = accept every tab; a regexp = keep tabs whose URL matches; a function = called with the tab plist, kept when it returns non-nil. |
