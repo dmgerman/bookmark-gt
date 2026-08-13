@@ -50,19 +50,55 @@ without them):
 - ~orderless~ — enables the ~,@type~ / ~;tag~ narrowing particles.
 - ~browsel~ — required only for the browser-tabs feature. See below
 
+The bindings above rebind the standard ~C-x r m~, ~C-x r l~,
+and ~C-x r b~ to the bookmark-gt equivalents.  In particular:
+prefer ~bookmark-gt-jump~ over the built-in ~bookmark-jump~
+— the bookmark-gt reader adds type / tag narrowing, marginalia
+annotations, MRU-first sort, and an active-tag filter chip
+directly in the prompt.  Non-interactive callers should use
+~bookmark-gt-jump~ (or its ~-other-window~ / ~-tagged~
+variants) so those features are always available.
+
 * Getting started
 
 ** Master switch: ~bookmark-gt-mode~
 
-Global minor mode.  When enabled, it installs:
+Global minor mode.  Enables every bookmark-gt feature; when
+off, no advice or hook is installed and the built-in
+~bookmark.el~ operates unmodified.
 
-- the interactive tag reader into ~bookmark-gt-set~;
-- the marginalia annotator into the ~bookmark~ completion category;
-- the temp-bookmark filter on ~bookmark-save~ (temp records excluded
-  from disk);
-- the file-rename tracker on ~rename-file~ (see below).
+When enabled:
 
-Turning it off removes all of the above.
+- *Set operations.*  ~bookmark-gt-set~ reads tags, applies
+  the same-name policy, and assigns bookmark-gt's Dired
+  handler when the current buffer is Dired.  Names matching
+  ~bookmark-gt-auto-temp-names~ (e.g.
+  ~org-capture-last-stored~) are marked temporary at store
+  time, which excludes them from ~bookmark-save~ output.
+- *Jump operations.*  Every jump increments the record's
+  ~visits~ property and updates ~last-visited~, values used
+  by the jump reader's MRU sort.  File bookmarks display as
+  line overlays in their visited buffers.  Region bookmarks
+  reselect their region on jump.  URL and browser-tab
+  handlers suppress the built-in annotation-buffer display.
+- *File-type dispatch.*  File bookmarks whose ~filename~
+  matches a regexp in ~bookmark-gt-file-type-handlers~ are
+  handled by the associated function instead of the built-in
+  ~find-file~ path.
+- *File-rename tracking.*  ~rename-file~ (including from
+  Dired's ~R~) rewrites every bookmark whose ~filename~
+  equals the source path to the destination.
+- *Temp filter on save.*  Records carrying ~bmkp-temp~ are
+  excluded from ~bookmark-save~ output; the live alist
+  retains them for the session.
+- *Completion integration.*  The jump reader uses
+  ~marginalia~ annotations and the ~consult~ / ~orderless~
+  narrowing particles when those packages are loaded.
+
+Disabling the mode removes every advice and hook that
+enabling installed.  The three opt-in modes described below
+(auto-update, default-tags, browsel-tabs) each add further
+behavior and are controlled independently.
 
 ** Opt-in modes
 
@@ -196,6 +232,14 @@ record cons identity — they survive sort, revert, and
 after-hook re-renders.
 
 ** Jump reader: ~bookmark-gt-jump~
+
+Recommended replacement for the built-in ~bookmark-jump~.
+The same command binds naturally to ~C-x r b~ (see Install)
+and is the entry point every other bookmark-gt UI (list
+buffer, view bookmarks, external commands) routes through.
+Interactive uses, key bindings, and Lisp callers that need
+type / tag narrowing, MRU sort, or the mid-read tag filter
+should call this instead of ~bookmark-jump~.
 
 Uses ~consult--read~ when consult is loaded, falls back to
 ~completing-read~ otherwise.  Both accept two narrowing
