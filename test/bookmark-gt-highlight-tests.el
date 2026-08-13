@@ -106,7 +106,7 @@ through end-of-line at end-position."
 
 (ert-deftest bookmark-gt-highlight-test-jump-hook-covers-no-position ()
   "Records with no numeric `position' (e.g. org-heading bookmarks)
-get an overlay after `bookmark-gt-highlight--after-jump-hook'
+get an overlay after `bookmark-gt-highlight--on-jump'
 records the landed point."
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-highlight-test--with-file "line1\nline2\nline3\n"
@@ -121,34 +121,25 @@ records the landed point."
         ;; Simulate a jump landing at position 9 (inside line2).
         (goto-char 9)
         (let ((bookmark-current-bookmark "b"))
-          (bookmark-gt-highlight--after-jump-hook))
+          (bookmark-gt-highlight--on-jump))
         (should (= (bookmark-gt-highlight-test--overlay-count) 1))))))
 
-;;;; Install / uninstall
+;;;; Mode-on/off wires highlight hooks
 
-(ert-deftest bookmark-gt-highlight-test-install-uninstall ()
+(ert-deftest bookmark-gt-highlight-test-mode-wires-hooks ()
   (unwind-protect
       (progn
-        (bookmark-gt-install-highlight)
-        (should (memq #'bookmark-gt-highlight--find-file-hook
+        (bookmark-gt-mode 1)
+        (should (memq #'bookmark-gt-highlight--on-find-file
                       find-file-hook))
-        (should (memq #'bookmark-gt-highlight--after-set-hook
-                      bookmark-gt-set-after-hook))
-        (should (memq #'bookmark-gt-highlight--after-jump-hook
+        (should (memq #'bookmark-gt-highlight--on-jump
                       bookmark-after-jump-hook))
-        (bookmark-gt-uninstall-highlight)
-        (should-not (memq #'bookmark-gt-highlight--find-file-hook
+        (bookmark-gt-mode -1)
+        (should-not (memq #'bookmark-gt-highlight--on-find-file
                           find-file-hook))
-        (should-not (memq #'bookmark-gt-highlight--after-set-hook
-                          bookmark-gt-set-after-hook))
-        (should-not (memq #'bookmark-gt-highlight--after-jump-hook
+        (should-not (memq #'bookmark-gt-highlight--on-jump
                           bookmark-after-jump-hook)))
-    (remove-hook 'find-file-hook
-                 #'bookmark-gt-highlight--find-file-hook)
-    (remove-hook 'bookmark-gt-set-after-hook
-                 #'bookmark-gt-highlight--after-set-hook)
-    (remove-hook 'bookmark-after-jump-hook
-                 #'bookmark-gt-highlight--after-jump-hook)))
+    (bookmark-gt-mode -1)))
 
 (provide 'bookmark-gt-highlight-tests)
 ;;; bookmark-gt-highlight-tests.el ends here

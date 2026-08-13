@@ -113,12 +113,10 @@ cons)."
     entry))
 
 (defun bookmark-gt-tags-set (record tags)
-  "Replace RECORD's tag list with TAGS.
-TAGS is normalized (trimmed, empty-stripped, deduplicated) before
-storing.  Fires `bookmark-gt-set-after-hook'."
+  "Replace RECORD's tag list with TAGS (normalized)."
   (let* ((normalized (bookmark-gt--normalize-tags tags))
          (entry (bookmark-gt--set-tags-property record normalized)))
-    (run-hook-with-args 'bookmark-gt-set-after-hook entry)
+    (bookmark-gt--after-mutation entry)
     entry))
 
 (defun bookmark-gt-tags-add (record tags)
@@ -172,17 +170,9 @@ ordering is only visible if `display-sort-function' and
       (complete-with-action action candidates str pred))))
 
 (defun bookmark-gt-tags-read (prompt &optional initial)
-  "Read tags one at a time with completion.
-Prompts repeatedly; each accepted tag is added to the
-accumulator.  The loop ends on empty input (\\`RET') or on
-\\`M-RET' (submit current input, then finish).  INITIAL, if
-non-nil, seeds the accumulator with a starting tag list.
-
-PROMPT is the base prompt; the running accumulator and the
-finish hint are appended.  Candidates come from
-`bookmark-gt-tags--candidates-mru' — most-recently-entered
-first.  Returns the normalized (trimmed, deduplicated) tag
-list."
+  "Read a list of tags under PROMPT, one prompt per tag.
+Empty \\`RET' or \\`M-RET' ends the loop.  INITIAL seeds the
+accumulator.  Returns the normalized tag list."
   (let* ((candidates (bookmark-gt-tags--candidates-mru))
          (table (bookmark-gt-tags--completion-table candidates))
          (accum (and initial (copy-sequence initial))))
@@ -240,29 +230,9 @@ interaction."
   :type 'boolean
   :group 'bookmark-gt)
 
-(defun bookmark-gt-tags--reader-hook (_record seed-tags)
-  "Interactive tag-reader hook for `bookmark-gt-set-tag-reader-hook'.
-Reads tags via `bookmark-gt-tags-read', using SEED-TAGS as the
-minibuffer's initial content.  Gated by
-`bookmark-gt-prompt-for-tags-flag'."
-  (if bookmark-gt-prompt-for-tags-flag
-      (bookmark-gt-tags-read "Tags" seed-tags)
-    seed-tags))
-
-;;;###autoload
-(defun bookmark-gt-tags-enable ()
-  "Enable the interactive tag reader for `bookmark-gt-set'.
-Registers `bookmark-gt-tags--reader-hook' into
-`bookmark-gt-set-tag-reader-hook'.  Idempotent."
-  (add-hook 'bookmark-gt-set-tag-reader-hook
-            #'bookmark-gt-tags--reader-hook
-            90))
-
-;;;###autoload
-(defun bookmark-gt-tags-disable ()
-  "Remove the interactive tag reader from `bookmark-gt-set'."
-  (remove-hook 'bookmark-gt-set-tag-reader-hook
-               #'bookmark-gt-tags--reader-hook))
+;; No enable/disable functions here — the interactive tag
+;; reader is called directly by `bookmark-gt--collect-tags'
+;; and gated by `bookmark-gt-prompt-for-tags-flag'.
 
 (provide 'bookmark-gt-tags)
 

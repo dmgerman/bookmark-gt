@@ -65,32 +65,30 @@ bookmark-gt*.el file by scripts/update-version.sh; the CI target
 
 ;;;###autoload
 (define-minor-mode bookmark-gt-mode
-  "Toggle the bookmark-gt integrations globally.
-
-When enabled, `bookmark-gt-set' picks up the interactive tag
-reader.  Additional features (list buffer keybindings, jump
-reader, auto-update timer) attach here in later stages."
+  "Toggle the bookmark-gt integrations globally."
   :global t
   :group 'bookmark-gt
   (cond
    (bookmark-gt-mode
-    (bookmark-gt-tags-enable)
-    (bookmark-gt-jump-enable)
-    (bookmark-gt-install-temp-save-filter)
-    (bookmark-gt-install-jump-via-catch)
-    (bookmark-gt-install-rename-tracker)
-    (bookmark-gt-install-visit-tracker)
-    (bookmark-gt-install-region-restore)
-    (bookmark-gt-install-highlight))
+    (advice-add 'bookmark-save     :around #'bookmark-gt--save-filter-advice)
+    (advice-add 'bookmark--jump-via :around #'bookmark-gt--jump-via-catch-advice)
+    (advice-add 'rename-file       :around #'bookmark-gt--rename-file-advice)
+    (add-hook 'bookmark-after-jump-hook #'bookmark-gt--on-jump-record-visit)
+    (add-hook 'bookmark-after-jump-hook #'bookmark-gt--on-jump-restore-region)
+    (add-hook 'bookmark-after-jump-hook #'bookmark-gt-highlight--on-jump)
+    (add-hook 'find-file-hook           #'bookmark-gt-highlight--on-find-file)
+    (bookmark-gt-highlight--refresh-all-visible)
+    (bookmark-gt-jump--install-marginalia))
    (t
-    (bookmark-gt-tags-disable)
-    (bookmark-gt-jump-disable)
-    (bookmark-gt-uninstall-temp-save-filter)
-    (bookmark-gt-uninstall-jump-via-catch)
-    (bookmark-gt-uninstall-rename-tracker)
-    (bookmark-gt-uninstall-visit-tracker)
-    (bookmark-gt-uninstall-region-restore)
-    (bookmark-gt-uninstall-highlight))))
+    (advice-remove 'bookmark-save     #'bookmark-gt--save-filter-advice)
+    (advice-remove 'bookmark--jump-via #'bookmark-gt--jump-via-catch-advice)
+    (advice-remove 'rename-file       #'bookmark-gt--rename-file-advice)
+    (remove-hook 'bookmark-after-jump-hook #'bookmark-gt--on-jump-record-visit)
+    (remove-hook 'bookmark-after-jump-hook #'bookmark-gt--on-jump-restore-region)
+    (remove-hook 'bookmark-after-jump-hook #'bookmark-gt-highlight--on-jump)
+    (remove-hook 'find-file-hook           #'bookmark-gt-highlight--on-find-file)
+    (bookmark-gt-highlight--clear-all-visible)
+    (bookmark-gt-jump--uninstall-marginalia))))
 
 (provide 'bookmark-gt)
 

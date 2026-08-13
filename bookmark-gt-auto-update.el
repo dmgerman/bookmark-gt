@@ -89,7 +89,7 @@ the list buffer and any other observers refresh."
       (if current
           (setcdr record (assq-delete-all 'auto-update (cdr record)))
         (setcdr record (cons (cons 'auto-update t) (cdr record))))
-      (run-hook-with-args 'bookmark-gt-set-after-hook record)
+      (bookmark-gt--after-mutation record)
       (message "%s auto-update on %S"
                (if current "Disabled" "Enabled") name))))
 
@@ -198,15 +198,9 @@ their `auto-update' property; tracking just stops running.
 Re-enable to resume."
   :global t
   :group 'bookmark-gt
-  (cond
-   (bookmark-gt-auto-update-mode
-    (bookmark-gt-auto-update--arm)
-    (add-hook 'bookmark-gt-ephemeral-refresh-hook
-              #'bookmark-gt-auto-update-tick))
-   (t
-    (bookmark-gt-auto-update--disarm)
-    (remove-hook 'bookmark-gt-ephemeral-refresh-hook
-                 #'bookmark-gt-auto-update-tick))))
+  (if bookmark-gt-auto-update-mode
+      (bookmark-gt-auto-update--arm)
+    (bookmark-gt-auto-update--disarm)))
 
 (provide 'bookmark-gt-auto-update)
 

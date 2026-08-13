@@ -49,14 +49,14 @@
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-set-non-file "b" 'h nil)
     (let ((bookmark-current-bookmark "b"))
-      (bookmark-gt--record-visit-hook)
+      (bookmark-gt--on-jump-record-visit)
       (should (= (bookmark-prop-get "b" 'visits) 1)))))
 
 (ert-deftest bookmark-gt-visit-test-hook-no-current-is-noop ()
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-set-non-file "b" 'h nil)
     (let ((bookmark-current-bookmark nil))
-      (bookmark-gt--record-visit-hook))
+      (bookmark-gt--on-jump-record-visit))
     (should-not (bookmark-prop-get "b" 'visits))))
 
 ;;;; No modification-count bump
@@ -76,14 +76,14 @@
 (ert-deftest bookmark-gt-visit-test-install-uninstall ()
   (unwind-protect
       (progn
-        (bookmark-gt-install-visit-tracker)
-        (should (memq #'bookmark-gt--record-visit-hook
+        (add-hook (quote bookmark-after-jump-hook) (function bookmark-gt--on-jump-record-visit))
+        (should (memq #'bookmark-gt--on-jump-record-visit
                       bookmark-after-jump-hook))
-        (bookmark-gt-uninstall-visit-tracker)
-        (should-not (memq #'bookmark-gt--record-visit-hook
+        (remove-hook (quote bookmark-after-jump-hook) (function bookmark-gt--on-jump-record-visit))
+        (should-not (memq #'bookmark-gt--on-jump-record-visit
                           bookmark-after-jump-hook)))
     (remove-hook 'bookmark-after-jump-hook
-                 #'bookmark-gt--record-visit-hook)))
+                 #'bookmark-gt--on-jump-record-visit)))
 
 ;;;; Handler path — URL
 

@@ -41,6 +41,16 @@
 (require 'bookmark)
 (require 'seq)
 
+;; Byte-compile visibility for symbols provided by sibling modules
+;; that this file calls at runtime.  `bookmark-gt.el' requires all
+;; of them before use.
+(declare-function bookmark-gt-list-refresh "bookmark-gt-list")
+(declare-function bookmark-gt-tags-read "bookmark-gt-tags")
+(declare-function bookmark-gt-default-tags--hook
+                  "bookmark-gt-default-tags")
+(defvar bookmark-gt-prompt-for-tags-flag)
+(defvar bookmark-gt-default-tags-mode)
+
 ;;;; Field-access helpers with bookmark+ compat
 ;;
 ;; bookmark+ stores a placeholder string in the `filename' slot of
@@ -68,42 +78,6 @@ Treated as if the field were absent when reading a record.")
 Returns nil when neither is present."
   (or (bookmark-prop-get record 'url)
       (bookmark-prop-get record 'location)))
-
-;;;; Ephemeral-refresh hook
-;;
-;; Some bookmark sources produce transient records that should
-;; only exist while their source is fresh — browser tabs are the
-;; canonical example.  Rather than each source running its own
-;; timer, we expose a shared hook fired by every UI entry that
-;; benefits from up-to-date records: the jump reader before
-;; reading, the list buffer on open, and the list buffer on
-;; `revert-buffer' (`g').  Sources register their refresh
-;; function into this hook when their mode turns on and remove it
-;; when it turns off.
-;;
-;; The `--refreshing' guard prevents re-entrancy — a source that
-;; registers a slow refresh should be careful not to trigger any
-;; of the three UI entry points during its own refresh.
-
-(defvar bookmark-gt-ephemeral-refresh-hook nil
-  "Hook run before UI code reads or displays `bookmark-alist'.
-Each function is called with no arguments.  Ephemeral bookmark
-sources (browser tabs, etc.) register their refresh function
-here when active.  Fired from `bookmark-gt-jump' (before the
-reader), `bookmark-gt-list' (before the initial render), and
-the list buffer's `revert-buffer-function' (`g').")
-
-(defvar bookmark-gt--refreshing-ephemeral nil
-  "Non-nil while `bookmark-gt-refresh-ephemeral' is running.
-Prevents re-entrancy if a registered refresher triggers a UI
-entry point that would refire the hook.")
-
-(defun bookmark-gt-refresh-ephemeral ()
-  "Run `bookmark-gt-ephemeral-refresh-hook' once, guarded.
-No-op when already refreshing."
-  (unless bookmark-gt--refreshing-ephemeral
-    (let ((bookmark-gt--refreshing-ephemeral t))
-      (run-hooks 'bookmark-gt-ephemeral-refresh-hook))))
 
 ;;;; Extension hooks
 ;;
@@ -136,11 +110,8 @@ that use the seeds as prefill should be added later.")
 
 (defvar bookmark-gt-set-after-hook nil
   "Hook run after `bookmark-gt-set' stores a record.
-Each function is called with one argument: the (NAME . DATA) pair
-of the stored bookmark.  Return values are ignored.
-
-Observers (list-buffer refresh, cache invalidation, notification)
-register here.")
+Called with one argument: the stored (NAME . DATA) pair.
+Return values are ignored.")
 
 ;;;; Same-name disambiguation
 ;;
@@ -199,7 +170,7 @@ is on and a collision is detected, the existing record is
 replaced — the common \"update this bookmark's location\" case.
 Records that share only the name (different handler or
 different file) are still disambiguated with a `<N>' suffix,
-so cross-source name reuse does not silently clobber.
+so cross-source name reuse does not silently overwrite an existing record.
 
 An explicit prefix argument to `bookmark-gt-set' (NO-OVERWRITE
 non-nil) always disambiguates, ignoring this flag."
@@ -207,15 +178,11 @@ non-nil) always disambiguates, ignoring this flag."
   :group 'bookmark-gt)
 
 (defun bookmark-gt--collision-record (name new-record)
-  "Return the existing bookmark colliding with NEW-RECORD under NAME, or nil.
+  "Return the existing bookmark called NAME that collides with NEW-RECORD.
 Two records collide when they share handler and filename (nil
-equals nil, and non-nil filenames are compared with
-`file-equal-p' when both files exist, otherwise `string=').
-
-EXISTING is looked up via `bookmark-get-bookmark' and read with
-`bookmark-prop-get'.  NEW-RECORD is a plain alist (no name in
-its CAR), so its keys are read with `alist-get' — the two
-accessors are not interchangeable."
+equals nil; non-nil filenames compare via `file-equal-p' when
+both exist, otherwise `string=').  Returns nil when no
+collision."
   (when-let ((existing (bookmark-get-bookmark name 'noerror)))
     (let ((h-old (bookmark-prop-get existing 'handler))
           (h-new (alist-get 'handler new-record))
@@ -233,19 +200,10 @@ accessors are not interchangeable."
         existing))))
 
 (defun bookmark-gt--resolve-collision (name record no-overwrite)
-  "Return the name to store RECORD under.
-Decision order:
-
-1. NO-OVERWRITE non-nil (the `C-u' prefix): always disambiguate
-   with `<N>' — matches the built-in `bookmark-set' escape
-   hatch, and takes precedence over both customizations below.
-2. `bookmark-gt-same-name-overwrite' non-nil AND NAME collides
-   with a same-handler+same-filename record: delete the old
-   record and return NAME so the fresh push overwrites it.
-3. `bookmark-gt-allow-duplicate-names' non-nil (the default):
-   return NAME literally, allowing multiple records to share
-   the same name (typically distinguished by file).
-4. Otherwise: disambiguate with `<N>'."
+  "Return the actual name to store RECORD under given the target NAME.
+Consults `bookmark-gt-same-name-overwrite' and
+`bookmark-gt-allow-duplicate-names'.  NO-OVERWRITE non-nil
+forces disambiguation with a `<N>' suffix."
   (cond
    (no-overwrite (bookmark-gt-disambiguate-name name))
    ((and bookmark-gt-same-name-overwrite
@@ -266,13 +224,21 @@ each hook as its second argument."
        'bookmark-gt-set-name-reader-hook default-name context)
       default-name))
 
-(defun bookmark-gt--fold-tag-hooks (record seed-tags)
-  "Fold `bookmark-gt-set-tag-reader-hook' over SEED-TAGS.
-Each hook receives RECORD and the accumulator, and returns a
-new accumulator.  Returns the final list."
-  (seq-reduce (lambda (acc fn) (funcall fn record acc))
-              bookmark-gt-set-tag-reader-hook
-              seed-tags))
+(defun bookmark-gt--collect-tags (record seed-tags)
+  "Return the final tag list for RECORD, starting from SEED-TAGS.
+The pipeline is: default-tags contribution when
+`bookmark-gt-default-tags-mode' is on, then the interactive
+reader when `bookmark-gt-prompt-for-tags-flag' is non-nil,
+then any third-party functions on the public
+`bookmark-gt-set-tag-reader-hook'."
+  (let ((tags seed-tags))
+    (when bookmark-gt-default-tags-mode
+      (setq tags (bookmark-gt-default-tags--hook record tags)))
+    (when bookmark-gt-prompt-for-tags-flag
+      (setq tags (bookmark-gt-tags-read "Tags" tags)))
+    (seq-reduce (lambda (acc fn) (funcall fn record acc))
+                bookmark-gt-set-tag-reader-hook
+                tags)))
 
 (defun bookmark-gt--with-tags (record tags)
   "Return RECORD's alist with TAGS attached under the `tags' key.
@@ -320,28 +286,23 @@ NAME's text properties are stripped, matching what the built-in
 
 ;;;; Public: elisp API
 
-(defun bookmark-gt-set-non-file (name handler props)
+(defun bookmark-gt-set-non-file (name handler props &optional no-notify)
   "Store a non-file bookmark called NAME using HANDLER.
-
-PROPS is an alist of additional record entries (URL, page title,
-etc.).  Non-file bookmarks omit the `filename' key entirely so
-built-in `bookmark-jump' dispatches on HANDLER, which must be a
-function suitable for `bookmark-handler-function'.
-
-Runs `bookmark-gt-set-name-reader-hook',
-`bookmark-gt-set-tag-reader-hook', and
-`bookmark-gt-set-after-hook' in that order.
-
-Returns the stored (NAME . DATA) pair."
+PROPS is an alist of additional record entries (URL, page
+title, etc.).  When NO-NOTIFY is non-nil, skip UI refresh and
+the external `bookmark-gt-set-after-hook' — the caller is
+expected to notify once at end of a batch.  Returns the
+stored `(NAME . DATA)' pair."
   (let* ((initial-data (cons (cons 'handler handler) props))
          (refined-name (bookmark-gt--refine-name name initial-data))
          (unique-name (bookmark-gt--resolve-collision
                        refined-name initial-data nil))
-         (tags (bookmark-gt--fold-tag-hooks initial-data nil))
+         (tags (bookmark-gt--collect-tags initial-data nil))
          (final-data (bookmark-gt--with-tags initial-data tags))
          (final-name (bookmark-gt--push-record unique-name final-data))
          (stored (cons final-name final-data)))
-    (run-hook-with-args 'bookmark-gt-set-after-hook stored)
+    (unless no-notify
+      (bookmark-gt--after-mutation stored))
     stored))
 
 ;;;; Temporary bookmarks
@@ -382,7 +343,7 @@ other observers refresh."
                                           (cdr record)))
         (setcdr record (cons (cons bookmark-gt-temp-key t)
                              (cdr record))))
-      (run-hook-with-args 'bookmark-gt-set-after-hook record)
+      (bookmark-gt--after-mutation record)
       (message "%s temp on %S"
                (if current "Cleared" "Set") name))))
 
@@ -393,8 +354,8 @@ other observers refresh."
 ;; `bookmark-automatically-show-annotations' is non-nil) pops up the
 ;; annotation buffer.  For handlers whose target is external — a
 ;; web browser opened via `browse-url', a browser tab focused via
-;; browsel — the annotation buffer steals focus back from the
-;; browser, which is not what the user wants.
+;; browsel — the annotation buffer moves focus from the
+;; browser back to Emacs, which is not what the user wants.
 ;;
 ;; The handler cannot let-bind
 ;; `bookmark-automatically-show-annotations' to nil because the
@@ -420,16 +381,6 @@ that built-in `bookmark--jump-via' runs (annotation buffer,
 `bookmark-after-jump-hook', fringe mark)."
   (catch 'bookmark-gt-skip-post-handler
     (apply orig-fn args)))
-
-(defun bookmark-gt-install-jump-via-catch ()
-  "Install the `bookmark--jump-via' catch advice.  Idempotent."
-  (advice-add 'bookmark--jump-via :around
-              #'bookmark-gt--jump-via-catch-advice))
-
-(defun bookmark-gt-uninstall-jump-via-catch ()
-  "Remove the `bookmark--jump-via' catch advice."
-  (advice-remove 'bookmark--jump-via
-                 #'bookmark-gt--jump-via-catch-advice))
 
 (defmacro bookmark-gt-skip-post-handler (value)
   "Throw VALUE to the catch tag `bookmark-gt-skip-post-handler'.
@@ -552,19 +503,14 @@ overlay per match."
       (with-current-buffer buf
         (bookmark-gt-highlight--refresh-buffer)))))
 
-(defun bookmark-gt-highlight--find-file-hook ()
-  "Refresh highlight overlays for the just-opened buffer.
-Attached to `find-file-hook' by
-`bookmark-gt-install-highlight'."
+(defun bookmark-gt-highlight--on-find-file ()
+  "Refresh highlight overlays for the just-opened buffer."
   (bookmark-gt-highlight--refresh-buffer))
 
-(defun bookmark-gt-highlight--after-jump-hook ()
-  "Record the just-jumped bookmark's point and refresh the buffer.
-Fires from `bookmark-after-jump-hook' after built-in positions
-point.  Even records without a numeric `position' (org-heading
-bookmarks, etc.) now get an overlay, because the landed point
-is remembered in `bookmark-gt-highlight--jumped-positions' and
-consulted by `bookmark-gt-highlight--effective-position'."
+(defun bookmark-gt-highlight--on-jump ()
+  "Record the point after a jump and refresh the buffer's overlays.
+Lets records without a numeric `position' (e.g. org-heading
+bookmarks) still get an overlay at their landed position."
   (when-let* ((bookmark-gt-highlight-enable)
               (name bookmark-current-bookmark)
               (rec (bookmark-get-bookmark name 'noerror)))
@@ -574,41 +520,35 @@ consulted by `bookmark-gt-highlight--effective-position'."
     (puthash rec (point) bookmark-gt-highlight--jumped-positions)
     (bookmark-gt-highlight--refresh-buffer)))
 
-(defun bookmark-gt-highlight--after-set-hook (&optional entry &rest _)
-  "`bookmark-gt-set-after-hook' handler that refreshes affected buffer(s).
-When ENTRY is a specific record with a `filename', only the
-buffer visiting that file is refreshed.  Otherwise (nil
-sentinel from batch ops, or non-file records), sweep every
-file-visiting buffer."
-  (when bookmark-gt-highlight-enable
-    (if-let* ((entry)
+(defun bookmark-gt-highlight-refresh (entry)
+  "Refresh the buffer visiting ENTRY's file, if any."
+  (when-let* ((bookmark-gt-highlight-enable)
+              (entry)
               (path (bookmark-gt-filename-of entry))
               (buf (find-buffer-visiting path)))
-        (with-current-buffer buf
-          (bookmark-gt-highlight--refresh-buffer))
-      (bookmark-gt-highlight--refresh-all-visible))))
+    (with-current-buffer buf
+      (bookmark-gt-highlight--refresh-buffer))))
 
-(defun bookmark-gt-install-highlight ()
-  "Install the highlight hooks and paint every currently open buffer.
-Idempotent."
-  (add-hook 'find-file-hook #'bookmark-gt-highlight--find-file-hook)
-  (add-hook 'bookmark-gt-set-after-hook
-            #'bookmark-gt-highlight--after-set-hook)
-  (add-hook 'bookmark-after-jump-hook
-            #'bookmark-gt-highlight--after-jump-hook)
-  (bookmark-gt-highlight--refresh-all-visible))
-
-(defun bookmark-gt-uninstall-highlight ()
-  "Remove the highlight hooks and clear all overlays."
-  (remove-hook 'find-file-hook #'bookmark-gt-highlight--find-file-hook)
-  (remove-hook 'bookmark-gt-set-after-hook
-               #'bookmark-gt-highlight--after-set-hook)
-  (remove-hook 'bookmark-after-jump-hook
-               #'bookmark-gt-highlight--after-jump-hook)
+(defun bookmark-gt-highlight--clear-all-visible ()
+  "Remove every bookmark-gt highlight overlay from every buffer."
   (dolist (buf (buffer-list))
     (with-current-buffer buf
       (when bookmark-gt-highlight--overlays
         (bookmark-gt-highlight--clear-buffer)))))
+
+;;;; Mutation notification
+;;
+;; Called directly by every internal mutator.  Refreshes list
+;; buffers and highlight overlays, then runs the public
+;; `bookmark-gt-set-after-hook' for third-party observers.
+
+(defun bookmark-gt--after-mutation (entry)
+  "Notify UI observers that ENTRY was created or mutated.
+Refreshes list buffers and highlight overlays, then runs the
+public `bookmark-gt-set-after-hook'."
+  (bookmark-gt-list-refresh)
+  (bookmark-gt-highlight-refresh entry)
+  (run-hook-with-args 'bookmark-gt-set-after-hook entry))
 
 ;;;; In-buffer cycling
 ;;
@@ -677,7 +617,7 @@ Wraps from start to end when before the first one."
 ;; When `bookmark-gt-set' is called with an active region and
 ;; `bookmark-gt-use-region' is non-nil, the record captures both
 ;; region anchors plus context strings around the end.  On jump,
-;; `bookmark-gt--restore-region-hook' (fired from
+;; `bookmark-gt--on-jump-restore-region' (fired from
 ;; `bookmark-after-jump-hook') pushes the mark at the end
 ;; position and activates it, so the region reappears
 ;; highlighted.
@@ -699,8 +639,7 @@ Turn off to store point bookmarks even when a region is
 active — records that already carry region info still restore
 their region on jump; this flag only gates the capture path.
 
-To fully disable region restore, `remove-hook' the tracker
-via `bookmark-gt-uninstall-region-restore'."
+To fully disable region restore, turn off `bookmark-gt-mode'."
   :type 'boolean
   :group 'bookmark-gt)
 
@@ -748,7 +687,7 @@ active.  Overrides `position' with `region-beginning' and adds
          (rear-context-region-string . ,rear))
        stripped))))
 
-(defun bookmark-gt--restore-region-hook ()
+(defun bookmark-gt--on-jump-restore-region ()
   "Hook on `bookmark-after-jump-hook' that re-activates the region.
 When the just-jumped record has `end-position', push the mark
 there (activated) so the region reappears highlighted.  Apply
@@ -761,17 +700,6 @@ propagates to the end anchor."
               (raw-pos (bookmark-prop-get rec 'position)))
     (let ((delta (- (point) raw-pos)))
       (push-mark (+ end-pos delta) t t))))
-
-(defun bookmark-gt-install-region-restore ()
-  "Register the region-restore hook on `bookmark-after-jump-hook'.
-Idempotent."
-  (add-hook 'bookmark-after-jump-hook
-            #'bookmark-gt--restore-region-hook))
-
-(defun bookmark-gt-uninstall-region-restore ()
-  "Remove the region-restore hook from `bookmark-after-jump-hook'."
-  (remove-hook 'bookmark-after-jump-hook
-               #'bookmark-gt--restore-region-hook))
 
 ;;;; Visit tracker
 ;;
@@ -800,7 +728,7 @@ disk write per jump."
     (bookmark-prop-set rec 'visits (1+ visits))
     (bookmark-prop-set rec 'last-visited (current-time))))
 
-(defun bookmark-gt--record-visit-hook ()
+(defun bookmark-gt--on-jump-record-visit ()
   "Hook for `bookmark-after-jump-hook'.
 Records the visit against `bookmark-current-bookmark' (set by
 built-in `bookmark-handle-bookmark' before the after-jump-hook
@@ -809,17 +737,6 @@ bypass this hook and must call `bookmark-gt-record-visit'
 themselves."
   (when bookmark-current-bookmark
     (bookmark-gt-record-visit bookmark-current-bookmark)))
-
-(defun bookmark-gt-install-visit-tracker ()
-  "Register the visit-tracking hook on `bookmark-after-jump-hook'.
-Idempotent."
-  (add-hook 'bookmark-after-jump-hook
-            #'bookmark-gt--record-visit-hook))
-
-(defun bookmark-gt-uninstall-visit-tracker ()
-  "Remove the visit-tracking hook from `bookmark-after-jump-hook'."
-  (remove-hook 'bookmark-after-jump-hook
-               #'bookmark-gt--record-visit-hook))
 
 ;;;; File-rename tracker
 ;;
@@ -874,14 +791,6 @@ further built-in arguments.  Rewrites bookmarks whose
         (when (equal (bookmark-gt-filename-of rec) from-abs)
           (bookmark-prop-set (car rec) 'filename to-abs))))))
 
-(defun bookmark-gt-install-rename-tracker ()
-  "Install the `rename-file' tracker advice.  Idempotent."
-  (advice-add 'rename-file :around #'bookmark-gt--rename-file-advice))
-
-(defun bookmark-gt-uninstall-rename-tracker ()
-  "Remove the `rename-file' tracker advice."
-  (advice-remove 'rename-file #'bookmark-gt--rename-file-advice))
-
 (defun bookmark-gt--save-filter-advice (orig-fn &rest args)
   "Around advice for `bookmark-save' that excludes temp records.
 Every call binds `bookmark-alist' to a filtered copy without
@@ -892,48 +801,16 @@ filter is only applied to what gets written to disk."
          (seq-remove #'bookmark-gt-temp-p bookmark-alist)))
     (apply orig-fn args)))
 
-(defun bookmark-gt-install-temp-save-filter ()
-  "Install the temp-bookmark save filter on `bookmark-save'.
-Idempotent."
-  (advice-add 'bookmark-save :around #'bookmark-gt--save-filter-advice))
-
-(defun bookmark-gt-uninstall-temp-save-filter ()
-  "Remove the temp-bookmark save filter."
-  (advice-remove 'bookmark-save #'bookmark-gt--save-filter-advice))
-
 ;;;; Public: interactive entry point
 
 (defun bookmark-gt-set (&optional name no-overwrite)
-  "Set a bookmark like `bookmark-set', with bookmark-gt extensions.
-
-NAME is the bookmark name.  When called interactively with NAME
-nil, prompt for it using the current buffer's default.  When
-called from Lisp with NAME non-nil, no prompt is shown.
-
-Same-name policy (in decision order):
-
-- When the chosen name collides with an existing bookmark that
-  has the same handler and filename,
-  `bookmark-gt-same-name-overwrite' (default t) makes the fresh
-  record replace the old one in place — the common case of
-  \"update this bookmark's location.\"
-- Otherwise, `bookmark-gt-allow-duplicate-names' (default t)
-  allows the new record to share the literal name of another
-  existing record (e.g. two `todo' bookmarks in two different
-  files).
-- With both flags off, or with a different handler or filename
-  when overwrite is off, the name is disambiguated with a
-  `<N>' suffix.
-
-NO-OVERWRITE (a prefix argument interactively) forces
-disambiguation regardless of the flags, matching the built-in
-`bookmark-set' escape hatch.
-
-Runs `bookmark-gt-set-name-reader-hook',
-`bookmark-gt-set-tag-reader-hook', and
-`bookmark-gt-set-after-hook' in that order.
-
-Returns the stored (NAME . DATA) pair."
+  "Set a bookmark.
+NAME is the bookmark name (prompted for when nil interactively).
+NO-OVERWRITE (a prefix argument) forces disambiguation with a
+`<N>' suffix.  Otherwise the same-name policy in
+`bookmark-gt-same-name-overwrite' and
+`bookmark-gt-allow-duplicate-names' applies.  Returns the
+stored (NAME . DATA) pair."
   (interactive "i\nP")
   (bookmark-maybe-load-default-file)
   (let* ((region-active (and bookmark-gt-use-region (use-region-p)))
@@ -966,11 +843,11 @@ Returns the stored (NAME . DATA) pair."
            (t refined-suggested)))
          (unique-name (bookmark-gt--resolve-collision
                        chosen-name record-data no-overwrite))
-         (tags (bookmark-gt--fold-tag-hooks record-data nil))
+         (tags (bookmark-gt--collect-tags record-data nil))
          (final-data (bookmark-gt--with-tags record-data tags))
          (final-name (bookmark-gt--push-record unique-name final-data))
          (stored (cons final-name final-data)))
-    (run-hook-with-args 'bookmark-gt-set-after-hook stored)
+    (bookmark-gt--after-mutation stored)
     stored))
 
 ;;;; Relocate
@@ -987,19 +864,10 @@ Returns the stored (NAME . DATA) pair."
 ;;;###autoload
 (defun bookmark-gt-relocate (name)
   "Change the target of the bookmark called NAME.
-For a file bookmark, prompt for a new filename via
-`read-file-name' (default: the current filename) and update
-the `filename' key.  Position is left unchanged.
-
-For a bookmark carrying a `url' key (URL bookmark, browser
-tab), prompt for the new URL via `read-string' and update
-the `url' key.
-
-For records with neither key, signal a `user-error'.
-
-Fires `bookmark-gt-set-after-hook' with the updated entry so
-the list buffer, highlight overlays, and any other observers
-refresh."
+File bookmarks prompt for a new filename with `read-file-name'
+and keep the current position.  Records with a `url' key
+prompt for a new URL.  Records with neither signal a
+`user-error'.  Fires `bookmark-gt-set-after-hook'."
   (interactive (list (bookmark-completing-read "Relocate bookmark")))
   (let* ((entry    (bookmark-get-bookmark name))
          (filename (bookmark-prop-get entry 'filename))
@@ -1023,7 +891,7 @@ refresh."
           (1+ bookmark-alist-modification-count))
     (when (bookmark-time-to-save-p)
       (bookmark-save))
-    (run-hook-with-args 'bookmark-gt-set-after-hook entry)
+    (bookmark-gt--after-mutation entry)
     entry))
 
 (provide 'bookmark-gt-core)

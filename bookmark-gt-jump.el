@@ -161,25 +161,12 @@ char rather than the type's."
          (concat "@" name))))
 
 (defun bookmark-gt-jump-candidate-default (record)
-  "Default candidate formatter for `bookmark-gt-jump'.
-Called with RECORD (a `(NAME . DATA)' cons from
-`bookmark-alist').  Returns a propertized string whose visible
-content is the bookmark name (truncated per
-`bookmark-gt-jump-name-max-width').  The type / tag narrowing
-tokens are stored as a text property `bookmark-gt-particles'
-rather than appended as visible text.
-
-Text properties on every character:
-
-  `bookmark-gt-name'      — the raw record name (for :lookup).
-  `consult--type'         — the narrow char (for consult narrowing).
-  `bookmark-gt-particles' — space-separated `@Type ;tag ;tag'
-                             tokens matched by the orderless
-                             dispatchers.  Stored as a property so
-                             `string-width' does not count them
-                             \(marginalia's alignment column would
-                             otherwise be padded by every
-                             candidate's hidden tokens)."
+  "Default candidate formatter for RECORD in `bookmark-gt-jump'.
+Returns a propertized string with:
+  `bookmark-gt-name'      — the raw record name.
+  `consult--type'         — the narrow char.
+  `bookmark-gt-particles' — the `@Type ;tag' tokens for the
+                             orderless dispatcher."
   (let* ((name (bookmark-gt-display-name (car record)))
          (visible (bookmark-gt-jump--truncate-name name))
          (tags (bookmark-gt-tags-of record))
@@ -493,11 +480,7 @@ scans `bookmark-alist'."
       (bookmark-gt-jump--read-plain prompt candidates))))
 
 (defun bookmark-gt-jump--read (prompt)
-  "Read a bookmark name under PROMPT, running the tag-filter restart loop.
-Fires `bookmark-gt-ephemeral-refresh-hook' once at the top so
-sources with transient records (browser tabs, auto-update
-targets) rebuild before the reader shows them."
-  (bookmark-gt-refresh-ephemeral)
+  "Read a bookmark name under PROMPT, running the tag-filter restart loop."
   (let (result)
     (while (null result)
       (setq bookmark-gt-jump--restart-p nil)
@@ -509,16 +492,9 @@ targets) rebuild before the reader shows them."
     result))
 
 (defun bookmark-gt-jump--resolve-pool (bookmarks-list bookmarks-filter group)
-  "Return the candidate pool from BOOKMARKS-LIST, BOOKMARKS-FILTER, and GROUP.
-BOOKMARKS-LIST defaults to `bookmark-alist'.  BOOKMARKS-FILTER,
-when non-nil, is called on each record and must return non-nil
-to keep it.  GROUP, when non-nil, is a group symbol from
-`bookmark-gt-group-alist'; only records whose
-`bookmark-gt-handler-group' matches survive.  When both filters
-are supplied both must hold.
-
-Returns nil (no override) when nothing narrows the pool — the
-reader then reads from `bookmark-alist' as-is."
+  "Return the candidate pool, or nil when nothing narrows it.
+BOOKMARKS-LIST defaults to `bookmark-alist'; BOOKMARKS-FILTER
+and GROUP compose as an AND when both are supplied."
   (let* ((list (or bookmarks-list bookmark-alist))
          (predicate
           (cond
@@ -653,20 +629,6 @@ Interactively, :TAG is prompted for from the set of known tags."
                        (bookmark-gt-jump--preselect-arm))
                      (bookmark-gt-jump--read (format "Jump [;%s]" tag))))))
     (bookmark-jump name)))
-
-;;;; Install / uninstall (called from `bookmark-gt-mode')
-
-;;;###autoload
-(defun bookmark-gt-jump-enable ()
-  "Install the marginalia annotator for bookmark completion.
-Orderless dispatcher is installed per-read via let-binding, so
-there is nothing to enable globally for it.  Idempotent."
-  (bookmark-gt-jump--install-marginalia))
-
-;;;###autoload
-(defun bookmark-gt-jump-disable ()
-  "Remove the marginalia annotator for bookmark completion."
-  (bookmark-gt-jump--uninstall-marginalia))
 
 (provide 'bookmark-gt-jump)
 

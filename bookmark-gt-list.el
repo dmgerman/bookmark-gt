@@ -46,6 +46,13 @@
 (require 'bookmark-gt-tags)
 (require 'bookmark-gt-handlers)
 
+;; Optional-mode ephemeral refreshers, called from
+;; `bookmark-gt-list--revert' (`g') when their mode is on.
+(declare-function bookmark-gt-browsel-tabs-refresh
+                  "bookmark-gt-browsel-tabs")
+(declare-function bookmark-gt-auto-update-tick
+                  "bookmark-gt-auto-update")
+
 ;;;; Customization
 
 (defcustom bookmark-gt-list-name-width 32
@@ -182,17 +189,8 @@ no mark is stored, returns a single space."
 
 (defun bookmark-gt-list--entry-vector (record)
   "Return the tabulated-list vector for RECORD.
-Name, Type, and Group are truncated via `truncate-string-to-width',
-which uses `string-width' internally so wide characters (CJK,
-emoji) are counted correctly.  `tabulated-list-mode' itself only
-pads short values — it does not truncate long ones, so long
-names would overflow into subsequent columns without our
-intervention.
-
-The mark cell (index 0) is read from
-`bookmark-gt-list--marks' so marks survive re-render (sort,
-revert, mutation) as long as the record cons is still in
-`bookmark-alist'."
+Reads the mark cell from `bookmark-gt-list--marks' so marks
+survive re-render as long as the record cons is unchanged."
   (let* ((raw-name (bookmark-gt-display-name (car record)))
          (name (truncate-string-to-width raw-name
                                          bookmark-gt-list-name-width
@@ -332,15 +330,9 @@ predicate (`by-type', `by-tag', `by-name-regexp', or
   (setq tabulated-list-sort-key '("Name" . nil))
   (setq tabulated-list-entries #'bookmark-gt-list--entries)
   (setq-local revert-buffer-function #'bookmark-gt-list--revert)
-  (tabulated-list-init-header)
-  (add-hook 'bookmark-gt-set-after-hook
-            #'bookmark-gt-list--refresh-observer))
+  (tabulated-list-init-header))
 
-;;;; Auto-refresh observer
-;;
-;; Registered globally into `bookmark-gt-set-after-hook' (idempotent
-;; via `add-hook').  Any live list buffer refreshes whenever any
-;; mutator fires the hook.
+;;;; Refresh
 
 (defun bookmark-gt-list--name-at-point ()
   "Return the visible name of the record at point, or nil."
@@ -363,23 +355,10 @@ matches."
       (unless found (goto-char (point-min))))))
 
 (defun bookmark-gt-list--redraw-preserving-point ()
-  "`tabulated-list-print t' with two preservation fallbacks.
-
-1. Id-based point preservation via `tabulated-list-print's own
-   REMEMBER-POS.  Fails when a refresh replaces the cons under
-   point (browser-tab refetch, execute-deletions of the record
-   at point, etc.).
-
-2. Name-based point fallback: if the id lookup failed, walk to
-   the first row rendering the previous name.
-
-3. Visual-line preservation: capture the row's offset from
-   `window-start' before redraw, restore via `recenter' after.
-   Without this, rows added or removed above point cause the
-   buffer to shift visually under the (id-preserved) cursor.
-
-All three preservations are per-buffer; a buffer without a
-live window skips the visual restore."
+  "Redraw and keep point on the same row.
+Falls back to name-lookup when the record cons has been
+replaced, and restores the row's visual offset from
+`window-start'."
   (let* ((win (get-buffer-window (current-buffer)))
          (visual-line (and win
                            (count-lines (window-start win)
@@ -393,15 +372,11 @@ live window skips the visual restore."
       (with-selected-window win
         (recenter visual-line)))))
 
-(defun bookmark-gt-list--refresh-observer (&rest _)
-  "Refresh every live `bookmark-gt-list-mode' buffer.
-Invoked from `bookmark-gt-set-after-hook' so any mutation of the
-alist \(create, rename, edit tags, delete) updates the display
-without manual polling.  A full redraw is used because the
-record cons is the tabulated-list ID and mutations happen in
-place \(same ID, changed content), which the differential-update
-path would skip.  Uses `bookmark-gt-list--redraw-preserving-point'
-so point survives cons replacements."
+;;;###autoload
+(defun bookmark-gt-list-refresh (&rest _)
+  "Redraw every live `bookmark-gt-list-mode' buffer.
+Callable directly, and used as the observer on
+`bookmark-gt-set-after-hook' (extra hook arguments are ignored)."
   (dolist (buf (buffer-list))
     (with-current-buffer buf
       (when (derived-mode-p 'bookmark-gt-list-mode)
@@ -412,13 +387,9 @@ so point survives cons replacements."
 
 ;;;###autoload
 (defun bookmark-gt-list ()
-  "Display the bookmark-gt list buffer.
-Fires `bookmark-gt-ephemeral-refresh-hook' before the initial
-render so transient sources (browser tabs, auto-update targets)
-show current state."
+  "Display the bookmark-gt list buffer."
   (interactive)
   (bookmark-maybe-load-default-file)
-  (bookmark-gt-refresh-ephemeral)
   (let ((buf (get-buffer-create bookmark-gt-list-buffer-name)))
     (with-current-buffer buf
       (bookmark-gt-list-mode)
@@ -427,12 +398,12 @@ show current state."
 
 (defun bookmark-gt-list--revert (&rest _args)
   "Revert function for the bookmark-gt list buffer.
-Runs `bookmark-gt-refresh-ephemeral' before re-rendering so
-`g' picks up fresh browser tabs, refreshed auto-update
-positions, and any other transient state.  Preserves point
-across the redraw via
-`bookmark-gt-list--redraw-preserving-point'."
-  (bookmark-gt-refresh-ephemeral)
+Refreshes ephemeral sources (browser tabs, auto-update
+positions) that are currently enabled, then redraws."
+  (when (bound-and-true-p bookmark-gt-browsel-tabs-mode)
+    (bookmark-gt-browsel-tabs-refresh))
+  (when (bound-and-true-p bookmark-gt-auto-update-mode)
+    (bookmark-gt-auto-update-tick))
   (bookmark-gt-list--redraw-preserving-point))
 
 ;;;; Cursor → record lookup
@@ -523,10 +494,7 @@ Skips hash entries whose id is no longer in `bookmark-alist'
     records))
 
 (defun bookmark-gt-list-execute-deletions ()
-  "Delete every bookmark flagged with `bookmark-gt-list-deletion-mark'.
-Visual position of point is preserved by
-`bookmark-gt-list--redraw-preserving-point' when the observer
-runs the refresh."
+  "Delete every bookmark flagged with `bookmark-gt-list-deletion-mark'."
   (interactive nil bookmark-gt-list-mode)
   (let ((flagged (bookmark-gt-list--collect-marked
                   bookmark-gt-list-deletion-mark)))
@@ -538,7 +506,7 @@ runs the refresh."
     (dolist (record flagged)
       (bookmark-delete (car record) t)
       (remhash record bookmark-gt-list--marks))
-    (run-hook-with-args 'bookmark-gt-set-after-hook (car flagged))
+    (bookmark-gt--after-mutation (car flagged))
     (message "Deleted %d bookmark(s)" (length flagged))))
 
 ;;;; Jump
@@ -557,17 +525,9 @@ runs the refresh."
 
 (defun bookmark-gt-list-preview ()
   "Preview the bookmark on the current line in another window.
-When the record's handler registry entry carries a `:preview'
-function, that function is called with the record — a chance to
-provide a lightweight or non-focus-stealing rendering (e.g. an
-EWW render for URL bookmarks, or a browser-tab hover instead of
-switch-to-tab).
-
-Absent :preview, falls back to `bookmark-jump-other-window'
-on the record's own handler — equivalent to
-`bookmark-gt-list-jump-other-window' except window selection
-is restored to the list afterwards, so the cursor stays here
-and you can walk down the list previewing each row."
+Uses the handler's `:preview' when the registry entry
+provides one; otherwise `bookmark-jump-other-window'.  Point
+is restored to the list."
   (interactive nil bookmark-gt-list-mode)
   (let* ((record (bookmark-gt-list--require-record))
          (entry (bookmark-gt-handler-classify record))
@@ -591,8 +551,7 @@ and you can walk down the list previewing each row."
   (let* ((record (bookmark-gt-list--require-record))
          (unique (bookmark-gt-disambiguate-name new-name)))
     (bookmark-rename (car record) unique)
-    (run-hook-with-args 'bookmark-gt-set-after-hook
-                        (cons unique (cdr record)))))
+    (bookmark-gt--after-mutation (cons unique (cdr record)))))
 
 (defun bookmark-gt-list-relocate ()
   "Relocate the bookmark on the current line.
@@ -629,8 +588,8 @@ the toggle command); the column glyph itself works without it."
 
 (defun bookmark-gt-list-temp-toggle ()
   "Toggle the temp property on the bookmark on the current line.
-A temp bookmark is excluded from `bookmark-save' output (see
-`bookmark-gt-install-temp-save-filter')."
+A temp bookmark is excluded from `bookmark-save' output while
+`bookmark-gt-mode' is on."
   (interactive nil bookmark-gt-list-mode)
   (let ((record (bookmark-gt-list--require-record)))
     (bookmark-gt-toggle-temp (car record))))
@@ -725,11 +684,7 @@ toggle."
     (message "Sorted by: %s" next)))
 
 (defun bookmark-gt-list-describe-record ()
-  "Display the raw record of the bookmark on the current line.
-Pretty-prints the (NAME . ALIST) cons via `pp' in
-`bookmark-gt-list-record-buffer-name', with `emacs-lisp-mode'
-syntax highlighting and `view-mode' for read-only navigation
-\(`q' buries the buffer)."
+  "Pretty-print the raw record of the bookmark on the current line."
   (interactive nil bookmark-gt-list-mode)
   (let* ((record (bookmark-gt-list--require-record))
          (name (bookmark-gt-display-name (car record)))

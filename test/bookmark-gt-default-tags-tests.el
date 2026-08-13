@@ -87,34 +87,27 @@
 ;;;; End-to-end via bookmark-gt-set-non-file
 
 (ert-deftest bookmark-gt-default-tags-test-applied-during-set ()
-  "With the hook registered, `bookmark-gt-set-non-file' applies defaults."
+  "With the mode on, `bookmark-gt-set-non-file' applies defaults."
   (bookmark-gt-test-with-clean-bookmarks
-    (let ((bookmark-gt-default-tags '("auto")))
-      (bookmark-gt-default-tags-enable)
-      (unwind-protect
-          (progn
-            (bookmark-gt-set-non-file "x" 'h nil)
-            (should (equal (bookmark-gt-tags-of (car bookmark-alist))
-                           '("auto"))))
-        (bookmark-gt-default-tags-disable)))))
+    (let ((bookmark-gt-default-tags '("auto"))
+          (bookmark-gt-default-tags-mode t))
+      (bookmark-gt-set-non-file "x" 'h nil)
+      (should (equal (bookmark-gt-tags-of (car bookmark-alist))
+                     '("auto"))))))
 
 (ert-deftest bookmark-gt-default-tags-test-caller-seed-composes-with-defaults ()
-  "Tags passed directly to `bookmark-gt-set-non-file' compose with defaults."
+  "Tags contributed by a third-party hook compose with defaults."
   (bookmark-gt-test-with-clean-bookmarks
-    (let ((bookmark-gt-default-tags '("auto")))
-      (bookmark-gt-default-tags-enable)
-      (unwind-protect
-          (progn
-            ;; Seed the reader by pre-registering another hook that
-            ;; returns caller tags first; the default-tags hook then
-            ;; appends "auto".
-            (add-hook 'bookmark-gt-set-tag-reader-hook
-                      (lambda (_rec _seed) '("manual"))
-                      -50)
-            (bookmark-gt-set-non-file "x" 'h nil)
-            (should (equal (bookmark-gt-tags-of (car bookmark-alist))
-                           '("manual" "auto"))))
-        (bookmark-gt-default-tags-disable)))))
+    (let ((bookmark-gt-default-tags '("auto"))
+          (bookmark-gt-default-tags-mode t)
+          (bookmark-gt-set-tag-reader-hook
+           ;; Third-party contributor that appends "manual"; the
+           ;; default-tags contribution runs first and returns
+           ;; ("auto"), then this appends.
+           (list (lambda (_rec seed) (append seed '("manual"))))))
+      (bookmark-gt-set-non-file "x" 'h nil)
+      (should (equal (bookmark-gt-tags-of (car bookmark-alist))
+                     '("auto" "manual"))))))
 
 (provide 'bookmark-gt-default-tags-tests)
 ;;; bookmark-gt-default-tags-tests.el ends here

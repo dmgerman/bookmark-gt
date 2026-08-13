@@ -134,42 +134,21 @@ No tags applied."
 shape.  No tags applied." val)
      nil)))
 
-;;;; Hook
+;;;; Contribution
 
 (defun bookmark-gt-default-tags--hook (record seed-tags)
   "Return SEED-TAGS augmented with `bookmark-gt-default-tags' for RECORD.
-Tag-reader hook: the returned list is the union of SEED-TAGS and
-the resolved defaults, in that order, deduped by
-`bookmark-gt--normalize-tags'."
+Called directly by `bookmark-gt--collect-tags' when
+`bookmark-gt-default-tags-mode' is on."
   (let ((defaults (bookmark-gt-default-tags--resolve
                    bookmark-gt-default-tags record)))
     (bookmark-gt--normalize-tags (append seed-tags defaults))))
-
-;;;; Enable / disable
-
-;;;###autoload
-(defun bookmark-gt-default-tags-enable ()
-  "Register the default-tags seed into `bookmark-gt-set-tag-reader-hook'.
-Depth 0 so it runs before the interactive reader (registered at
-depth 90 by `bookmark-gt-tags-enable'), letting the reader use
-the seed as initial input."
-  (add-hook 'bookmark-gt-set-tag-reader-hook
-            #'bookmark-gt-default-tags--hook))
-
-;;;###autoload
-(defun bookmark-gt-default-tags-disable ()
-  "Remove `bookmark-gt-default-tags--hook' from the tag-reader hook."
-  (remove-hook 'bookmark-gt-set-tag-reader-hook
-               #'bookmark-gt-default-tags--hook))
 
 ;;;###autoload
 (define-minor-mode bookmark-gt-default-tags-mode
   "Global minor mode that applies `bookmark-gt-default-tags' on set."
   :global t
-  :group 'bookmark-gt
-  (if bookmark-gt-default-tags-mode
-      (bookmark-gt-default-tags-enable)
-    (bookmark-gt-default-tags-disable)))
+  :group 'bookmark-gt)
 
 (provide 'bookmark-gt-default-tags)
 

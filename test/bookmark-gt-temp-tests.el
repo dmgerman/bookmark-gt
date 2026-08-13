@@ -49,7 +49,7 @@
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-set-non-file "keep" 'h nil)
     (bookmark-gt-set-non-file "temp" 'h (list (cons bookmark-gt-temp-key t)))
-    (bookmark-gt-install-temp-save-filter)
+    (advice-add (quote bookmark-save) :around (function bookmark-gt--save-filter-advice))
     (unwind-protect
         (progn
           (bookmark-save)
@@ -57,27 +57,27 @@
             (bookmark-load bookmark-default-file t t nil)
             (should (= (length bookmark-alist) 1))
             (should (equal (caar bookmark-alist) "keep"))))
-      (bookmark-gt-uninstall-temp-save-filter))))
+      (advice-remove (quote bookmark-save) (function bookmark-gt--save-filter-advice)))))
 
 (ert-deftest bookmark-gt-temp-test-save-filter-preserves-live-alist ()
   "The filter must not mutate the live `bookmark-alist' after save."
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-set-non-file "keep" 'h nil)
     (bookmark-gt-set-non-file "temp" 'h (list (cons bookmark-gt-temp-key t)))
-    (bookmark-gt-install-temp-save-filter)
+    (advice-add (quote bookmark-save) :around (function bookmark-gt--save-filter-advice))
     (unwind-protect
         (progn
           (bookmark-save)
           (should (= (length bookmark-alist) 2))
           (should (bookmark-gt-temp-p (assoc "temp" bookmark-alist))))
-      (bookmark-gt-uninstall-temp-save-filter))))
+      (advice-remove (quote bookmark-save) (function bookmark-gt--save-filter-advice)))))
 
 (ert-deftest bookmark-gt-temp-test-uninstall-restores-built-in ()
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-set-non-file "keep" 'h nil)
     (bookmark-gt-set-non-file "temp" 'h (list (cons bookmark-gt-temp-key t)))
-    (bookmark-gt-install-temp-save-filter)
-    (bookmark-gt-uninstall-temp-save-filter)
+    (advice-add (quote bookmark-save) :around (function bookmark-gt--save-filter-advice))
+    (advice-remove (quote bookmark-save) (function bookmark-gt--save-filter-advice))
     (bookmark-save)
     (let ((bookmark-alist nil))
       (bookmark-load bookmark-default-file t t nil)

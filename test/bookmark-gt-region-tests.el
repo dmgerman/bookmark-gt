@@ -7,7 +7,7 @@
 ;;; Commentary:
 ;;
 ;; Tests for region-bookmark capture on `bookmark-gt-set' and
-;; region restoration via `bookmark-gt--restore-region-hook'.
+;; region restoration via `bookmark-gt--on-jump-restore-region'.
 ;; Each test uses a temp file — built-in `bookmark-make-record'
 ;; refuses to run in a buffer with no `buffer-file-name'.
 
@@ -85,7 +85,7 @@ so `bookmark-make-record' has a real `buffer-file-name' to use."
       (deactivate-mark)
       (let ((bookmark-current-bookmark (caar bookmark-alist))
             (bookmark-gt-use-region t))
-        (bookmark-gt--restore-region-hook))
+        (bookmark-gt--on-jump-restore-region))
       (should (mark))
       (should (= (mark) 15))
       (should mark-active))))
@@ -97,7 +97,7 @@ so `bookmark-make-record' has a real `buffer-file-name' to use."
       (deactivate-mark)
       (let ((bookmark-current-bookmark "plain")
             (bookmark-gt-use-region t))
-        (bookmark-gt--restore-region-hook))
+        (bookmark-gt--on-jump-restore-region))
       (should-not mark-active))))
 
 (ert-deftest bookmark-gt-region-test-restore-noop-when-flag-off ()
@@ -113,7 +113,7 @@ so `bookmark-make-record' has a real `buffer-file-name' to use."
       (deactivate-mark)
       (let ((bookmark-current-bookmark (caar bookmark-alist))
             (bookmark-gt-use-region nil))
-        (bookmark-gt--restore-region-hook))
+        (bookmark-gt--on-jump-restore-region))
       (should-not mark-active))))
 
 ;;;; Install / uninstall
@@ -121,14 +121,14 @@ so `bookmark-make-record' has a real `buffer-file-name' to use."
 (ert-deftest bookmark-gt-region-test-install-uninstall ()
   (unwind-protect
       (progn
-        (bookmark-gt-install-region-restore)
-        (should (memq #'bookmark-gt--restore-region-hook
+        (add-hook (quote bookmark-after-jump-hook) (function bookmark-gt--on-jump-restore-region))
+        (should (memq #'bookmark-gt--on-jump-restore-region
                       bookmark-after-jump-hook))
-        (bookmark-gt-uninstall-region-restore)
-        (should-not (memq #'bookmark-gt--restore-region-hook
+        (remove-hook (quote bookmark-after-jump-hook) (function bookmark-gt--on-jump-restore-region))
+        (should-not (memq #'bookmark-gt--on-jump-restore-region
                           bookmark-after-jump-hook)))
     (remove-hook 'bookmark-after-jump-hook
-                 #'bookmark-gt--restore-region-hook)))
+                 #'bookmark-gt--on-jump-restore-region)))
 
 ;;;; Delta correction
 
@@ -146,7 +146,7 @@ so `bookmark-make-record' has a real `buffer-file-name' to use."
       (deactivate-mark)
       (let ((bookmark-current-bookmark (caar bookmark-alist))
             (bookmark-gt-use-region t))
-        (bookmark-gt--restore-region-hook))
+        (bookmark-gt--on-jump-restore-region))
       (should (= (mark) 18)))))
 
 ;;;; Save / load round-trip

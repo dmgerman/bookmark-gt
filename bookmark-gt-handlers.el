@@ -319,12 +319,8 @@ handler is unknown (derive-fallback)."
 ;; contract (\"open the directory\") is honored.
 
 (defun bookmark-gt-handler-dired-jump (bookmark)
-  "Bookmark handler for Dired bookmarks, compatible with `bookmark.el'.
-Opens BOOKMARK's `filename' (a directory) via `dired'.
-
-Does NOT throw the `bookmark-gt-skip-post-handler' tag — the
-target IS an Emacs buffer, so the annotation buffer and the
-after-jump hook remain useful."
+  "Bookmark handler for Dired bookmarks.
+Opens BOOKMARK's `filename' (a directory) via `dired'."
   (require 'dired)
   (let ((dir (bookmark-gt-filename-of bookmark)))
     (unless dir
@@ -336,18 +332,10 @@ after-jump hook remain useful."
 ;;;; URL handler — bookmark-gt owns this one end-to-end
 
 (defun bookmark-gt-handler-url-jump (bookmark)
-  "Bookmark handler for URL bookmarks, compatible with `bookmark.el'.
-BOOKMARK is a bookmark record.  Opens the record's URL (read
-via `bookmark-gt-url-of', which accepts either the `url' or
-`location' prop for bookmark+ compat) with `browse-url'.
-
-Throws `bookmark-gt-skip-post-handler' so the built-in
-post-handler flow does not pop up an annotation buffer or run
-`bookmark-after-jump-hook' —
-the browser has focus, so displaying an Emacs annotation buffer
-would move focus away from the target without benefit.  When
-the catch is not installed (bookmark-gt-mode off) the throw is
-a no-op."
+  "Bookmark handler for URL bookmark BOOKMARK.
+Opens the URL with `browse-url' and throws
+`bookmark-gt-skip-post-handler' to suppress the built-in
+post-jump popup."
   (let ((url (bookmark-gt-url-of bookmark)))
     (unless url
       (user-error "URL bookmark has no `url' or `location' property"))

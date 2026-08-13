@@ -127,14 +127,14 @@ to the full temp path inside BODY."
 (ert-deftest bookmark-gt-rename-test-install-uninstall ()
   (unwind-protect
       (progn
-        (bookmark-gt-install-rename-tracker)
+        (advice-add (quote rename-file) :around (function bookmark-gt--rename-file-advice))
         (should (advice-member-p #'bookmark-gt--rename-file-advice
                                  'rename-file))
-        (bookmark-gt-uninstall-rename-tracker)
+        (advice-remove (quote rename-file) (function bookmark-gt--rename-file-advice))
         (should-not (advice-member-p #'bookmark-gt--rename-file-advice
                                      'rename-file)))
     ;; Defensive cleanup
-    (bookmark-gt-uninstall-rename-tracker)))
+    (advice-remove (quote rename-file) (function bookmark-gt--rename-file-advice))))
 
 (provide 'bookmark-gt-rename-tests)
 ;;; bookmark-gt-rename-tests.el ends here

@@ -27,7 +27,7 @@
 ;;; Commentary:
 ;;
 ;; Fetches the browser's open tabs (via the browsel WebSocket
-;; bridge) and surfaces them as temp bookmarks with a dedicated
+;; bridge) and exposes them as temp bookmarks with a dedicated
 ;; browser-tab handler.  Temp records carry the `bmkp-temp' alist
 ;; key and are excluded from `bookmark-save' output — restarting
 ;; Emacs starts with no tab entries; a refresh re-populates them.
@@ -50,6 +50,7 @@
 (require 'seq)
 (require 'bookmark-gt-core)
 (require 'bookmark-gt-handlers)
+(require 'bookmark-gt-list)
 
 (require 'browsel nil t)
 
@@ -107,15 +108,9 @@ also type `browser-tab' but are left alone by our cleanup path."
 
 (defun bookmark-gt-handler-browser-tab-jump (bookmark)
   "Bookmark handler: focus the browser tab represented by BOOKMARK.
-Uses `browsel-focus-tab' with the recorded `browsel-id' and
-`browsel-browser'.  If the tab is gone (`user-error' from
-browsel), falls back to `browsel-browse-url' with the recorded
-URL.
-
-Throws `bookmark-gt-skip-post-handler' at the end so built-in
-does not pop up an annotation buffer — the browser has focus
-and an Emacs annotation stealing it back would be worse than
-useless.  Safe when the catch is not installed."
+Falls back to `browsel-browse-url' when the tab is no longer
+open.  Throws `bookmark-gt-skip-post-handler' to suppress the
+post-jump popup."
   (unless (featurep 'browsel)
     (user-error "Browsel is not loaded"))
   (let* ((id (bookmark-prop-get bookmark 'browsel-id))
@@ -180,7 +175,8 @@ list buffer's Tags column and in the `;tag' particle filter."
       (push (cons 'annotation title) props))
     (bookmark-gt-set-non-file base
                               'bookmark-gt-handler-browser-tab-jump
-                              props)))
+                              props
+                              t)))
 
 (defun bookmark-gt-browsel-tabs--clear ()
   "Remove every browser-tab bookmark from `bookmark-alist'.
@@ -194,10 +190,7 @@ alone."
                     bookmark-alist))
   (setq bookmark-alist-modification-count
         (1+ bookmark-alist-modification-count))
-  ;; Nil argument sentinel = "alist changed structurally, no single
-  ;; record to point at."  Existing observers (list-buffer refresh)
-  ;; ignore the argument and just re-render.
-  (run-hook-with-args 'bookmark-gt-set-after-hook nil))
+  (bookmark-gt-list-refresh))
 
 ;;;; Refresh
 
@@ -211,18 +204,10 @@ finds this flag set silently returns.")
 ;;;###autoload
 (defun bookmark-gt-browsel-tabs-refresh ()
   "Rebuild browser-tab bookmarks from live browser state.
-Removes every existing browser-tab record, fetches the current
-tab list via browsel, applies `bookmark-gt-browsel-tabs-filter',
-and stores one temp bookmark per surviving tab.
-
-Per-tab `bookmark-gt-set-after-hook' firings are silenced during
-the batch and coalesced into a single firing at the end —
-otherwise the list buffer would redraw once per stored tab,
-which is measurable with a large tab set.
-
-Guarded against re-entrancy by
-`bookmark-gt-browsel-tabs--refreshing': if the idle timer fires
-during a manual refresh, the second call is a no-op."
+Clears existing tab records, fetches the current tabs via
+browsel, applies `bookmark-gt-browsel-tabs-filter', and stores
+one temp bookmark per surviving tab.  Guarded against
+re-entrancy."
   (interactive)
   (if bookmark-gt-browsel-tabs--refreshing
       (when (called-interactively-p 'interactive)
@@ -236,8 +221,7 @@ during a manual refresh, the second call is a no-op."
       ;; save is pure waste — and it produced spurious \"Cannot
       ;; syntax-propertize because of narrowing\" warnings from the
       ;; bookmark-file write path.
-      (let ((bookmark-gt-set-after-hook nil)
-            (bookmark-save-flag nil)
+      (let ((bookmark-save-flag nil)
             ;; Silence per-tab tag prompt during the batch.
             (bookmark-gt-prompt-for-tags-flag nil))
         (bookmark-gt-browsel-tabs--clear)
@@ -247,17 +231,15 @@ during a manual refresh, the second call is a no-op."
                        (bookmark-gt-browsel-tabs--accept-p tab))
               (bookmark-gt-browsel-tabs--store tab)
               (setq count (1+ count))))))
-      (run-hook-with-args 'bookmark-gt-set-after-hook nil)
+      (bookmark-gt-list-refresh)
       (when (called-interactively-p 'interactive)
         (message "Refreshed %d browser-tab bookmark(s)" count)))))
 
 ;;;; Mode
 ;;
-;; No idle timer — refresh runs on demand via
-;; `bookmark-gt-ephemeral-refresh-hook', fired by the jump
-;; reader (before it reads), the list buffer (on open), and
-;; the list buffer's `g' (revert).  On mode-on we also refresh
-;; once immediately so tabs show up right away.
+;; No idle timer — refresh runs on demand: `g' in the list
+;; buffer, or `M-x bookmark-gt-browsel-tabs-refresh'.  Mode-on
+;; runs one immediate refresh.
 
 ;;;###autoload
 (define-minor-mode bookmark-gt-browsel-tabs-mode
@@ -284,12 +266,8 @@ Requires browsel to be installed and connected.  Enable is a
     (setq bookmark-gt-browsel-tabs-mode nil)
     (user-error "Browsel is not loaded"))
    (bookmark-gt-browsel-tabs-mode
-    (add-hook 'bookmark-gt-ephemeral-refresh-hook
-              #'bookmark-gt-browsel-tabs-refresh)
     (bookmark-gt-browsel-tabs-refresh))
    (t
-    (remove-hook 'bookmark-gt-ephemeral-refresh-hook
-                 #'bookmark-gt-browsel-tabs-refresh)
     (bookmark-gt-browsel-tabs--clear))))
 
 (provide 'bookmark-gt-browsel-tabs)
