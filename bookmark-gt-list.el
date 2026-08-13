@@ -85,6 +85,14 @@
   :type 'character
   :group 'bookmark-gt)
 
+(defcustom bookmark-gt-list-default-show-temp t
+  "Default value of `bookmark-gt-list--show-temp' for new list buffers.
+When nil, temporary bookmarks are omitted from the list
+display (they remain in `bookmark-alist').  Toggle per-buffer
+with `bookmark-gt-list-show-temp'."
+  :type 'boolean
+  :group 'bookmark-gt)
+
 (defcustom bookmark-gt-list-selection-mark ?*
   "Character used to select a bookmark for bulk actions."
   :type 'character
@@ -116,6 +124,12 @@ first should sort before the second.")
 
 (defvar-local bookmark-gt-list--filters nil
   "Alist of active filters in this buffer ((KEY . ARG) ...).")
+
+(defvar-local bookmark-gt-list--show-temp
+    bookmark-gt-list-default-show-temp
+  "When nil, temporary bookmarks are omitted from this list's display.
+`bookmark-alist' is unchanged; only the rendered entries are
+filtered.  Toggled by `bookmark-gt-list-show-temp'.")
 
 (defvar-local bookmark-gt-list--marks nil
   "Hash table id → mark character for the current buffer.
@@ -231,12 +245,17 @@ survive re-render as long as the record cons is unchanged."
 
 (defun bookmark-gt-list--entries ()
   "Compute `tabulated-list-entries' for the current buffer.
-Records are filtered by `bookmark-gt-list--filters'; the record
+Applies `bookmark-gt-list--filters', then omits temp records
+from the display when `bookmark-gt-list--show-temp' is nil.
+The underlying `bookmark-alist' is not modified.  The record
 itself is used as the tabulated-list ID so mutations survive
 sorting."
-  (mapcar (lambda (record)
-            (list record (bookmark-gt-list--entry-vector record)))
-          (bookmark-gt-list--apply-filters bookmark-alist)))
+  (let ((records (bookmark-gt-list--apply-filters bookmark-alist)))
+    (unless bookmark-gt-list--show-temp
+      (setq records (seq-remove #'bookmark-gt-temp-p records)))
+    (mapcar (lambda (record)
+              (list record (bookmark-gt-list--entry-vector record)))
+            records)))
 
 ;;;; Mode + keymap
 
@@ -247,8 +266,9 @@ sorting."
   "o"     #'bookmark-gt-list-jump-other-window
   "C-o"   #'bookmark-gt-list-jump-other-window
   "TAB"   #'bookmark-gt-list-preview
-  "^"     #'bookmark-gt-list-auto-update-toggle
-  "T"   #'bookmark-gt-list-temp-toggle
+  "^"     #'bookmark-gt-list-toggle-auto-update
+  "T"     #'bookmark-gt-list-toggle-temp
+  "H"     #'bookmark-gt-list-show-temp
   "i"   #'bookmark-gt-list-describe-record
   "s"   #'bookmark-gt-list-sort-cycle
   "m"   #'bookmark-gt-list-mark
@@ -268,47 +288,54 @@ sorting."
   "Major mode for the bookmark-gt list buffer.
 
 Each row shows one bookmark record from `bookmark-alist',
-possibly narrowed by any filter active in
-`bookmark-gt-list--filters'.  Click a column header (or press
-`S') to sort by that column; \\[bookmark-gt-list-sort-cycle]
-cycles the sort column to the next sortable one.
+narrowed by any active filter and by the show-temp toggle.
+
+Commands are grouped by scope:
+
+  Row-scoped commands act on the record on the current line.
+  Buffer-scoped commands act on the whole list or on the set
+  of marked rows.
 
 Marker columns (three single-character indicators before Name):
 
-  \" \"   Selection / deletion mark, set by:
-          \\[bookmark-gt-list-mark]  select for a bulk action (shown as `*')
-          \\[bookmark-gt-list-flag-for-deletion]  flag for deletion   (shown as `D')
-          \\[bookmark-gt-list-unmark]  clear one mark
-          \\[bookmark-gt-list-unmark-all]  clear all marks
-          \\[bookmark-gt-list-execute-deletions]  execute pending deletions
+  \" \"   Selection / deletion mark on this row.  See the
+        row-scoped mark commands below.
 
-  \"^\"   Auto-update indicator.  Lit when the record carries
-        the `auto-update' alist key.  Under
+  \"^\"   Auto-update indicator, lit when the record carries the
+        `auto-update' alist key.  Under
         `bookmark-gt-auto-update-mode' the record's position is
         refreshed to the visiting buffer's point on every idle
-        tick.  Toggle with \\[bookmark-gt-list-auto-update-toggle].
+        tick.
 
-  \"t\"   Temporary indicator.  Lit when the record carries the
-        `bmkp-temp' alist key.  Temp records are visible in
-        this buffer but excluded from `bookmark-save' output.
-        Toggle with \\[bookmark-gt-list-temp-toggle].
+  \"t\"   Temporary indicator, lit when the record carries the
+        `bmkp-temp' alist key.  Temporary records are excluded
+        from `bookmark-save' output.
 
-Jump: \\[bookmark-gt-list-jump] jumps in the same window,
-\\[bookmark-gt-list-jump-other-window] in another window,
-\\[bookmark-gt-list-preview] previews in another window without
-leaving the list.
+Row-scoped commands (act on the bookmark at point):
+  \\[bookmark-gt-list-jump] jump (same window)
+  \\[bookmark-gt-list-jump-other-window] jump (other window)
+  \\[bookmark-gt-list-preview] preview in another window
+  \\[bookmark-gt-list-rename] rename
+  \\[bookmark-gt-list-relocate] relocate (change filename or URL)
+  \\[bookmark-gt-list-edit-tags] edit tags
+  \\[bookmark-gt-list-edit-annotation] edit annotation
+  \\[bookmark-gt-list-toggle-auto-update] toggle `auto-update'
+  \\[bookmark-gt-list-toggle-temp] toggle temp
+  \\[bookmark-gt-list-mark] mark for a bulk action
+  \\[bookmark-gt-list-unmark] clear the mark
+  \\[bookmark-gt-list-flag-for-deletion] flag for deletion
+  \\[bookmark-gt-list-describe-record] describe (pretty-print raw record)
 
-Inspect: \\[bookmark-gt-list-describe-record] displays the raw
-record's alist in a popup for debugging.
+Buffer-scoped commands:
+  \\[bookmark-gt-list-execute-deletions] delete every flagged row
+  \\[bookmark-gt-list-unmark-all] clear every mark
+  \\[bookmark-gt-list-filter-by] filter (by-type / by-tag / by-name-regexp / unfilter)
+  \\[bookmark-gt-list-show-temp] toggle display of temporary bookmarks
+  \\[bookmark-gt-list-sort-cycle] cycle the sort column
+  \\[revert-buffer] revert (refresh, then redraw)
+  \\[quit-window] quit
 
-Edit in place: \\[bookmark-gt-list-rename] rename,
-\\[bookmark-gt-list-relocate] relocate (change filename or URL),
-\\[bookmark-gt-list-edit-tags] edit tags,
-\\[bookmark-gt-list-edit-annotation] edit annotation.
-
-Filter: \\[bookmark-gt-list-filter-by] then choose a
-predicate (`by-type', `by-tag', `by-name-regexp', or
-`unfilter').
+Sorting: click a column header, or press `S' for column-at-point sort.
 
 \\{bookmark-gt-list-mode-map}"
   (setq tabulated-list-format
@@ -576,23 +603,32 @@ bookmarks and a plain string prompt for URL bookmarks."
   (let ((record (bookmark-gt-list--require-record)))
     (bookmark-edit-annotation (car record))))
 
-(defun bookmark-gt-list-auto-update-toggle ()
-  "Toggle the `auto-update' property on the bookmark on the current line.
-Requires `bookmark-gt-auto-update' to be loaded (which defines
-the toggle command); the column glyph itself works without it."
+(defun bookmark-gt-list-toggle-auto-update ()
+  "Toggle the `auto-update' property on the bookmark at point."
   (interactive nil bookmark-gt-list-mode)
   (let ((record (bookmark-gt-list--require-record)))
     (if (fboundp 'bookmark-gt-auto-update-toggle)
         (bookmark-gt-auto-update-toggle (car record))
       (user-error "The bookmark-gt-auto-update module is not loaded"))))
 
-(defun bookmark-gt-list-temp-toggle ()
-  "Toggle the temp property on the bookmark on the current line.
+(defun bookmark-gt-list-toggle-temp ()
+  "Toggle the temp property on the bookmark at point.
 A temp bookmark is excluded from `bookmark-save' output while
 `bookmark-gt-mode' is on."
   (interactive nil bookmark-gt-list-mode)
   (let ((record (bookmark-gt-list--require-record)))
     (bookmark-gt-toggle-temp (car record))))
+
+(defun bookmark-gt-list-show-temp ()
+  "Toggle display of temporary bookmarks in this list buffer.
+Buffer-local; initial default from
+`bookmark-gt-list-default-show-temp'.  Temporary bookmarks
+remain in `bookmark-alist' regardless of this setting."
+  (interactive nil bookmark-gt-list-mode)
+  (setq bookmark-gt-list--show-temp (not bookmark-gt-list--show-temp))
+  (bookmark-gt-list--redraw-preserving-point)
+  (message "Temporary bookmarks: %s"
+           (if bookmark-gt-list--show-temp "shown" "hidden")))
 
 (defcustom bookmark-gt-list-record-buffer-name "*Bookmark-gt Record*"
   "Name of the buffer that displays a single bookmark's record."

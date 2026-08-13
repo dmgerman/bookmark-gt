@@ -179,6 +179,7 @@ local only.
 | ~U~   | Unmark every row                                             |
 | ~^~   | Toggle ~auto-update~ on row                                  |
 | ~T~   | Toggle temp on row                                           |
+| ~H~   | Toggle display of temporary bookmarks in this buffer         |
 | ~r~   | Rename bookmark                                              |
 | ~R~   | Relocate (change filename or URL)                            |
 | ~t~   | Edit tags                                                    |

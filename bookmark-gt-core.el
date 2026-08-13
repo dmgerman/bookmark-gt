@@ -827,6 +827,17 @@ stored (NAME . DATA) pair."
                           (cdr raw-record)
                         raw-record))
          (record-data (bookmark-gt--record-with-region record-data))
+         ;; Built-in Dired does not set a handler on the record —
+         ;; the directory is stored as a plain file bookmark.  Force
+         ;; our Dired handler so classification (list Type column,
+         ;; group filters) works and the record is unambiguous on
+         ;; disk.
+         (record-data (if (and (derived-mode-p 'dired-mode)
+                               (null (alist-get 'handler record-data)))
+                          (cons (cons 'handler
+                                      'bookmark-gt-handler-dired-jump)
+                                record-data)
+                        record-data))
          (suggested-name
           (or (and (stringp (car raw-record)) (car raw-record))
               (car (bookmark-prop-get raw-record 'defaults))
