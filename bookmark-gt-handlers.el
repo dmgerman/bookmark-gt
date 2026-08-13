@@ -114,6 +114,13 @@ as a `face-list' on the Name column so both the type color and
 the strikethrough are visible."
   :group 'bookmark-gt)
 
+(defface bookmark-gt-face-temp
+  '((t :inherit outline-3))
+  "Face applied to the whole row of temporary bookmarks.
+Inherits `outline-3' — a theme-defined face that gives temp
+records a distinguishable but calm appearance."
+  :group 'bookmark-gt)
+
 ;;;; Group registry
 ;;
 ;; Groups sit above types.  Multiple types can share a group so a

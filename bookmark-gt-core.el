@@ -273,9 +273,17 @@ ai/design/tag-storage.org)."
 (defun bookmark-gt--push-record (name alist)
   "Push (NAME . ALIST) onto `bookmark-alist' compatibly with `bookmark-store'.
 NAME's text properties are stripped, matching what the built-in
-`bookmark-store' does.  Returns the stripped name."
-  (let ((stripped (copy-sequence name)))
+`bookmark-store' does.  Adds `created' and `last-modified'
+timestamps unless ALIST already carries them (callers that
+preserve historical timestamps, e.g. migration, pass their own).
+Returns the stripped name."
+  (let ((stripped (copy-sequence name))
+        (now (current-time)))
     (set-text-properties 0 (length stripped) nil stripped)
+    (unless (assq 'created alist)
+      (setq alist (cons (cons 'created now) alist)))
+    (unless (assq 'last-modified alist)
+      (setq alist (cons (cons 'last-modified now) alist)))
     (push (cons stripped alist) bookmark-alist)
     (setq bookmark-current-bookmark stripped)
     (setq bookmark-alist-modification-count
@@ -543,8 +551,11 @@ bookmarks) still get an overlay at their landed position."
 
 (defun bookmark-gt--after-mutation (entry)
   "Notify UI observers that ENTRY was created or mutated.
-Refreshes list buffers and highlight overlays, then runs the
-public `bookmark-gt-set-after-hook'."
+Stamps `last-modified' on ENTRY when it names a specific
+record, refreshes list buffers and highlight overlays, then
+runs the public `bookmark-gt-set-after-hook'."
+  (when (and (consp entry) (stringp (car entry)))
+    (bookmark-prop-set entry 'last-modified (current-time)))
   (bookmark-gt-list-refresh)
   (bookmark-gt-highlight-refresh entry)
   (run-hook-with-args 'bookmark-gt-set-after-hook entry))

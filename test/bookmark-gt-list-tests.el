@@ -197,30 +197,52 @@
       (goto-char (point-min))
       (should (equal (bookmark-gt-list-test--column 3) "new")))))
 
-(ert-deftest bookmark-gt-list-test-edit-tags-updates ()
+(ert-deftest bookmark-gt-list-test-edit-tags-replaces ()
+  "Editing the CSV replaces the tag list with the parsed result."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "b" 'h '((tags . ("old"))))
-    (cl-letf (((symbol-function 'bookmark-gt-tags-read)
-               (lambda (_prompt &optional _init) '("new"))))
+    (bookmark-gt-set-non-file "b" 'h '((tags . ("old" "keep"))))
+    (cl-letf (((symbol-function 'read-from-minibuffer)
+               (lambda (&rest _) "new, keep")))
       (bookmark-gt-list-test--in-buffer
         (goto-char (point-min))
         (bookmark-gt-list-edit-tags)
         (should (equal (bookmark-gt-tags-of (car bookmark-alist))
-                       '("new")))
+                       '("new" "keep")))))))
+
+(ert-deftest bookmark-gt-list-test-edit-tags-removes-all ()
+  "Emptying the CSV clears the record's tag list."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-set-non-file "b" 'h '((tags . ("gone"))))
+    (cl-letf (((symbol-function 'read-from-minibuffer)
+               (lambda (&rest _) "")))
+      (bookmark-gt-list-test--in-buffer
         (goto-char (point-min))
-        (should (equal (bookmark-gt-list-test--column 6) "new"))))))
+        (bookmark-gt-list-edit-tags)
+        (should-not (bookmark-gt-tags-of (car bookmark-alist)))))))
+
+(ert-deftest bookmark-gt-list-test-edit-tags-removes-one ()
+  "Deleting one tag from the CSV drops just that tag."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-set-non-file "b" 'h '((tags . ("a" "b" "c"))))
+    (cl-letf (((symbol-function 'read-from-minibuffer)
+               (lambda (&rest _) "a, c")))
+      (bookmark-gt-list-test--in-buffer
+        (goto-char (point-min))
+        (bookmark-gt-list-edit-tags)
+        (should (equal (bookmark-gt-tags-of (car bookmark-alist))
+                       '("a" "c")))))))
 
 ;;;; View bookmarks
 
 (ert-deftest bookmark-gt-list-test-save-view-captures-state ()
-  "Saving a view stores filters, sort-key, and show-temp on the record."
+  "Calling `bookmark-gt-set' in the list buffer stores a view record."
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-set-non-file "a" 'ignore nil)
     (bookmark-gt-list-test--in-buffer
       (setq bookmark-gt-list--filters '((by-tag . "work")))
       (setq tabulated-list-sort-key '("Name" . nil))
       (setq bookmark-gt-list--show-temp nil)
-      (bookmark-gt-list-save-view-as-bookmark "my-view"))
+      (bookmark-gt-set "my-view"))
     (let ((rec (assoc "my-view" bookmark-alist)))
       (should rec)
       (should (eq (bookmark-prop-get rec 'handler)
@@ -262,8 +284,8 @@
      "v" 'bookmark-gt-handler-view-jump
      '((filters . nil) (sort-key . nil) (show-temp . t)))
     (let ((rec (assoc "v" bookmark-alist)))
-      (should (eq (bookmark-gt-handler-type rec) 'view))
-      (should (equal (bookmark-gt-handler-name rec) "View")))))
+      (should (eq (bookmark-gt-handler-type rec) 'bookmark-gt-view))
+      (should (equal (bookmark-gt-handler-name rec) "BkView")))))
 
 (provide 'bookmark-gt-list-tests)
 ;;; bookmark-gt-list-tests.el ends here

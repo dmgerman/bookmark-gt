@@ -183,7 +183,8 @@ require a network round-trip, too slow for a list render."
   "Return the face (or `face-list') to apply to RECORD's Name column.
 Composes the type face from the handler registry with
 `bookmark-gt-face-missing-file' when the record's file is
-absent.  Returns nil when no face applies."
+absent.  Temp records get the row-wide tint via
+`bookmark-gt-list--tint-row-after-print' instead."
   (let ((type-face (bookmark-gt-handler-face record))
         (missing-p (bookmark-gt-list--missing-file-p record)))
     (cond
@@ -192,6 +193,26 @@ absent.  Returns nil when no face applies."
      (missing-p                 'bookmark-gt-face-missing-file)
      (type-face                 type-face)
      (t                         nil))))
+
+(defun bookmark-gt-list--tint-row-after-print (id _cols)
+  "Tint the just-printed row with `bookmark-gt-face-temp' when ID is temp.
+Attached as `:after' advice on `tabulated-list-print-entry' so
+the tint spans the whole row (data cells and inter-column
+padding).  Gated by `derived-mode-p' so it does nothing in
+other tabulated-list buffers."
+  (when (and (derived-mode-p 'bookmark-gt-list-mode)
+             id
+             (bookmark-gt-temp-p id))
+    (let ((inhibit-read-only t))
+      (save-excursion
+        (forward-line -1)
+        (add-face-text-property (line-beginning-position)
+                                (line-end-position)
+                                'bookmark-gt-face-temp
+                                t)))))
+
+(advice-add 'tabulated-list-print-entry :after
+            #'bookmark-gt-list--tint-row-after-print)
 
 (defun bookmark-gt-list--mark-string (record)
   "Return RECORD's mark as a 1-char string.
@@ -278,12 +299,14 @@ sorting."
   "x"   #'bookmark-gt-list-execute-deletions
   "r"   #'bookmark-gt-list-rename
   "R"   #'bookmark-gt-list-relocate
-  "t"   #'bookmark-gt-list-edit-tags
+  "t e" #'bookmark-gt-list-edit-tags
+  "t a" #'bookmark-gt-list-add-tags
+  "t r" #'bookmark-gt-list-remove-tags
   "a"   #'bookmark-gt-list-edit-annotation
   "/"   #'bookmark-gt-list-filter-by
-  "V"   #'bookmark-gt-list-save-view-as-bookmark
-  "g"   #'revert-buffer
-  "q"   #'quit-window)
+  "g"     #'revert-buffer
+  "C-x C-s" #'bookmark-save
+  "q"     #'quit-window)
 
 (define-derived-mode bookmark-gt-list-mode tabulated-list-mode "Bookmarks-gt"
   "Major mode for the bookmark-gt list buffer.
@@ -318,7 +341,9 @@ Row-scoped commands (act on the bookmark at point):
   \\[bookmark-gt-list-preview] preview in another window
   \\[bookmark-gt-list-rename] rename
   \\[bookmark-gt-list-relocate] relocate (change filename or URL)
-  \\[bookmark-gt-list-edit-tags] edit tags
+  \\[bookmark-gt-list-edit-tags] edit tags (editable CSV; add and remove)
+  \\[bookmark-gt-list-add-tags] add tags (sequential reader; append only)
+  \\[bookmark-gt-list-remove-tags] remove tags (sequential reader; completion over row's tags)
   \\[bookmark-gt-list-edit-annotation] edit annotation
   \\[bookmark-gt-list-toggle-auto-update] toggle `auto-update'
   \\[bookmark-gt-list-toggle-temp] toggle temp
@@ -334,6 +359,7 @@ Buffer-scoped commands:
   \\[bookmark-gt-list-show-temp] toggle display of temporary bookmarks
   \\[bookmark-gt-list-sort-cycle] cycle the sort column
   \\[revert-buffer] revert (refresh, then redraw)
+  \\[bookmark-save] save the bookmark file
   \\[quit-window] quit
 
 Sorting: click a column header, or press `S' for column-at-point sort.
@@ -358,6 +384,8 @@ Sorting: click a column header, or press `S' for column-at-point sort.
   (setq tabulated-list-sort-key '("Name" . nil))
   (setq tabulated-list-entries #'bookmark-gt-list--entries)
   (setq-local revert-buffer-function #'bookmark-gt-list--revert)
+  (setq-local bookmark-make-record-function
+              #'bookmark-gt-list--make-record)
   (tabulated-list-init-header))
 
 ;;;; Refresh
@@ -591,12 +619,46 @@ bookmarks and a plain string prompt for URL bookmarks."
     (bookmark-gt-relocate (car record))))
 
 (defun bookmark-gt-list-edit-tags ()
-  "Prompt for a new tag list for the bookmark on the current line."
+  "Edit the tag list on the bookmark at point.
+Prompts with the current tags as an editable comma-separated
+string; the resulting list replaces the record's tags.  Add
+tags by typing them after a comma; remove tags by deleting
+them from the string."
+  (interactive nil bookmark-gt-list-mode)
+  (let* ((record  (bookmark-gt-list--require-record))
+         (current (bookmark-gt-tags-of record))
+         (initial (mapconcat #'identity current ", "))
+         (input   (read-from-minibuffer
+                   (format-prompt "Tags" initial)
+                   initial)))
+    (bookmark-gt-tags-set
+     record
+     (bookmark-gt--normalize-tags
+      (split-string input "[,\n]" t "\\s-+")))))
+
+(defun bookmark-gt-list-add-tags ()
+  "Add tag(s) to the bookmark at point via the sequential reader.
+The record's existing tags are kept; the new tag(s) are unioned
+in via `bookmark-gt-tags-add'.  Empty input ends the reader
+without adding anything."
   (interactive nil bookmark-gt-list-mode)
   (let* ((record (bookmark-gt-list--require-record))
-         (current (bookmark-gt-tags-of record))
-         (new (bookmark-gt-tags-read "Tags" current)))
-    (bookmark-gt-tags-set record new)))
+         (new    (bookmark-gt-tags-read "Add tags")))
+    (when new
+      (bookmark-gt-tags-add record new))))
+
+(defun bookmark-gt-list-remove-tags ()
+  "Remove tag(s) from the bookmark at point via the sequential reader.
+Completion is restricted to the record's own tags.  Empty
+input ends the reader without removing anything."
+  (interactive nil bookmark-gt-list-mode)
+  (let* ((record  (bookmark-gt-list--require-record))
+         (current (bookmark-gt-tags-of record)))
+    (unless current
+      (user-error "Bookmark has no tags"))
+    (let ((doomed (bookmark-gt-tags-read "Remove tags" nil current)))
+      (when doomed
+        (bookmark-gt-tags-remove record doomed)))))
 
 (defun bookmark-gt-list-edit-annotation ()
   "Edit the annotation of the bookmark on the current line."
@@ -860,7 +922,7 @@ The special KEY `unfilter' clears every active filter."
 
 (bookmark-gt-handler-register
  '(bookmark-gt-handler-view-jump)
- (list :type 'view :name "View" :group 'other
+ (list :type 'bookmark-gt-view :name "BkView" :group 'other
        :face 'bookmark-gt-face-view :narrow-char ?V
        :doc "Saved view of the *Bookmarks-gt List* buffer."))
 
@@ -868,7 +930,9 @@ The special KEY `unfilter' clears every active filter."
   "Restore the list buffer view saved in BOOKMARK.
 Reads `filters', `sort-key', and `show-temp' from the record,
 opens the list buffer if needed, applies the saved state, and
-redraws."
+redraws.  Does not throw `bookmark-gt-skip-post-handler' —
+the target is an Emacs buffer, so the built-in post-handler
+display and visit-tracking flow are what we want."
   (let ((filters   (bookmark-prop-get bookmark 'filters))
         (sort-key  (bookmark-prop-get bookmark 'sort-key))
         (show-temp (bookmark-prop-get bookmark 'show-temp)))
@@ -877,20 +941,20 @@ redraws."
       (setq bookmark-gt-list--filters filters)
       (setq tabulated-list-sort-key sort-key)
       (setq bookmark-gt-list--show-temp show-temp)
-      (bookmark-gt-list--redraw-preserving-point))
-    (bookmark-gt-record-visit bookmark)
-    (bookmark-gt-skip-post-handler 'view)))
+      (bookmark-gt-list--redraw-preserving-point))))
 
-(defun bookmark-gt-list-save-view-as-bookmark (name)
-  "Save the current list buffer's filters, sort, and show-temp under NAME.
-The stored view can be restored later via `bookmark-jump' /
-`bookmark-gt-jump' / the list buffer's ~RET~ on the view row."
-  (interactive "sSave view as: " bookmark-gt-list-mode)
-  (bookmark-gt-set-non-file
-   name 'bookmark-gt-handler-view-jump
-   (list (cons 'filters bookmark-gt-list--filters)
-         (cons 'sort-key tabulated-list-sort-key)
-         (cons 'show-temp bookmark-gt-list--show-temp))))
+(defun bookmark-gt-list--make-record ()
+  "Return a bookmark record describing the current list-buffer view.
+Installed as `bookmark-make-record-function' by
+`bookmark-gt-list-mode', so `M-x bookmark-gt-set' in the list
+buffer stores a view bookmark that restores the current
+filters, sort, and show-temp when jumped."
+  `("View"
+    (defaults "View")
+    (handler   . bookmark-gt-handler-view-jump)
+    (filters   . ,bookmark-gt-list--filters)
+    (sort-key  . ,tabulated-list-sort-key)
+    (show-temp . ,bookmark-gt-list--show-temp)))
 
 (provide 'bookmark-gt-list)
 

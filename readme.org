@@ -152,7 +152,7 @@ data columns.
 | 1   | ~^~    | Auto-update: ~^~ if the record carries the ~auto-update~ prop, blank else           |
 | 2   | ~t~    | Temp: ~t~ if the record carries ~bmkp-temp~, blank else                             |
 | 3   | Name   | Truncated at ~bookmark-gt-list-name-width~ (default 32) with an ellipsis            |
-| 4   | Type   | From the handler registry — File, URL, EWW, Dired, Info, Org, PDF, BrowserTab, ... |
+| 4   | Type   | From the handler registry — File, URL, EWW, Dired, Info, Org, PDF, BrowserTab, Function, Sequence, BkView, ... |
 | 5   | Group  | Aggregate category — Web, File, Doc, Code, Media, Other                             |
 | 6   | Tags   | ~,~-joined, truncated at ~bookmark-gt-list-tags-width~ (default 24)                  |
 | 7   | Loc    | ~filename~, or the URL if non-file                                                  |
@@ -178,14 +178,16 @@ local only.
 | ~^~   | Toggle ~auto-update~ on row                                  |
 | ~T~   | Toggle temp on row                                           |
 | ~H~   | Toggle display of temporary bookmarks in this buffer         |
-| ~V~   | Save the current view (filters + sort + show-temp) as a bookmark |
 | ~r~   | Rename bookmark                                              |
 | ~R~   | Relocate (change filename or URL)                            |
-| ~t~   | Edit tags                                                    |
+| ~t e~ | Edit tags (editable comma-separated list; add and remove in one prompt) |
+| ~t a~ | Add tags (sequential reader with completion; empty RET / M-RET ends)    |
+| ~t r~ | Remove tags (sequential reader; completion restricted to the row's tags)|
 | ~a~   | Edit annotation                                              |
 | ~/~   | Filter (choose by-type / by-tag / by-name-regexp / unfilter) |
 | ~s~   | Cycle sort column                                            |
 | ~g~   | Revert (refresh ephemeral sources first)                     |
+| ~C-x C-s~ | Save the bookmark file (`bookmark-save`)                 |
 | ~i~   | Inspect record (pretty-print alist in a popup)               |
 | ~q~   | Quit                                                         |
 
@@ -378,23 +380,24 @@ Entries are tried in list order; the first matching regexp
 wins.  The advice on ~bookmark-default-handler~ is installed
 by ~bookmark-gt-mode~ and removed when the mode turns off.
 
-*** View bookmarks — ~bookmark-gt-list-save-view-as-bookmark~
+*** View bookmarks — save the list buffer's current view
 
-A view bookmark captures the persistent presentation state of
-the ~*Bookmarks-gt List*~ buffer — active filters, sort key,
-and the show-temp toggle — under the ~filters~, ~sort-key~,
-and ~show-temp~ alist keys.  Jumping opens the list buffer (if
+A view bookmark captures the presentation state of the
+~*Bookmarks-gt List*~ buffer — active filters, sort key, and
+the show-temp toggle — under the ~filters~, ~sort-key~, and
+~show-temp~ alist keys.  Jumping opens the list buffer (if
 needed), restores the state, and redraws.
 
-Interactive: in the list buffer, press ~V~ (or ~M-x
-bookmark-gt-list-save-view-as-bookmark~) and enter a name.  The
-current filter set, sort column, and show-temp toggle are
-captured.  Marks and point are intentionally not saved —
-they are per-session, not part of the view.
+To save: open the list, set the filters/sort/show-temp you
+want, then ~M-x bookmark-gt-set~.  The list mode installs
+its own ~bookmark-make-record-function~, so the standard set
+command captures a view record automatically — no dedicated
+command is needed.  Marks and point are intentionally not
+saved; they are per-session, not part of the view.
 
-Elisp: construct the record via ~bookmark-gt-set-non-file~ with
-handler ~bookmark-gt-handler-view-jump~ and the three props;
-see the source for the shape.
+Elisp: construct the record via ~bookmark-gt-set-non-file~
+with handler ~bookmark-gt-handler-view-jump~ and the three
+props; see ~bookmark-gt-list--make-record~ for the shape.
 
 * Setting bookmarks
 
@@ -733,11 +736,13 @@ same keys bookmark+ uses so files round-trip both ways:
 
 | Key            | Meaning              |
 |----------------+----------------------|
-| ~tags~         | List of tag strings  |
-| ~bmkp-temp~    | Temp-record marker   |
-| ~auto-update~  | Auto-tracking flag   |
-| ~visits~       | Visit count          |
-| ~last-visited~ | Last visit timestamp |
+| ~tags~          | List of tag strings                       |
+| ~bmkp-temp~     | Temp-record marker                        |
+| ~auto-update~   | Auto-tracking flag                        |
+| ~visits~        | Visit count                               |
+| ~last-visited~  | Last visit timestamp                      |
+| ~created~       | Record creation timestamp                 |
+| ~last-modified~ | Record last-mutation timestamp            |
 
 Two shape differences we accommodate on read:
 
@@ -748,6 +753,50 @@ Two shape differences we accommodate on read:
 - Bookmark+ URL records store the URL under ~location~.
   Bookmark-gt writes it under ~url~.  Both are read by
   ~bookmark-gt-url-of~.
+
+** Migrating from bookmark+
+
+Records saved by bookmark+ carry handler symbols
+(~bmkp-jump-dired~, ~bmkp-jump-url-browse~,
+~bmkp-jump-url-browse-other-window~,
+~bmkp-gt-browsel-tabs-jump~) that are unbound when bookmark+
+is not loaded.  bookmark-gt registers these symbols as
+classification aliases so the list buffer's Type column and
+the jump reader's narrow menu work regardless — but jumping
+still calls ~(funcall <symbol> record)~ and fails when the
+function is not defined.
+
+Fix once with ~bookmark-gt-migrate~:
+
+#+begin_src emacs-lisp
+;; One-time; not autoloaded — load explicitly.
+(require 'bookmark-gt-migrate)
+;; Preview mutates `bookmark-alist' in memory only.
+(bookmark-gt-migrate-from-bookmark-plus)
+;; Inspect via `M-x bookmark-gt-list' — verify the migrated
+;; rows show the expected Type and jump correctly — then commit:
+(bookmark-save)
+#+end_src
+
+What the migration does per record:
+
+- Rewrites the ~handler~ symbol to the bookmark-gt equivalent.
+- For URL records, copies ~location~ to ~url~ (bookmark-gt's
+  convention) and drops ~location~.
+- Strips bookmark+ bookkeeping props that have no bookmark-gt
+  meaning: ~bmkp-gt-load-index~, ~buffer-name~,
+  ~dired-directory~, ~dired-marked~, ~dired-subdirs~,
+  ~dired-hidden-dirs~, ~dired-switches~,
+  ~front-context-region-string~,
+  ~rear-context-region-string~, empty ~annotation~, empty
+  ~tags~.
+- Preserves ~filename~, ~position~, ~front-context-string~,
+  ~rear-context-string~, ~visits~, ~last-visited~, ~created~,
+  ~last-modified~.
+
+Records already in bookmark-gt form (or plain file bookmarks
+with a nil handler) are left untouched.  Keep a copy of the
+bookmark file before running.
 
 * Reference
 
@@ -762,7 +811,7 @@ Two shape differences we accommodate on read:
 | ~bookmark-gt-list-selection-mark~     | ~?*~      | Character shown in the mark column for rows marked with ~m~ (a bulk action target).                                       |
 | ~bookmark-gt-list-deletion-mark~      | ~?D~      | Character shown in the mark column for rows flagged with ~d~; ~x~ deletes every row bearing this mark.                    |
 | ~bookmark-gt-list-default-show-temp~  | ~t~       | Whether new list buffers show temporary bookmarks by default; toggle per-buffer with ~H~ (~bookmark-gt-list-show-temp~).  |
-| —                                     | —         | (View bookmarks: no defcustom; save via ~V~ in the list buffer or ~bookmark-gt-list-save-view-as-bookmark~.)              |
+| —                                     | —         | (View bookmarks: no defcustom; save via ~M-x bookmark-gt-set~ inside the list buffer.)                                    |
 | ~bookmark-gt-jump-name-max-width~     | ~40~      | Character width at which the jump reader truncates bookmark names in each candidate row.                                  |
 | ~bookmark-gt-jump-default-sort~       | ~'mru~    | Sort order used by ~bookmark-gt-jump~ when no ~:sort-by~ is given.  Values: ~'mru~ (most recently used), ~'visits~, ~nil~ (pool order). |
 | ~bookmark-gt-auto-update-interval~    | ~60~      | Seconds of idle time between ticks of ~bookmark-gt-auto-update-mode~; each tick refreshes bookmarks carrying ~auto-update~. |

@@ -295,5 +295,36 @@ records for the round-trip."
       (should first-called)
       (should-not second-called))))
 
+;;;; Timestamps: created + last-modified
+
+(ert-deftest bookmark-gt-timestamps-test-created-set-on-store ()
+  "`created' and `last-modified' are stamped on the initial store."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-set-non-file "t" 'ignore nil)
+    (let ((rec (assoc "t" bookmark-alist)))
+      (should (bookmark-prop-get rec 'created))
+      (should (bookmark-prop-get rec 'last-modified)))))
+
+(ert-deftest bookmark-gt-timestamps-test-created-preserved-on-migration-shape ()
+  "Callers that pass their own `created' keep it (migration case)."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((preserved '(27221 38352 0 0)))
+      (bookmark-gt-set-non-file
+       "t" 'ignore (list (cons 'created preserved)))
+      (should (equal (bookmark-prop-get (assoc "t" bookmark-alist) 'created)
+                     preserved)))))
+
+(ert-deftest bookmark-gt-timestamps-test-last-modified-bumped-on-mutation ()
+  "`last-modified' advances when a mutation fires `--after-mutation'."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-set-non-file "t" 'ignore nil)
+    (let* ((rec (assoc "t" bookmark-alist))
+           (initial (bookmark-prop-get rec 'last-modified)))
+      ;; Ensure a distinguishable time delta by sleeping briefly.
+      (sleep-for 0.01)
+      (bookmark-gt-tags-set rec '("tag"))
+      (let ((updated (bookmark-prop-get rec 'last-modified)))
+        (should (time-less-p initial updated))))))
+
 (provide 'bookmark-gt-core-tests)
 ;;; bookmark-gt-core-tests.el ends here

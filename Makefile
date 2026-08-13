@@ -55,7 +55,8 @@ EL_FILES = bookmark-gt.el \
            bookmark-gt-jump.el \
            bookmark-gt-auto-update.el \
            bookmark-gt-default-tags.el \
-           bookmark-gt-browsel-tabs.el
+           bookmark-gt-browsel-tabs.el \
+           bookmark-gt-migrate.el
 
 # Project-local ELPA so the user's personal package directory is not
 # touched and CI starts from a clean slate every run.

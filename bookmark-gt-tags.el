@@ -169,11 +169,14 @@ ordering is only visible if `display-sort-function' and
           (cycle-sort-function . identity))
       (complete-with-action action candidates str pred))))
 
-(defun bookmark-gt-tags-read (prompt &optional initial)
+(defun bookmark-gt-tags-read (prompt &optional initial candidates)
   "Read a list of tags under PROMPT, one prompt per tag.
 Empty \\`RET' or \\`M-RET' ends the loop.  INITIAL seeds the
-accumulator.  Returns the normalized tag list."
-  (let* ((candidates (bookmark-gt-tags--candidates-mru))
+accumulator.  CANDIDATES restricts the completion set to that
+list (order preserved); nil means every tag currently in
+`bookmark-alist' (MRU-ordered).  Returns the normalized tag
+list."
+  (let* ((candidates (or candidates (bookmark-gt-tags--candidates-mru)))
          (table (bookmark-gt-tags--completion-table candidates))
          (accum (and initial (copy-sequence initial))))
     (catch 'done
