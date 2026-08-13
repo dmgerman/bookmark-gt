@@ -310,6 +310,44 @@ via the registry alias; you can migrate them off bookmark+ by
 setting their ~handler~ property to
 ~bookmark-gt-handler-dired-jump~.
 
+*** Function bookmarks — ~bookmark-gt-set-function~
+
+A function bookmark stores a callable (a symbol or lambda)
+under the ~function~ alist key.  Jumping invokes the callable.
+
+Interactive:
+
+#+begin_example
+M-x bookmark-gt-set-function RET
+Function bookmark name: rebuild-project RET
+Function to call on jump: my-project-rebuild RET
+#+end_example
+
+Elisp:
+
+#+begin_src emacs-lisp
+(bookmark-gt-set-function "rebuild" #'my-project-rebuild)
+(bookmark-gt-set-function "flip-theme"
+                          (lambda () (my-toggle-theme)))
+#+end_src
+
+*** Sequence bookmarks — ~bookmark-gt-set-sequence~
+
+A sequence bookmark stores a list of bookmark names under the
+~sequence~ alist key.  Jumping visits each in order via
+~bookmark-jump~.
+
+Interactive: prompts for the sequence name, then reads
+existing bookmark names one at a time until you enter empty
+input.
+
+Elisp:
+
+#+begin_src emacs-lisp
+(bookmark-gt-set-sequence "morning-workspace"
+                          '("inbox" "todo.org" "calendar"))
+#+end_src
+
 * Setting bookmarks
 
 ** Tag reader

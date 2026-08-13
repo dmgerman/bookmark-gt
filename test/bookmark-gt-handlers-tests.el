@@ -16,6 +16,7 @@
 ;;; Code:
 
 (require 'ert)
+(require 'cl-lib)
 (require 'test-helper)
 (require 'bookmark-gt-handlers)
 
@@ -173,6 +174,61 @@
     (should (null (bookmark-gt-filename-of (car bookmark-alist))))
     (should (equal (bookmark-gt-url-of (car bookmark-alist))
                    "https://example.org"))))
+
+;;;; Function bookmarks
+
+(ert-deftest bookmark-gt-handlers-test-function-jump-calls-fn ()
+  "Jumping a function bookmark invokes the stored callable."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((called 0))
+      (bookmark-gt-set-function "fn" (lambda () (setq called (1+ called))))
+      (condition-case _err
+          (bookmark-gt-handler-function-jump (car bookmark-alist))
+        (no-catch nil))
+      (should (= called 1)))))
+
+(ert-deftest bookmark-gt-handlers-test-function-classify ()
+  "Function bookmarks classify as `function' via the registry."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-set-function "fn" (function ignore))
+    (should (eq (bookmark-gt-handler-type (car bookmark-alist)) 'function))
+    (should (equal (bookmark-gt-handler-name (car bookmark-alist))
+                   "Function"))))
+
+(ert-deftest bookmark-gt-handlers-test-function-missing-signals ()
+  "A function bookmark with no callable signals a user error."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-set-non-file "fn" (quote bookmark-gt-handler-function-jump) nil)
+    (should-error
+     (condition-case err
+         (bookmark-gt-handler-function-jump (car bookmark-alist))
+       (no-catch (signal 'user-error nil)))
+     :type 'user-error)))
+
+;;;; Sequence bookmarks
+
+(ert-deftest bookmark-gt-handlers-test-sequence-jump-visits-each ()
+  "Jumping a sequence bookmark calls `bookmark-jump' on each entry in order."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let (jumped)
+      ;; Create three placeholder bookmarks the sequence will reference.
+      (dolist (n '("a" "b" "c"))
+        (bookmark-gt-set-non-file n (function ignore) nil))
+      (bookmark-gt-set-sequence "seq" '("a" "b" "c"))
+      (cl-letf (((symbol-function 'bookmark-jump)
+                 (lambda (name &rest _) (push name jumped))))
+        (condition-case _err
+            (bookmark-gt-handler-sequence-jump
+             (assoc "seq" bookmark-alist))
+          (no-catch nil)))
+      (should (equal (nreverse jumped) '("a" "b" "c"))))))
+
+(ert-deftest bookmark-gt-handlers-test-sequence-classify ()
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-set-non-file "x" (function ignore) nil)
+    (bookmark-gt-set-sequence "seq" '("x"))
+    (should (eq (bookmark-gt-handler-type (assoc "seq" bookmark-alist))
+                'sequence))))
 
 (provide 'bookmark-gt-handlers-tests)
 ;;; bookmark-gt-handlers-tests.el ends here

@@ -86,6 +86,16 @@
   "Face for the Name column of PDF bookmarks."
   :group 'bookmark-gt)
 
+(defface bookmark-gt-face-function
+  '((t :inherit font-lock-function-name-face))
+  "Face for the Name column of function bookmarks."
+  :group 'bookmark-gt)
+
+(defface bookmark-gt-face-sequence
+  '((t :inherit font-lock-preprocessor-face))
+  "Face for the Name column of sequence bookmarks."
+  :group 'bookmark-gt)
+
 (defface bookmark-gt-face-group
   '((t :inherit font-lock-type-face))
   "Face for the Group column in the bookmark list."
@@ -462,6 +472,102 @@ Returns the stored (NAME . DATA) pair."
  (list :type 'epub :name "EPUB" :group 'doc
        :face 'bookmark-gt-face-file :narrow-char ?E
        :doc "Location bookmarked from nov.el."))
+
+;; Function bookmarks — bookmark-gt owns both the handler and
+;; the setter.  bookmark+'s aliases would go here if we chose
+;; to migrate historic records.
+(bookmark-gt-handler-register
+ '(bookmark-gt-handler-function-jump)
+ (list :type 'function :name "Function" :group 'other
+       :face 'bookmark-gt-face-function :narrow-char ?F
+       :doc "Bookmark that calls a function on jump."))
+
+;; Sequence bookmarks — jump each of a list of bookmarks in order.
+(bookmark-gt-handler-register
+ '(bookmark-gt-handler-sequence-jump)
+ (list :type 'sequence :name "Sequence" :group 'other
+       :face 'bookmark-gt-face-sequence :narrow-char ?Q
+       :doc "Bookmark that jumps each of a list of bookmarks in order."))
+
+;;;; Function bookmarks — jump runs an arbitrary callable
+
+(defun bookmark-gt-handler-function-jump (bookmark)
+  "Bookmark handler for function bookmark BOOKMARK.
+Runs the record's `function' prop (a symbol or lambda) and
+throws `bookmark-gt-skip-post-handler'."
+  (let ((fn (bookmark-prop-get bookmark 'function)))
+    (unless fn
+      (user-error "Function bookmark has no `function' property"))
+    (unless (functionp fn)
+      (user-error "Function bookmark's `function' is not callable: %S" fn))
+    (funcall fn)
+    (bookmark-gt-record-visit bookmark)
+    (bookmark-gt-skip-post-handler 'function)))
+
+;;;###autoload
+(defun bookmark-gt-set-function (name fn &optional tags)
+  "Store a function bookmark called NAME whose jump invokes FN.
+Interactive: prompts for NAME and a command via `read-command'.
+FN is any callable (a symbol or lambda).  TAGS is an optional
+initial tag list; when omitted, the tag-reader hook decides.
+
+Returns the stored (NAME . DATA) pair."
+  (interactive
+   (list (read-string "Function bookmark name: ")
+         (read-command "Function to call on jump: ")
+         nil))
+  (let ((props (list (cons 'function fn))))
+    (when tags
+      (push (cons 'tags tags) props))
+    (bookmark-gt-set-non-file
+     name 'bookmark-gt-handler-function-jump props)))
+
+;;;; Sequence bookmarks — jump each of a list of bookmarks in order
+
+(defun bookmark-gt-handler-sequence-jump (bookmark)
+  "Bookmark handler for sequence bookmark BOOKMARK.
+Jump to each name in the record's `sequence' prop in order,
+then throw `bookmark-gt-skip-post-handler'."
+  (let ((names (bookmark-prop-get bookmark 'sequence)))
+    (unless (listp names)
+      (user-error "Sequence bookmark's `sequence' is not a list"))
+    (dolist (name names)
+      (bookmark-jump name))
+    (bookmark-gt-record-visit bookmark)
+    (bookmark-gt-skip-post-handler 'sequence)))
+
+;;;###autoload
+(defun bookmark-gt-set-sequence (name bookmarks &optional tags)
+  "Store a sequence bookmark called NAME that jumps BOOKMARKS in order.
+Interactive: prompts for NAME then reads bookmark names one at
+a time (empty input ends the list).  BOOKMARKS must be a
+non-empty list of existing bookmark names.  TAGS is an
+optional initial tag list; when omitted, the tag-reader hook
+decides.
+
+Returns the stored (NAME . DATA) pair."
+  (interactive
+   (list (read-string "Sequence bookmark name: ")
+         (let (seq
+               (done nil))
+           (while (not done)
+             (let ((b (bookmark-completing-read
+                       (if seq
+                           (format "Add bookmark (empty to finish; %d so far)"
+                                   (length seq))
+                         "First bookmark"))))
+               (if (or (null b) (string-empty-p b))
+                   (setq done t)
+                 (push b seq))))
+           (nreverse seq))
+         nil))
+  (unless bookmarks
+    (user-error "Sequence bookmark needs at least one bookmark"))
+  (let ((props (list (cons 'sequence bookmarks))))
+    (when tags
+      (push (cons 'tags tags) props))
+    (bookmark-gt-set-non-file
+     name 'bookmark-gt-handler-sequence-jump props)))
 
 (provide 'bookmark-gt-handlers)
 

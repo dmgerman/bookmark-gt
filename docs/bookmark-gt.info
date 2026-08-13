@@ -12,8 +12,8 @@ File: bookmark-gt.info,  Node: Top,  Next: Install,  Up: (dir)
 bookmark-gt
 ***********
 
-A bookmark manager for Emacs, layered on the built-in ‘bookmark.el’.
-Its goal is to be used instead of bookmark+
+A bookmark manager for Emacs, that replaces the the built-in
+‘bookmark.el’ inspired by bookmark+
 (https://www.emacswiki.org/emacs/BookmarkPlus).
 
    It supports most of ‘bookmark+’'s features: tags, non-file bookmark
@@ -71,6 +71,8 @@ Non-file bookmark types
 
 * URL bookmarks — bookmark-gt-set-url::
 * Dired bookmarks — bookmark-gt-handler-dired-jump::
+* Function bookmarks — bookmark-gt-set-function::
+* Sequence bookmarks — bookmark-gt-set-sequence::
 
 Setting bookmarks
 
@@ -426,6 +428,8 @@ File: bookmark-gt.info,  Node: Non-file bookmark types,  Prev: Jump reader bookm
 
 * URL bookmarks — bookmark-gt-set-url::
 * Dired bookmarks — bookmark-gt-handler-dired-jump::
+* Function bookmarks — bookmark-gt-set-function::
+* Sequence bookmarks — bookmark-gt-set-sequence::
 
 
 File: bookmark-gt.info,  Node: URL bookmarks — bookmark-gt-set-url,  Next: Dired bookmarks — bookmark-gt-handler-dired-jump,  Up: Non-file bookmark types
@@ -449,7 +453,7 @@ the built-in post-handler flow does not pop up an annotation buffer
 moving focus from the browser back to Emacs.
 
 
-File: bookmark-gt.info,  Node: Dired bookmarks — bookmark-gt-handler-dired-jump,  Prev: URL bookmarks — bookmark-gt-set-url,  Up: Non-file bookmark types
+File: bookmark-gt.info,  Node: Dired bookmarks — bookmark-gt-handler-dired-jump,  Next: Function bookmarks — bookmark-gt-set-function,  Prev: URL bookmarks — bookmark-gt-set-url,  Up: Non-file bookmark types
 
 3.3.2 Dired bookmarks — ‘bookmark-gt-handler-dired-jump’
 --------------------------------------------------------
@@ -459,6 +463,44 @@ bookmark-gt provides one that calls ‘(dired FILENAME)’.  Records
 migrated from bookmark+ (‘bmkp-jump-dired’) are still recognized as
 Dired type via the registry alias; you can migrate them off bookmark+ by
 setting their ‘handler’ property to ‘bookmark-gt-handler-dired-jump’.
+
+
+File: bookmark-gt.info,  Node: Function bookmarks — bookmark-gt-set-function,  Next: Sequence bookmarks — bookmark-gt-set-sequence,  Prev: Dired bookmarks — bookmark-gt-handler-dired-jump,  Up: Non-file bookmark types
+
+3.3.3 Function bookmarks — ‘bookmark-gt-set-function’
+-----------------------------------------------------
+
+A function bookmark stores a callable (a symbol or lambda) under the
+‘function’ alist key.  Jumping invokes the callable.
+
+   Interactive:
+
+     M-x bookmark-gt-set-function RET
+     Function bookmark name: rebuild-project RET
+     Function to call on jump: my-project-rebuild RET
+
+   Elisp:
+
+     (bookmark-gt-set-function "rebuild" #'my-project-rebuild)
+     (bookmark-gt-set-function "flip-theme"
+                               (lambda () (my-toggle-theme)))
+
+
+File: bookmark-gt.info,  Node: Sequence bookmarks — bookmark-gt-set-sequence,  Prev: Function bookmarks — bookmark-gt-set-function,  Up: Non-file bookmark types
+
+3.3.4 Sequence bookmarks — ‘bookmark-gt-set-sequence’
+-----------------------------------------------------
+
+A sequence bookmark stores a list of bookmark names under the ‘sequence’
+alist key.  Jumping visits each in order via ‘bookmark-jump’.
+
+   Interactive: prompts for the sequence name, then reads existing
+bookmark names one at a time until you enter empty input.
+
+   Elisp:
+
+     (bookmark-gt-set-sequence "morning-workspace"
+                               '("inbox" "todo.org" "calendar"))
 
 
 File: bookmark-gt.info,  Node: Setting bookmarks,  Next: In-file behaviors,  Prev: User interface,  Up: Top
@@ -962,43 +1004,45 @@ GPL-3.0-or-later.  See ‘LICENSE’.
 
 Tag Table:
 Node: Top205
-Node: Install2044
-Node: Getting started3080
-Node: Master switch bookmark-gt-mode3278
-Node: Opt-in modes4039
-Node: bookmark-gt-auto-update-mode4390
-Node: bookmark-gt-default-tags-mode5220
-Node: bookmark-gt-browsel-tabs-mode6210
-Node: User interface7442
-Node: The *Bookmarks-gt List* buffer7692
-Node: Columns8192
-Node: Keys9359
-Node: Jump reader bookmark-gt-jump10551
-Node: Elisp signatures11524
-Node: Non-file bookmark types14280
-Node: URL bookmarks — bookmark-gt-set-url14560
-Node: Dired bookmarks — bookmark-gt-handler-dired-jump15294
-Node: Setting bookmarks15934
-Node: Tag reader16172
-Node: Same-name policy17177
-Node: Relocate change a bookmark's target18759
-Node: In-file behaviors19908
-Node: In-buffer cycling20137
-Node: Per-bookmark highlighting21137
-Node: Region bookmarks23094
-Node: Trackers24615
-Node: Visit tracker24791
-Node: File-rename tracker25643
-Node: Extension API26687
-Node: Handler registry26888
-Node: Group registry28927
-Node: Extension points30580
-Node: Compatibility31757
-Node: Data compat with bookmark+31929
-Node: Reference32908
-Node: Selected customization33071
-Node: Acknowledgements34532
-Node: License36417
+Node: Install2132
+Node: Getting started3168
+Node: Master switch bookmark-gt-mode3366
+Node: Opt-in modes4127
+Node: bookmark-gt-auto-update-mode4478
+Node: bookmark-gt-default-tags-mode5308
+Node: bookmark-gt-browsel-tabs-mode6298
+Node: User interface7530
+Node: The *Bookmarks-gt List* buffer7780
+Node: Columns8280
+Node: Keys9447
+Node: Jump reader bookmark-gt-jump10639
+Node: Elisp signatures11612
+Node: Non-file bookmark types14368
+Node: URL bookmarks — bookmark-gt-set-url14752
+Node: Dired bookmarks — bookmark-gt-handler-dired-jump15486
+Node: Function bookmarks — bookmark-gt-set-function16182
+Node: Sequence bookmarks — bookmark-gt-set-sequence16991
+Node: Setting bookmarks17672
+Node: Tag reader17910
+Node: Same-name policy18915
+Node: Relocate change a bookmark's target20497
+Node: In-file behaviors21646
+Node: In-buffer cycling21875
+Node: Per-bookmark highlighting22875
+Node: Region bookmarks24832
+Node: Trackers26353
+Node: Visit tracker26529
+Node: File-rename tracker27381
+Node: Extension API28425
+Node: Handler registry28626
+Node: Group registry30665
+Node: Extension points32318
+Node: Compatibility33495
+Node: Data compat with bookmark+33667
+Node: Reference34646
+Node: Selected customization34809
+Node: Acknowledgements36270
+Node: License38155
 
 End Tag Table
 
