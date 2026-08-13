@@ -225,9 +225,10 @@ refreshed to the visiting buffer's current point on every idle tick.
 Useful for e-readers, long-form documents, ‘pdf-tools’ page tracking.
 
    Triggers: an idle timer (‘bookmark-gt-auto-update-interval’, default
-60 s) plus ‘kill-buffer-hook’ and ‘window-state-change-hook’.  Also
-registered into the ephemeral refresh hook, so ‘g’ in the list buffer or
-opening the jump reader triggers an immediate refresh.
+60 s), plus ‘kill-buffer-hook’ and ‘window-state-change-hook’ to capture
+buffer closes and window switches without waiting for the next idle
+tick.  Pressing ‘g’ in the list buffer also triggers a refresh before
+the buffer redraws.
 
    Toggle the property on the row at point with ‘^’ in the list buffer,
 or ‘M-x bookmark-gt-auto-update-toggle NAME’.
@@ -265,14 +266,12 @@ Exposes the browser's open tabs as bookmarks (temporary — not saved to
 disk).  Requires ‘browsel’ to be installed and connected.
 
    Refresh is on-demand, not on a timer:
-   • immediate refresh on mode enable;
-   • before every ‘bookmark-gt-jump’ read;
-   • before opening the list buffer;
-   • on ‘g’ (revert) in the list buffer;
+   • one refresh on mode enable;
+   • ‘g’ (revert) in the list buffer;
    • ‘M-x bookmark-gt-browsel-tabs-refresh’ for a manual refresh.
 
-   Turning the mode off clears our tab records and unregisters the
-refresher.  Records owned by other browsel-related packages
+   Turning the mode off clears the tab records added by this mode.
+Records owned by other browsel-related packages
 (‘browsel-tab-manager-bookmark-jump’ etc.)  are left alone.
 
    The refresh loop suppresses per-tab hook execution and auto-save
@@ -342,7 +341,7 @@ File: bookmark-gt.info,  Node: Keys,  Prev: Columns,  Up: The *Bookmarks-gt List
 ----------
 
 Key         Action
----------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------
 ‘RET’       Jump
 ‘o’         Jump in another window
 ‘C-o’       Same as ‘o’
@@ -363,7 +362,7 @@ Key         Action
 ‘a’         Edit annotation
 ‘/’         Filter (choose by-type / by-tag / by-name-regexp / unfilter)
 ‘s’         Cycle sort column
-‘g’         Revert (refresh ephemeral sources first)
+‘g’         Revert: refresh browser tabs and auto-update positions (if their modes are on), then redraw
 ‘C-x C-s’   Save the bookmark file ('bookmark-save')
 ‘i’         Inspect record (pretty-print alist in a popup)
 ‘q’         Quit
@@ -869,8 +868,7 @@ destination.  Intercepts Dired renames (‘R’) as well, since Dired uses
    • ‘backup-file-name-p’ on the destination — always skipped.  Emacs's
      default save mode renames ORIG → ORIG~ before writing new content;
      without this guard the bookmark would follow the rename and end up
-     pointing at your backup file.  (Bookmark+'s tracker has this bug;
-     ours does not.)
+     pointing at your backup file.
 
    Directory renames update only bookmarks whose ‘filename’ equals the
 directory exactly.  Children are NOT rewritten.
@@ -976,21 +974,28 @@ File: bookmark-gt.info,  Node: Extension points,  Prev: Group registry,  Up: Ext
 7.3 Extension points
 ====================
 
-Every non-trivial mechanism has a documented extension point.
+Every non-trivial mechanism is expected to have an extension point:
 
-   • ‘bookmark-gt-set-name-reader-hook’ — refine the bookmark name
-     before the interactive prompt.  ‘(default-name context)’ → string
-     (first non-nil wins).
-   • ‘bookmark-gt-set-tag-reader-hook’ — chained: each hook gets
-     ‘(record seed-tags)’ and returns new seed-tags.  This is where
-     ‘bookmark-gt-default-tags-mode’ and the interactive tag reader
-     register themselves.
-   • ‘bookmark-gt-set-after-hook’ — runs on every mutation.  The list
-     buffer refreshes here; other observers can as well.
-   • ‘bookmark-gt-ephemeral-refresh-hook’ — runs before jump, list open,
-     and list revert.  Ephemeral sources
-     (‘bookmark-gt-browsel-tabs-mode’, ‘bookmark-gt-auto-update-mode’)
-     register into it.
+   • ‘bookmark-gt-set-name-reader-hook’ — runs once inside
+     ‘bookmark-gt-set’, before the name prompt is displayed to the user.
+     Each hook is called with ‘(default-name context)’ and returns
+     either a string (which replaces the default) or nil (to defer).
+     The first non-nil return wins.
+   • ‘bookmark-gt-set-tag-reader-hook’ — runs once inside
+     ‘bookmark-gt-set’ and ‘bookmark-gt-set-non-file’, after the name is
+     chosen and before the record is stored.  Chained: each hook is
+     called with ‘(record seed-tags)’ and returns a new seed-tags list,
+     which becomes the input to the next hook.
+     ‘bookmark-gt-default-tags-mode’ registers here to seed the list
+     from context; the interactive tag reader registers here to prompt
+     the user for edits.
+   • ‘bookmark-gt-set-after-hook’ — runs at the end of every
+     bookmark-record mutation: create (‘bookmark-gt-set’,
+     ‘-set-non-file’), rename, tag edit, annotation edit, relocate,
+     toggle-temp, toggle-auto-update, and delete.  Called with the
+     ‘(name . data)’ pair.  bookmark-gt's own list buffer refresh does
+     NOT go through this hook — it is wired directly.  Third-party
+     observers register here to react to any change.
    • ‘bookmark-gt-filter-alist’ — filter registry for the list buffer's
      ‘/’ command.
    • ‘bookmark-gt-sort-alist’ — sort registry (includes name and type
@@ -1170,43 +1175,43 @@ Node: Getting started3830
 Node: Master switch bookmark-gt-mode4028
 Node: Opt-in modes6356
 Node: bookmark-gt-auto-update-mode6707
-Node: bookmark-gt-default-tags-mode7537
-Node: bookmark-gt-browsel-tabs-mode8565
-Node: User interface9797
-Node: The *Bookmarks-gt List* buffer10047
-Node: Columns10547
-Node: Keys11769
-Node: Jump reader bookmark-gt-jump13358
-Node: Elisp signatures14745
-Node: Non-file bookmark types17501
-Node: URL bookmarks — bookmark-gt-set-url18011
-Node: Dired bookmarks — bookmark-gt-handler-dired-jump18745
-Node: Function bookmarks — bookmark-gt-set-function19441
-Node: Sequence bookmarks — bookmark-gt-set-sequence20250
-Node: File-type handlers — override the file-jump path per pattern21002
-Node: View bookmarks — save the list buffer's current view22536
-Node: Setting bookmarks23698
-Node: Tag reader23936
-Node: Same-name policy24941
-Node: Relocate change a bookmark's target26916
-Node: In-file behaviors28065
-Node: In-buffer cycling28294
-Node: Per-bookmark highlighting29294
-Node: Region bookmarks31251
-Node: Trackers32772
-Node: Visit tracker32948
-Node: File-rename tracker33798
-Node: Extension API34842
-Node: Handler registry35043
-Node: Group registry37082
-Node: Extension points38735
-Node: Compatibility39912
-Node: Data compat with bookmark+40113
-Node: Migrating from bookmark+41243
-Node: Reference43220
-Node: Selected customization43383
-Node: Acknowledgements48141
-Node: License50026
+Node: bookmark-gt-default-tags-mode7572
+Node: bookmark-gt-browsel-tabs-mode8600
+Node: User interface9723
+Node: The *Bookmarks-gt List* buffer9973
+Node: Columns10473
+Node: Keys11695
+Node: Jump reader bookmark-gt-jump13354
+Node: Elisp signatures14741
+Node: Non-file bookmark types17497
+Node: URL bookmarks — bookmark-gt-set-url18007
+Node: Dired bookmarks — bookmark-gt-handler-dired-jump18741
+Node: Function bookmarks — bookmark-gt-set-function19437
+Node: Sequence bookmarks — bookmark-gt-set-sequence20246
+Node: File-type handlers — override the file-jump path per pattern20998
+Node: View bookmarks — save the list buffer's current view22532
+Node: Setting bookmarks23694
+Node: Tag reader23932
+Node: Same-name policy24937
+Node: Relocate change a bookmark's target26912
+Node: In-file behaviors28061
+Node: In-buffer cycling28290
+Node: Per-bookmark highlighting29290
+Node: Region bookmarks31247
+Node: Trackers32768
+Node: Visit tracker32944
+Node: File-rename tracker33794
+Node: Extension API34781
+Node: Handler registry34982
+Node: Group registry37021
+Node: Extension points38674
+Node: Compatibility40370
+Node: Data compat with bookmark+40571
+Node: Migrating from bookmark+41701
+Node: Reference43678
+Node: Selected customization43841
+Node: Acknowledgements48599
+Node: License50484
 
 End Tag Table
 

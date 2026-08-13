@@ -182,20 +182,17 @@ inactive.")
 (define-minor-mode bookmark-gt-auto-update-mode
   "Global minor mode that keeps auto-update bookmarks current.
 
-When enabled, an idle timer refreshes every bookmark carrying
-the `auto-update' alist property to the current point of the
-buffer visiting its file.  `kill-buffer' and
-`window-state-change' catch closes and window switches so a
-one-tick lag is not the difference between saving and losing
-your last position.  The refresh is also registered into
-`bookmark-gt-ephemeral-refresh-hook' so `g' in the list
-buffer, opening the list, and opening the jump reader all
-trigger a tick.
+When enabled, an idle timer (interval
+`bookmark-gt-auto-update-interval') refreshes every bookmark
+carrying the `auto-update' alist property to the current point
+of the buffer visiting its file.  `kill-buffer-hook' and
+`window-state-change-hook' also trigger a refresh, so a
+buffer close or window switch is captured without waiting for
+the next idle tick.
 
-Turning the mode off cancels the timer, removes the hooks, and
-unregisters the ephemeral refresher.  Bookmark records keep
-their `auto-update' property; tracking just stops running.
-Re-enable to resume."
+Turning the mode off cancels the timer and removes the two
+hooks.  Bookmark records keep their `auto-update' property;
+tracking just stops running.  Re-enable to resume."
   :global t
   :group 'bookmark-gt
   (if bookmark-gt-auto-update-mode

@@ -118,10 +118,11 @@ idle tick.  Useful for e-readers, long-form documents,
 ~pdf-tools~ page tracking.
 
 Triggers: an idle timer (~bookmark-gt-auto-update-interval~,
-default 60 s) plus ~kill-buffer-hook~ and
-~window-state-change-hook~.  Also registered into the ephemeral
-refresh hook, so ~g~ in the list buffer or opening the jump
-reader triggers an immediate refresh.
+default 60 s), plus ~kill-buffer-hook~ and
+~window-state-change-hook~ to capture buffer closes and window
+switches without waiting for the next idle tick.  Pressing ~g~
+in the list buffer also triggers a refresh before the buffer
+redraws.
 
 Toggle the property on the row at point with =^= in the list
 buffer, or ~M-x bookmark-gt-auto-update-toggle NAME~.
@@ -154,14 +155,12 @@ Exposes the browser's open tabs as bookmarks (temporary — not
 saved to disk).  Requires ~browsel~ to be installed and connected.
 
 Refresh is on-demand, not on a timer:
-- immediate refresh on mode enable;
-- before every ~bookmark-gt-jump~ read;
-- before opening the list buffer;
-- on ~g~ (revert) in the list buffer;
+- one refresh on mode enable;
+- ~g~ (revert) in the list buffer;
 - ~M-x bookmark-gt-browsel-tabs-refresh~ for a manual refresh.
 
-Turning the mode off clears our tab records and unregisters the
-refresher.  Records owned by other browsel-related packages
+Turning the mode off clears the tab records added by this mode.
+Records owned by other browsel-related packages
 (~browsel-tab-manager-bookmark-jump~ etc.) are left alone.
 
 The refresh loop suppresses per-tab hook execution and
@@ -227,7 +226,7 @@ local only.
 | ~a~   | Edit annotation                                              |
 | ~/~   | Filter (choose by-type / by-tag / by-name-regexp / unfilter) |
 | ~s~   | Cycle sort column                                            |
-| ~g~   | Revert (refresh ephemeral sources first)                     |
+| ~g~   | Revert: refresh browser tabs and auto-update positions (if their modes are on), then redraw |
 | ~C-x C-s~ | Save the bookmark file (`bookmark-save`)                 |
 | ~i~   | Inspect record (pretty-print alist in a popup)               |
 | ~q~   | Quit                                                         |
@@ -663,7 +662,6 @@ Two guards:
   Emacs's default save mode renames ORIG → ORIG~ before writing
   new content; without this guard the bookmark would follow the
   rename and end up pointing at your backup file.
-  (Bookmark+'s tracker has this bug; ours does not.)
 
 Directory renames update only bookmarks whose ~filename~ equals
 the directory exactly.  Children are NOT rewritten.
@@ -756,21 +754,29 @@ symbol (or ~other~ when the handler is unregistered).
 
 ** Extension points
 
-Every non-trivial mechanism has a documented extension point.
+Every non-trivial mechanism is expected to have an extension point:
 
-- ~bookmark-gt-set-name-reader-hook~ — refine the bookmark
-  name before the interactive prompt.  ~(default-name context)~
-  → string (first non-nil wins).
-- ~bookmark-gt-set-tag-reader-hook~ — chained: each hook gets
-  ~(record seed-tags)~ and returns new seed-tags.  This is where
-  ~bookmark-gt-default-tags-mode~ and the interactive tag reader
-  register themselves.
-- ~bookmark-gt-set-after-hook~ — runs on every mutation.  The
-  list buffer refreshes here; other observers can as well.
-- ~bookmark-gt-ephemeral-refresh-hook~ — runs before jump,
-  list open, and list revert.  Ephemeral sources
-  (~bookmark-gt-browsel-tabs-mode~,
-  ~bookmark-gt-auto-update-mode~) register into it.
+- ~bookmark-gt-set-name-reader-hook~ — runs once inside
+  ~bookmark-gt-set~, before the name prompt is displayed to the
+  user.  Each hook is called with ~(default-name context)~ and
+  returns either a string (which replaces the default) or nil
+  (to defer).  The first non-nil return wins.
+- ~bookmark-gt-set-tag-reader-hook~ — runs once inside
+  ~bookmark-gt-set~ and ~bookmark-gt-set-non-file~, after the
+  name is chosen and before the record is stored.  Chained:
+  each hook is called with ~(record seed-tags)~ and returns a
+  new seed-tags list, which becomes the input to the next hook.
+  ~bookmark-gt-default-tags-mode~ registers here to seed the
+  list from context; the interactive tag reader registers here
+  to prompt the user for edits.
+- ~bookmark-gt-set-after-hook~ — runs at the end of every
+  bookmark-record mutation: create (~bookmark-gt-set~,
+  ~-set-non-file~), rename, tag edit, annotation edit,
+  relocate, toggle-temp, toggle-auto-update, and delete.
+  Called with the ~(name . data)~ pair.  bookmark-gt's own list
+  buffer refresh does NOT go through this hook — it is wired
+  directly.  Third-party observers register here to react to any
+  change.
 - ~bookmark-gt-filter-alist~ — filter registry for the list
   buffer's ~/~ command.
 - ~bookmark-gt-sort-alist~ — sort registry (includes name and

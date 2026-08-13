@@ -213,17 +213,14 @@ re-entrancy."
 (define-minor-mode bookmark-gt-browsel-tabs-mode
   "Global minor mode that keeps browser-tab bookmarks in sync.
 
-When enabled, `bookmark-gt-browsel-tabs-refresh' runs on
-demand — every time the jump reader is invoked, the list
-buffer is opened, or `g' is pressed in the list buffer.  There
-is no idle timer; refreshes are on-request.
+When enabled, `bookmark-gt-browsel-tabs-refresh' runs once
+immediately; after that it runs on demand: `g' (revert) in the
+`*Bookmarks-gt List*' buffer, and `M-x
+bookmark-gt-browsel-tabs-refresh'.  There is no idle timer.
 
-Manual refresh: `bookmark-gt-browsel-tabs-refresh'.
-
-Turning the mode off removes the refresher from the ephemeral
-hook and clears any tab records that are currently in the
-alist \(only records with our own handler symbol; other
-browsel-related packages' bookmarks are untouched).
+Turning the mode off clears any tab records added by this mode
+from the alist \(only records with our own handler symbol;
+records from other browsel-related packages are untouched).
 
 Requires browsel to be installed and connected.  Enable is a
 `user-error' no-op when browsel is not loaded."
