@@ -178,6 +178,7 @@ local only.
 | ~^~   | Toggle ~auto-update~ on row                                  |
 | ~T~   | Toggle temp on row                                           |
 | ~H~   | Toggle display of temporary bookmarks in this buffer         |
+| ~V~   | Save the current view (filters + sort + show-temp) as a bookmark |
 | ~r~   | Rename bookmark                                              |
 | ~R~   | Relocate (change filename or URL)                            |
 | ~t~   | Edit tags                                                    |
@@ -345,6 +346,24 @@ Elisp:
 (bookmark-gt-set-sequence "morning-workspace"
                           '("inbox" "todo.org" "calendar"))
 #+end_src
+
+*** View bookmarks — ~bookmark-gt-list-save-view-as-bookmark~
+
+A view bookmark captures the persistent presentation state of
+the ~*Bookmarks-gt List*~ buffer — active filters, sort key,
+and the show-temp toggle — under the ~filters~, ~sort-key~,
+and ~show-temp~ alist keys.  Jumping opens the list buffer (if
+needed), restores the state, and redraws.
+
+Interactive: in the list buffer, press ~V~ (or ~M-x
+bookmark-gt-list-save-view-as-bookmark~) and enter a name.  The
+current filter set, sort column, and show-temp toggle are
+captured.  Marks and point are intentionally not saved —
+they are per-session, not part of the view.
+
+Elisp: construct the record via ~bookmark-gt-set-non-file~ with
+handler ~bookmark-gt-handler-view-jump~ and the three props;
+see the source for the shape.
 
 * Setting bookmarks
 
@@ -712,6 +731,7 @@ Two shape differences we accommodate on read:
 | ~bookmark-gt-list-selection-mark~     | ~?*~      | Character shown in the mark column for rows marked with ~m~ (a bulk action target).                                       |
 | ~bookmark-gt-list-deletion-mark~      | ~?D~      | Character shown in the mark column for rows flagged with ~d~; ~x~ deletes every row bearing this mark.                    |
 | ~bookmark-gt-list-default-show-temp~  | ~t~       | Whether new list buffers show temporary bookmarks by default; toggle per-buffer with ~H~ (~bookmark-gt-list-show-temp~).  |
+| —                                     | —         | (View bookmarks: no defcustom; save via ~V~ in the list buffer or ~bookmark-gt-list-save-view-as-bookmark~.)              |
 | ~bookmark-gt-jump-name-max-width~     | ~40~      | Character width at which the jump reader truncates bookmark names in each candidate row.                                  |
 | ~bookmark-gt-jump-default-sort~       | ~'mru~    | Sort order used by ~bookmark-gt-jump~ when no ~:sort-by~ is given.  Values: ~'mru~ (most recently used), ~'visits~, ~nil~ (pool order). |
 | ~bookmark-gt-auto-update-interval~    | ~60~      | Seconds of idle time between ticks of ~bookmark-gt-auto-update-mode~; each tick refreshes bookmarks carrying ~auto-update~. |

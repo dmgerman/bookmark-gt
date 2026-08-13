@@ -73,6 +73,7 @@ Non-file bookmark types
 * Dired bookmarks — bookmark-gt-handler-dired-jump::
 * Function bookmarks — bookmark-gt-set-function::
 * Sequence bookmarks — bookmark-gt-set-sequence::
+* View bookmarks — bookmark-gt-list-save-view-as-bookmark::
 
 Setting bookmarks
 
@@ -301,7 +302,7 @@ File: bookmark-gt.info,  Node: Keys,  Prev: Columns,  Up: The *Bookmarks-gt List
 ----------
 
 Key     Action
------------------------------------------------------------------------
+---------------------------------------------------------------------------
 ‘RET’   Jump
 ‘o’     Jump in another window
 ‘C-o’   Same as ‘o’
@@ -314,6 +315,7 @@ Key     Action
 ‘^’     Toggle ‘auto-update’ on row
 ‘T’     Toggle temp on row
 ‘H’     Toggle display of temporary bookmarks in this buffer
+‘V’     Save the current view (filters + sort + show-temp) as a bookmark
 ‘r’     Rename bookmark
 ‘R’     Relocate (change filename or URL)
 ‘t’     Edit tags
@@ -427,6 +429,7 @@ File: bookmark-gt.info,  Node: Non-file bookmark types,  Prev: Jump reader bookm
 * Dired bookmarks — bookmark-gt-handler-dired-jump::
 * Function bookmarks — bookmark-gt-set-function::
 * Sequence bookmarks — bookmark-gt-set-sequence::
+* View bookmarks — bookmark-gt-list-save-view-as-bookmark::
 
 
 File: bookmark-gt.info,  Node: URL bookmarks — bookmark-gt-set-url,  Next: Dired bookmarks — bookmark-gt-handler-dired-jump,  Up: Non-file bookmark types
@@ -483,7 +486,7 @@ A function bookmark stores a callable (a symbol or lambda) under the
                                (lambda () (my-toggle-theme)))
 
 
-File: bookmark-gt.info,  Node: Sequence bookmarks — bookmark-gt-set-sequence,  Prev: Function bookmarks — bookmark-gt-set-function,  Up: Non-file bookmark types
+File: bookmark-gt.info,  Node: Sequence bookmarks — bookmark-gt-set-sequence,  Next: View bookmarks — bookmark-gt-list-save-view-as-bookmark,  Prev: Function bookmarks — bookmark-gt-set-function,  Up: Non-file bookmark types
 
 3.3.4 Sequence bookmarks — ‘bookmark-gt-set-sequence’
 -----------------------------------------------------
@@ -498,6 +501,28 @@ bookmark names one at a time until you enter empty input.
 
      (bookmark-gt-set-sequence "morning-workspace"
                                '("inbox" "todo.org" "calendar"))
+
+
+File: bookmark-gt.info,  Node: View bookmarks — bookmark-gt-list-save-view-as-bookmark,  Prev: Sequence bookmarks — bookmark-gt-set-sequence,  Up: Non-file bookmark types
+
+3.3.5 View bookmarks — ‘bookmark-gt-list-save-view-as-bookmark’
+---------------------------------------------------------------
+
+A view bookmark captures the persistent presentation state of the
+‘*Bookmarks-gt List*’ buffer — active filters, sort key, and the
+show-temp toggle — under the ‘filters’, ‘sort-key’, and ‘show-temp’
+alist keys.  Jumping opens the list buffer (if needed), restores the
+state, and redraws.
+
+   Interactive: in the list buffer, press ‘V’ (or ‘M-x
+bookmark-gt-list-save-view-as-bookmark’) and enter a name.  The current
+filter set, sort column, and show-temp toggle are captured.  Marks and
+point are intentionally not saved — they are per-session, not part of
+the view.
+
+   Elisp: construct the record via ‘bookmark-gt-set-non-file’ with
+handler ‘bookmark-gt-handler-view-jump’ and the three props; see the
+source for the shape.
 
 
 File: bookmark-gt.info,  Node: Setting bookmarks,  Next: In-file behaviors,  Prev: User interface,  Up: Top
@@ -949,6 +974,7 @@ Variable                               Default                   What it does
 ‘bookmark-gt-list-selection-mark’      ‘?*’                      Character shown in the mark column for rows marked with ‘m’ (a bulk action target).
 ‘bookmark-gt-list-deletion-mark’       ‘?D’                      Character shown in the mark column for rows flagged with ‘d’; ‘x’ deletes every row bearing this mark.
 ‘bookmark-gt-list-default-show-temp’   ‘t’                       Whether new list buffers show temporary bookmarks by default; toggle per-buffer with ‘H’ (‘bookmark-gt-list-show-temp’).
+—                                      —                         (View bookmarks: no defcustom; save via ‘V’ in the list buffer or ‘bookmark-gt-list-save-view-as-bookmark’.)
 ‘bookmark-gt-jump-name-max-width’      ‘40’                      Character width at which the jump reader truncates bookmark names in each candidate row.
 ‘bookmark-gt-jump-default-sort’        ‘'mru’                    Sort order used by ‘bookmark-gt-jump’ when no ‘:sort-by’ is given.  Values: ‘'mru’ (most recently used), ‘'visits’, ‘nil’ (pool order).
 ‘bookmark-gt-auto-update-interval’     ‘60’                      Seconds of idle time between ticks of ‘bookmark-gt-auto-update-mode’; each tick refreshes bookmarks carrying ‘auto-update’.
@@ -1009,45 +1035,46 @@ GPL-3.0-or-later.  See ‘LICENSE’.
 
 Tag Table:
 Node: Top205
-Node: Install2132
-Node: Getting started3168
-Node: Master switch bookmark-gt-mode3366
-Node: Opt-in modes3948
-Node: bookmark-gt-auto-update-mode4299
-Node: bookmark-gt-default-tags-mode5129
-Node: bookmark-gt-browsel-tabs-mode6157
-Node: User interface7389
-Node: The *Bookmarks-gt List* buffer7639
-Node: Columns8139
-Node: Keys9306
-Node: Jump reader bookmark-gt-jump10498
-Node: Elisp signatures11471
-Node: Non-file bookmark types14227
-Node: URL bookmarks — bookmark-gt-set-url14611
-Node: Dired bookmarks — bookmark-gt-handler-dired-jump15345
-Node: Function bookmarks — bookmark-gt-set-function16041
-Node: Sequence bookmarks — bookmark-gt-set-sequence16850
-Node: Setting bookmarks17531
-Node: Tag reader17769
-Node: Same-name policy18774
-Node: Relocate change a bookmark's target20749
-Node: In-file behaviors21898
-Node: In-buffer cycling22127
-Node: Per-bookmark highlighting23127
-Node: Region bookmarks25084
-Node: Trackers26605
-Node: Visit tracker26781
-Node: File-rename tracker27631
-Node: Extension API28675
-Node: Handler registry28876
-Node: Group registry30915
-Node: Extension points32568
-Node: Compatibility33745
-Node: Data compat with bookmark+33917
-Node: Reference34896
-Node: Selected customization35059
-Node: Acknowledgements38931
-Node: License40816
+Node: Install2194
+Node: Getting started3230
+Node: Master switch bookmark-gt-mode3428
+Node: Opt-in modes4010
+Node: bookmark-gt-auto-update-mode4361
+Node: bookmark-gt-default-tags-mode5191
+Node: bookmark-gt-browsel-tabs-mode6219
+Node: User interface7451
+Node: The *Bookmarks-gt List* buffer7701
+Node: Columns8201
+Node: Keys9368
+Node: Jump reader bookmark-gt-jump10641
+Node: Elisp signatures11614
+Node: Non-file bookmark types14370
+Node: URL bookmarks — bookmark-gt-set-url14816
+Node: Dired bookmarks — bookmark-gt-handler-dired-jump15550
+Node: Function bookmarks — bookmark-gt-set-function16246
+Node: Sequence bookmarks — bookmark-gt-set-sequence17055
+Node: View bookmarks — bookmark-gt-list-save-view-as-bookmark17802
+Node: Setting bookmarks18880
+Node: Tag reader19118
+Node: Same-name policy20123
+Node: Relocate change a bookmark's target22098
+Node: In-file behaviors23247
+Node: In-buffer cycling23476
+Node: Per-bookmark highlighting24476
+Node: Region bookmarks26433
+Node: Trackers27954
+Node: Visit tracker28130
+Node: File-rename tracker28980
+Node: Extension API30024
+Node: Handler registry30225
+Node: Group registry32264
+Node: Extension points33917
+Node: Compatibility35094
+Node: Data compat with bookmark+35266
+Node: Reference36245
+Node: Selected customization36408
+Node: Acknowledgements40466
+Node: License42351
 
 End Tag Table
 

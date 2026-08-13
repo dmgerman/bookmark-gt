@@ -210,5 +210,60 @@
         (goto-char (point-min))
         (should (equal (bookmark-gt-list-test--column 6) "new"))))))
 
+;;;; View bookmarks
+
+(ert-deftest bookmark-gt-list-test-save-view-captures-state ()
+  "Saving a view stores filters, sort-key, and show-temp on the record."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-set-non-file "a" 'ignore nil)
+    (bookmark-gt-list-test--in-buffer
+      (setq bookmark-gt-list--filters '((by-tag . "work")))
+      (setq tabulated-list-sort-key '("Name" . nil))
+      (setq bookmark-gt-list--show-temp nil)
+      (bookmark-gt-list-save-view-as-bookmark "my-view"))
+    (let ((rec (assoc "my-view" bookmark-alist)))
+      (should rec)
+      (should (eq (bookmark-prop-get rec 'handler)
+                  'bookmark-gt-handler-view-jump))
+      (should (equal (bookmark-prop-get rec 'filters)
+                     '((by-tag . "work"))))
+      (should (equal (bookmark-prop-get rec 'sort-key)
+                     '("Name" . nil)))
+      (should (eq (bookmark-prop-get rec 'show-temp) nil)))))
+
+(ert-deftest bookmark-gt-list-test-view-jump-restores-state ()
+  "Jumping a view record applies its saved state to the list buffer."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-set-non-file "a" 'ignore nil)
+    ;; Store a view record by hand (skip the save-view command so
+    ;; the test doesn't depend on the list buffer's live state).
+    (bookmark-gt-set-non-file
+     "v" 'bookmark-gt-handler-view-jump
+     '((filters   . ((by-tag . "urgent")))
+       (sort-key  . ("Type" . nil))
+       (show-temp . nil)))
+    (unwind-protect
+        (progn
+          (condition-case _err
+              (bookmark-gt-handler-view-jump (assoc "v" bookmark-alist))
+            (no-catch nil))
+          (with-current-buffer bookmark-gt-list-buffer-name
+            (should (equal bookmark-gt-list--filters
+                           '((by-tag . "urgent"))))
+            (should (equal tabulated-list-sort-key '("Type" . nil)))
+            (should (eq bookmark-gt-list--show-temp nil))))
+      (when (get-buffer bookmark-gt-list-buffer-name)
+        (kill-buffer bookmark-gt-list-buffer-name)))))
+
+(ert-deftest bookmark-gt-list-test-view-classifies-as-view ()
+  "View records classify as type `view' via the registry."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-set-non-file
+     "v" 'bookmark-gt-handler-view-jump
+     '((filters . nil) (sort-key . nil) (show-temp . t)))
+    (let ((rec (assoc "v" bookmark-alist)))
+      (should (eq (bookmark-gt-handler-type rec) 'view))
+      (should (equal (bookmark-gt-handler-name rec) "View")))))
+
 (provide 'bookmark-gt-list-tests)
 ;;; bookmark-gt-list-tests.el ends here

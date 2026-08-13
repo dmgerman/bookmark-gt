@@ -96,6 +96,11 @@
   "Face for the Name column of sequence bookmarks."
   :group 'bookmark-gt)
 
+(defface bookmark-gt-face-view
+  '((t :inherit font-lock-builtin-face))
+  "Face for the Name column of view bookmarks."
+  :group 'bookmark-gt)
+
 (defface bookmark-gt-face-group
   '((t :inherit font-lock-type-face))
   "Face for the Group column in the bookmark list."

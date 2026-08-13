@@ -281,6 +281,7 @@ sorting."
   "t"   #'bookmark-gt-list-edit-tags
   "a"   #'bookmark-gt-list-edit-annotation
   "/"   #'bookmark-gt-list-filter-by
+  "V"   #'bookmark-gt-list-save-view-as-bookmark
   "g"   #'revert-buffer
   "q"   #'quit-window)
 
@@ -854,6 +855,42 @@ The special KEY `unfilter' clears every active filter."
                            (string< (bookmark-gt-handler-name a)
                                     (bookmark-gt-handler-name b)))
                          :doc "Alphabetical by type name.")))
+
+;;;; View bookmarks — save/restore the list buffer's filters + sort + show-temp
+
+(bookmark-gt-handler-register
+ '(bookmark-gt-handler-view-jump)
+ (list :type 'view :name "View" :group 'other
+       :face 'bookmark-gt-face-view :narrow-char ?V
+       :doc "Saved view of the *Bookmarks-gt List* buffer."))
+
+(defun bookmark-gt-handler-view-jump (bookmark)
+  "Restore the list buffer view saved in BOOKMARK.
+Reads `filters', `sort-key', and `show-temp' from the record,
+opens the list buffer if needed, applies the saved state, and
+redraws."
+  (let ((filters   (bookmark-prop-get bookmark 'filters))
+        (sort-key  (bookmark-prop-get bookmark 'sort-key))
+        (show-temp (bookmark-prop-get bookmark 'show-temp)))
+    (bookmark-gt-list)
+    (with-current-buffer bookmark-gt-list-buffer-name
+      (setq bookmark-gt-list--filters filters)
+      (setq tabulated-list-sort-key sort-key)
+      (setq bookmark-gt-list--show-temp show-temp)
+      (bookmark-gt-list--redraw-preserving-point))
+    (bookmark-gt-record-visit bookmark)
+    (bookmark-gt-skip-post-handler 'view)))
+
+(defun bookmark-gt-list-save-view-as-bookmark (name)
+  "Save the current list buffer's filters, sort, and show-temp under NAME.
+The stored view can be restored later via `bookmark-jump' /
+`bookmark-gt-jump' / the list buffer's ~RET~ on the view row."
+  (interactive "sSave view as: " bookmark-gt-list-mode)
+  (bookmark-gt-set-non-file
+   name 'bookmark-gt-handler-view-jump
+   (list (cons 'filters bookmark-gt-list--filters)
+         (cons 'sort-key tabulated-list-sort-key)
+         (cons 'show-temp bookmark-gt-list--show-temp))))
 
 (provide 'bookmark-gt-list)
 
