@@ -32,10 +32,11 @@
 ;; heading, PDF), a `tabulated-list-mode' buffer, and integration
 ;; with consult / marginalia / orderless when they are available.
 ;;
-;; Design principles are documented under ai/reimplement.org and
-;; ai/staging.org in the source repository.  In short: records are
-;; the only persistent mutable state, one registry per axis, and
+;; Design principles: records are the only persistent mutable
+;; state, one registry per axis (handlers, filters, sorts), and
 ;; bookmark files round-trip with built-in bookmark.el.
+;; Architectural notes for maintainers live under
+;; `ai/architecture.md' in the source repository.
 ;;
 ;; This file is the entry point.  It provides the master switch
 ;; `bookmark-gt-mode' and shared utilities used by the other

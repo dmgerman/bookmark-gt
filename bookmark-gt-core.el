@@ -310,8 +310,7 @@ stored `(NAME . DATA)' pair."
 ;; A record carrying the `bmkp-temp' alist key is a temp bookmark:
 ;; visible in `bookmark-alist' for the life of the Emacs session,
 ;; excluded from `bookmark-save' output.  Same key name as
-;; bookmark+'s `bmkp-temp' so bookmark files round-trip either way
-;; (per the data-compat design principle in ai/reimplement.org).
+;; bookmark+'s `bmkp-temp' so bookmark files round-trip either way.
 ;;
 ;; The save filter is installed via advice on `bookmark-save' —
 ;; `bookmark.el' has no extension hook there.  Install / uninstall is
