@@ -59,6 +59,10 @@
 ;; symbol lives in an external package that need not be present at
 ;; compile time, so it skips validation.
 (declare-function browsel-browser-tabs "ext:browsel")
+(declare-function browsel-connected-clients "ext:browsel")
+
+(defvar browsel-client-connected-functions)
+(defvar browsel-client-disconnected-functions)
 
 ;; Defined in `bookmark-gt-tags'; declared here so the byte-compiler
 ;; treats it as dynamic when the refresh loop let-binds it.
@@ -82,6 +86,16 @@ Value shape:
   :type '(choice (const :tag "Accept all" nil)
                  (regexp   :tag "URL regexp")
                  (function :tag "Predicate function"))
+  :group 'bookmark-gt)
+
+(defcustom bookmark-gt-browsel-tabs-debounce 0.3
+  "Seconds to coalesce browser connect/disconnect events before refreshing.
+A single connect or disconnect can arrive as several events in
+rapid succession (e.g. reload, multiple windows).  The connect
+and disconnect hooks schedule the refresh through a single timer;
+subsequent events during the debounce window fold into the same
+refresh."
+  :type 'number
   :group 'bookmark-gt)
 
 ;;;; Own-record predicate
@@ -200,30 +214,72 @@ re-entrancy."
               (bookmark-gt-browsel-tabs--store tab)
               (setq count (1+ count))))))
       (bookmark-gt-list-refresh)
-      (when (called-interactively-p 'interactive)
-        (message "Refreshed %d browser-tab bookmark(s)" count)))))
+      (message "Refreshed %d browser-tab bookmark(s)" count))))
 
 ;;;; Mode
 ;;
-;; No idle timer — refresh runs on demand: `g' in the list
-;; buffer, or `M-x bookmark-gt-browsel-tabs-refresh'.  Mode-on
-;; runs one immediate refresh.
+;; No idle timer.  The mode subscribes to browsel's
+;; `browsel-client-connected-functions' and
+;; `browsel-client-disconnected-functions' hooks and refreshes
+;; whenever a browser connects or disconnects.  Bursts of events
+;; (e.g. several tabs reloading at once) are coalesced through a
+;; single debounce timer.  Explicit `g' in the list buffer and
+;; `M-x bookmark-gt-browsel-tabs-refresh' still work on demand.
+
+(defvar bookmark-gt-browsel-tabs-mode)
+
+(defvar bookmark-gt-browsel-tabs--debounce-timer nil
+  "Pending debounce timer for a coalesced refresh, or nil.")
+
+(defun bookmark-gt-browsel-tabs--debounced-refresh ()
+  "Timer callback: run the coalesced refresh.
+Clears the debounce timer, then calls
+`bookmark-gt-browsel-tabs-refresh' if the mode is still on."
+  (setq bookmark-gt-browsel-tabs--debounce-timer nil)
+  (when bookmark-gt-browsel-tabs-mode
+    (bookmark-gt-browsel-tabs-refresh)))
+
+(defun bookmark-gt-browsel-tabs--schedule-refresh (&rest _)
+  "Schedule a debounced refresh, coalescing bursts of client events.
+Attached to `browsel-client-connected-functions' and
+`browsel-client-disconnected-functions'; ignores its arguments,
+which carry the client name.  When a refresh is already pending,
+this call folds into it."
+  (unless bookmark-gt-browsel-tabs--debounce-timer
+    (setq bookmark-gt-browsel-tabs--debounce-timer
+          (run-at-time bookmark-gt-browsel-tabs-debounce nil
+                       #'bookmark-gt-browsel-tabs--debounced-refresh))))
+
+(defun bookmark-gt-browsel-tabs--cancel-debounce-timer ()
+  "Cancel and forget any pending debounce timer."
+  (when bookmark-gt-browsel-tabs--debounce-timer
+    (cancel-timer bookmark-gt-browsel-tabs--debounce-timer)
+    (setq bookmark-gt-browsel-tabs--debounce-timer nil)))
 
 ;;;###autoload
 (define-minor-mode bookmark-gt-browsel-tabs-mode
   "Global minor mode that keeps browser-tab bookmarks in sync.
 
-When enabled, `bookmark-gt-browsel-tabs-refresh' runs once
-immediately; after that it runs on demand: `g' (revert) in the
-`*Bookmarks-gt List*' buffer, and `M-x
-bookmark-gt-browsel-tabs-refresh'.  There is no idle timer.
+When enabled, subscribes to browsel's
+`browsel-client-connected-functions' and
+`browsel-client-disconnected-functions' hooks and refreshes
+browser-tab bookmarks whenever a browser connects or disconnects.
+Bursts of events within `bookmark-gt-browsel-tabs-debounce'
+seconds are coalesced into one refresh.  On mode-on, if any
+browser is already connected, one refresh runs immediately;
+otherwise the first refresh runs when a browser connects.
 
-Turning the mode off clears any tab records added by this mode
-from the alist \(only records with our own handler symbol;
+Refreshes are also on-demand via `g' (revert) in the
+`*Bookmarks-gt List*' buffer and `M-x
+bookmark-gt-browsel-tabs-refresh'.
+
+Turning the mode off removes the hooks, cancels any pending
+debounced refresh, and clears any tab records added by this mode
+from the alist (only records with our own handler symbol;
 records from other browsel-related packages are untouched).
 
-Requires browsel to be installed and connected.  Enable is a
-`user-error' no-op when browsel is not loaded."
+Requires browsel to be installed.  Enable is a `user-error'
+no-op when browsel is not loaded."
   :global t
   :group 'bookmark-gt
   (cond
@@ -231,8 +287,18 @@ Requires browsel to be installed and connected.  Enable is a
     (setq bookmark-gt-browsel-tabs-mode nil)
     (user-error "Browsel is not loaded"))
    (bookmark-gt-browsel-tabs-mode
-    (bookmark-gt-browsel-tabs-refresh))
+    (add-hook 'browsel-client-connected-functions
+              #'bookmark-gt-browsel-tabs--schedule-refresh)
+    (add-hook 'browsel-client-disconnected-functions
+              #'bookmark-gt-browsel-tabs--schedule-refresh)
+    (when (browsel-connected-clients)
+      (bookmark-gt-browsel-tabs-refresh)))
    (t
+    (remove-hook 'browsel-client-connected-functions
+                 #'bookmark-gt-browsel-tabs--schedule-refresh)
+    (remove-hook 'browsel-client-disconnected-functions
+                 #'bookmark-gt-browsel-tabs--schedule-refresh)
+    (bookmark-gt-browsel-tabs--cancel-debounce-timer)
     (bookmark-gt-browsel-tabs--clear))))
 
 (provide 'bookmark-gt-browsel-tabs)
