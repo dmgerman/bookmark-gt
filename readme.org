@@ -775,9 +775,12 @@ strips common suffixes (~-bookmark-jump-handler~, ~-bookmark-jump~,
 segment.  So ~foo-bookmark-jump~ shows up as type "Foo" without
 any registration.  Its group defaults to ~other~.
 
-Type predicates: ~bookmark-gt-handler-file-p~, ~-url-p~, ~-eww-p~,
-~-dired-p~, ~-info-p~, ~-org-p~, ~-pdf-p~, ~-browser-tab-p~.
-Each does ~(eq (bookmark-gt-handler-type record) 'TYPE)~.
+Type predicates — one per registered type:
+~bookmark-gt-handler-file-p~, ~-url-p~, ~-eww-p~, ~-dired-p~,
+~-info-p~, ~-org-p~, ~-pdf-p~, ~-browser-tab-p~, ~-magit-p~,
+~-help-p~, ~-image-p~, ~-epub-p~, ~-function-p~,
+~-sequence-p~, ~-view-p~.  Each does
+~(eq (bookmark-gt-handler-type record) 'TYPE)~.
 
 ** Group registry
 

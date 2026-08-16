@@ -115,6 +115,38 @@
                               '((filename . "/tmp/f") (position . 1)))
     (should (bookmark-gt-handler-file-p (car bookmark-alist)))))
 
+(ert-deftest bookmark-gt-test-predicates-cover-every-registered-type ()
+  "Each registered type has a matching `bookmark-gt-handler-<type>-p'.
+A `bookmark-gt-' prefix on the type symbol is stripped when
+deriving the predicate name so namespaced types (e.g.
+`bookmark-gt-view') get a readable predicate (`-view-p').
+Prevents drift where a new type is registered but no predicate
+is added alongside it."
+  (dolist (entry bookmark-gt-handler-alist)
+    (let* ((type (plist-get (cdr entry) :type))
+           (short (and type
+                       (replace-regexp-in-string
+                        "\\`bookmark-gt-" "" (symbol-name type))))
+           (name (and short
+                      (intern (format "bookmark-gt-handler-%s-p" short)))))
+      (when type
+        (should (fboundp name))))))
+
+(ert-deftest bookmark-gt-test-added-predicates-recognize ()
+  "Smoke-test the six predicates added for completeness."
+  (bookmark-gt-test-with-clean-bookmarks
+    (dolist (case '((magit-p    magit--handle-bookmark)
+                    (help-p     help-bookmark-jump)
+                    (image-p    image-bookmark-jump)
+                    (epub-p     nov-bookmark-jump-handler)
+                    (function-p bookmark-gt-handler-function-jump)
+                    (sequence-p bookmark-gt-handler-sequence-jump)))
+      (let ((bookmark-alist nil))
+        (bookmark-gt-set-non-file (symbol-name (car case)) (cadr case) nil)
+        (should (funcall (intern (format "bookmark-gt-handler-%s"
+                                         (car case)))
+                         (car bookmark-alist)))))))
+
 ;;;; URL handler
 
 (ert-deftest bookmark-gt-test-url-jump-invokes-browse-url ()

@@ -990,9 +990,11 @@ strips common suffixes (‘-bookmark-jump-handler’, ‘-bookmark-jump’,
 segment.  So ‘foo-bookmark-jump’ shows up as type "Foo" without any
 registration.  Its group defaults to ‘other’.
 
-   Type predicates: ‘bookmark-gt-handler-file-p’, ‘-url-p’, ‘-eww-p’,
-‘-dired-p’, ‘-info-p’, ‘-org-p’, ‘-pdf-p’, ‘-browser-tab-p’.  Each does
-‘(eq (bookmark-gt-handler-type record) 'TYPE)’.
+   Type predicates — one per registered type:
+‘bookmark-gt-handler-file-p’, ‘-url-p’, ‘-eww-p’, ‘-dired-p’, ‘-info-p’,
+‘-org-p’, ‘-pdf-p’, ‘-browser-tab-p’, ‘-magit-p’, ‘-help-p’, ‘-image-p’,
+‘-epub-p’, ‘-function-p’, ‘-sequence-p’, ‘-view-p’.  Each does ‘(eq
+(bookmark-gt-handler-type record) 'TYPE)’.
 
 
 File: bookmark-gt.info,  Node: Group registry,  Next: Extension points,  Prev: Handler registry,  Up: Extension API
@@ -1274,15 +1276,15 @@ Node: Visit tracker36145
 Node: File-rename tracker36995
 Node: Extension API37982
 Node: Handler registry38183
-Node: Group registry40222
-Node: Extension points41875
-Node: Compatibility43571
-Node: Data compat with bookmark+43772
-Node: Migrating from bookmark+44902
-Node: Reference47000
-Node: Selected customization47163
-Node: Acknowledgements52144
-Node: License54029
+Node: Group registry40365
+Node: Extension points42018
+Node: Compatibility43714
+Node: Data compat with bookmark+43915
+Node: Migrating from bookmark+45045
+Node: Reference47143
+Node: Selected customization47306
+Node: Acknowledgements52287
+Node: License54172
 
 End Tag Table
 

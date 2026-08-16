@@ -328,6 +328,37 @@ handler is unknown (derive-fallback)."
   "Return non-nil when RECORD is any kind of browser-tab bookmark."
   (eq (bookmark-gt-handler-type record) 'browser-tab))
 
+(defun bookmark-gt-handler-magit-p (record)
+  "Return non-nil when RECORD was created by Magit."
+  (eq (bookmark-gt-handler-type record) 'magit))
+
+(defun bookmark-gt-handler-help-p (record)
+  "Return non-nil when RECORD was created by Help mode."
+  (eq (bookmark-gt-handler-type record) 'help))
+
+(defun bookmark-gt-handler-image-p (record)
+  "Return non-nil when RECORD is an image bookmark."
+  (eq (bookmark-gt-handler-type record) 'image))
+
+(defun bookmark-gt-handler-epub-p (record)
+  "Return non-nil when RECORD is an EPUB (`nov') bookmark."
+  (eq (bookmark-gt-handler-type record) 'epub))
+
+(defun bookmark-gt-handler-function-p (record)
+  "Return non-nil when RECORD is a function bookmark."
+  (eq (bookmark-gt-handler-type record) 'function))
+
+(defun bookmark-gt-handler-sequence-p (record)
+  "Return non-nil when RECORD is a sequence bookmark."
+  (eq (bookmark-gt-handler-type record) 'sequence))
+
+(defun bookmark-gt-handler-view-p (record)
+  "Return non-nil when RECORD is a saved view of the list buffer.
+The type symbol on the record is `bookmark-gt-view' — namespaced
+to avoid colliding with any third-party `view' type — but the
+predicate is unqualified for discoverability."
+  (eq (bookmark-gt-handler-type record) 'bookmark-gt-view))
+
 ;;;; Dired handler — bookmark-gt owns this one end-to-end
 ;;
 ;; The built-in Emacs's `dired.el' does not ship a bookmark handler;
