@@ -759,17 +759,14 @@ Returns the stored (NAME . DATA) pair."
 (defun bookmark-gt-handler-function-jump (bookmark)
   "Bookmark handler for function bookmark BOOKMARK.
 Runs the record's `function' prop (a symbol or lambda).  The
-`bookmark-gt-skip-post-handler' throw suppresses the annotation
-popup — visit tracking is handled by the after-jump hook, and
-the buffer displayed after jump is whatever the function left
-current."
+buffer displayed after jump is whatever the function left
+current; if the record has an annotation, it pops up as usual."
   (let ((fn (bookmark-prop-get bookmark 'function)))
     (unless fn
       (user-error "Function bookmark has no `function' property"))
     (unless (functionp fn)
       (user-error "Function bookmark's `function' is not callable: %S" fn))
-    (funcall fn)
-    (bookmark-gt-skip-post-handler 'function)))
+    (funcall fn)))
 
 ;;;###autoload
 (defun bookmark-gt-set-function (name fn &optional tags)
@@ -804,7 +801,8 @@ Returns the stored (NAME . DATA) pair."
 Replays the record's `kmacro' prop (a vector of key events) via
 `execute-kbd-macro'.  Honors `current-prefix-arg' as the repeat
 count.  Whatever buffer the macro leaves current is what the
-jump-via display step will show."
+jump-via display step will show; if the record has an
+annotation, it pops up as usual."
   (let ((mac (bookmark-prop-get bookmark 'kmacro)))
     (unless mac
       (user-error "Kmacro bookmark has no `kmacro' property"))
@@ -812,8 +810,7 @@ jump-via display step will show."
       (user-error
        "Kmacro bookmark's `kmacro' is not a key vector or string: %S"
        mac))
-    (execute-kbd-macro mac current-prefix-arg)
-    (bookmark-gt-skip-post-handler 'kmacro)))
+    (execute-kbd-macro mac current-prefix-arg)))
 
 (defun bookmark-gt--kmacro-named-p (sym)
   "Return non-nil when SYM names a keyboard macro.
