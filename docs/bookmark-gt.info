@@ -534,10 +534,49 @@ File: bookmark-gt.info,  Node: Dired bookmarks — bookmark-gt-handler-dired-jum
 --------------------------------------------------------
 
 The built-in ‘dired.el’ does not provide a bookmark handler.
-bookmark-gt provides one that calls ‘(dired FILENAME)’.  Records
-migrated from bookmark+ (‘bmkp-jump-dired’) are still recognized as
-Dired type via the registry alias; you can migrate them off bookmark+ by
-setting their ‘handler’ property to ‘bookmark-gt-handler-dired-jump’.
+bookmark-gt provides one that opens the recorded target and restores the
+buffer state.  The setter captures, and the jump handler restores:
+
+   • ‘dired-directory’ — the original value, so plain paths, wildcard
+     patterns (e.g.  ‘/tmp/*.el’), and explicit file lists round-trip
+     verbatim;
+   • ‘dired-marked’ — files marked in the buffer, keyed by mark
+     character (uses ‘dired-remember-marks’ / ‘dired-mark-remembered’ —
+     the same primitives bookmark+ uses);
+   • ‘dired-subdirs’ — subdirectories inserted with ‘i’;
+   • ‘dired-hidden-dirs’ — subdirectories currently hidden (‘$’);
+   • ‘dired-switches’ — ‘dired-actual-switches’ in effect.
+
+   The alist keys match bookmark+'s (‘bmkp-jump-dired’), so records
+interchange on disk in either direction: a Dired bookmark written by
+bookmark+ restores under bookmark-gt with all its state, and vice-versa.
+Records with the bookmark+ handler symbol classify as Dired via the
+registry alias; you can also convert them to bookmark-gt form with ‘M-x
+bookmark-gt-migrate-from-bookmark-plus’ (see *note Migrating from
+bookmark+::).
+
+  1. Virtual dired
+
+     Setting a bookmark from a virtual-dired buffer (‘M-x dired-virtual’
+     or the ‘V’ command in ‘dired-x’) additionally inlines the buffer's
+     textual listing under a ‘dired-listing’ key, and marks the record
+     with ‘dired-virtual t’.  On jump, the handler creates a fresh
+     buffer, inserts the listing, and calls ‘dired-virtual’ to
+     reconstruct the same view — even if the source directory no longer
+     exists.
+
+     This is not a bookmark+ compatibility feature: bookmark+ does not
+     preserve virtual-dired contents and re-opens the recorded directory
+     as real dired.  The bookmark-gt behavior is opt-in via the buffer
+     being virtual; you do nothing special to set one.
+
+     The listing is bounded by ‘bookmark-gt-dired-virtual-max-size’
+     (bytes; default 524288 = 512 KB). Setting a larger virtual-dired
+     buffer signals ‘user-error’ — raise the cap in the defcustom, or
+     bookmark a smaller portion.  The rationale for the cap: the
+     bookmark file is loaded whole at startup and rewritten whole on
+     every save, so an inlined multi-megabyte listing multiplies that
+     cost on every unrelated bookmark change.
 
 
 File: bookmark-gt.info,  Node: Function bookmarks — bookmark-gt-set-function,  Next: Sequence bookmarks — bookmark-gt-set-sequence,  Prev: Dired bookmarks — bookmark-gt-handler-dired-jump,  Up: Non-file bookmark types
@@ -1096,13 +1135,16 @@ fails when the function is not defined.
    • For URL records, copies ‘location’ to ‘url’ (bookmark-gt's
      convention) and drops ‘location’.
    • Strips bookmark+ bookkeeping props that have no bookmark-gt
-     meaning: ‘bmkp-gt-load-index’, ‘buffer-name’, ‘dired-directory’,
-     ‘dired-marked’, ‘dired-subdirs’, ‘dired-hidden-dirs’,
-     ‘dired-switches’, ‘front-context-region-string’,
-     ‘rear-context-region-string’, empty ‘annotation’, empty ‘tags’.
+     meaning: ‘bmkp-gt-load-index’, ‘buffer-name’,
+     ‘front-context-region-string’, ‘rear-context-region-string’, empty
+     ‘annotation’, empty ‘tags’.
    • Preserves ‘filename’, ‘position’, ‘front-context-string’,
      ‘rear-context-string’, ‘visits’, ‘last-visited’, ‘created’,
      ‘last-modified’.
+   • Preserves the Dired state keys ‘dired-directory’, ‘dired-marked’,
+     ‘dired-subdirs’, ‘dired-hidden-dirs’, ‘dired-switches’ —
+     bookmark-gt's Dired handler consumes them the same way bookmark+
+     did.
 
    Records already in bookmark-gt form (or plain file bookmarks with a
 nil handler) are left untouched.  Keep a copy of the bookmark file
@@ -1136,6 +1178,7 @@ Variable                               Default                               Wha
 —                                      —                                     (View bookmarks: no defcustom; save via ‘M-x bookmark-gt-set’ inside the list buffer.)
 ‘bookmark-gt-jump-name-max-width’      ‘40’                                  Character width at which the jump reader truncates bookmark names in each candidate row.
 ‘bookmark-gt-jump-default-sort’        ‘'mru’                                Sort order used by ‘bookmark-gt-jump’ when no ‘:sort-by’ is given.  Values: ‘'mru’ (most recently used), ‘'visits’, ‘nil’ (pool order).
+‘bookmark-gt-dired-virtual-max-size’   ‘524288’                              Maximum bytes of a virtual-dired buffer to inline in a Dired bookmark.  Exceeding this on ‘bookmark-gt-set’ signals ‘user-error’.
 ‘bookmark-gt-auto-update-interval’     ‘60’                                  Seconds of idle time between ticks of ‘bookmark-gt-auto-update-mode’; each tick refreshes bookmarks carrying ‘auto-update’.
 ‘bookmark-gt-track-renames’            ‘t’                                   When non-nil, ‘rename-file’ rewrites any bookmark whose ‘filename’ matched the source path to the destination.
 ‘bookmark-gt-default-tags’             ‘nil’                                 Under ‘bookmark-gt-default-tags-mode’, seeds the tag reader.  Value can be a string, a list of strings, or a function of the record; see the mode's section.
@@ -1213,32 +1256,33 @@ Node: Elisp signatures15855
 Node: Non-file bookmark types18611
 Node: URL bookmarks — bookmark-gt-set-url19121
 Node: Dired bookmarks — bookmark-gt-handler-dired-jump19855
-Node: Function bookmarks — bookmark-gt-set-function20551
-Node: Sequence bookmarks — bookmark-gt-set-sequence21360
-Node: File-type handlers — override the file-jump path per pattern22112
-Node: View bookmarks — save the list buffer's current view23646
-Node: Setting bookmarks24808
-Node: Tag reader25046
-Node: Same-name policy26051
-Node: Relocate change a bookmark's target28026
-Node: In-file behaviors29175
-Node: In-buffer cycling29404
-Node: Per-bookmark highlighting30404
-Node: Region bookmarks32361
-Node: Trackers33882
-Node: Visit tracker34058
-Node: File-rename tracker34908
-Node: Extension API35895
-Node: Handler registry36096
-Node: Group registry38135
-Node: Extension points39788
-Node: Compatibility41484
-Node: Data compat with bookmark+41685
-Node: Migrating from bookmark+42815
-Node: Reference44792
-Node: Selected customization44955
-Node: Acknowledgements49713
-Node: License51598
+Ref: Virtual dired21425
+Node: Function bookmarks — bookmark-gt-set-function22638
+Node: Sequence bookmarks — bookmark-gt-set-sequence23447
+Node: File-type handlers — override the file-jump path per pattern24199
+Node: View bookmarks — save the list buffer's current view25733
+Node: Setting bookmarks26895
+Node: Tag reader27133
+Node: Same-name policy28138
+Node: Relocate change a bookmark's target30113
+Node: In-file behaviors31262
+Node: In-buffer cycling31491
+Node: Per-bookmark highlighting32491
+Node: Region bookmarks34448
+Node: Trackers35969
+Node: Visit tracker36145
+Node: File-rename tracker36995
+Node: Extension API37982
+Node: Handler registry38183
+Node: Group registry40222
+Node: Extension points41875
+Node: Compatibility43571
+Node: Data compat with bookmark+43772
+Node: Migrating from bookmark+44902
+Node: Reference47000
+Node: Selected customization47163
+Node: Acknowledgements52144
+Node: License54029
 
 End Tag Table
 

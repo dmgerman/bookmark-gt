@@ -48,6 +48,8 @@
 (declare-function bookmark-gt-tags-read "bookmark-gt-tags")
 (declare-function bookmark-gt-default-tags--hook
                   "bookmark-gt-default-tags")
+(declare-function bookmark-gt--dired-collect-state
+                  "bookmark-gt-handlers")
 (defvar bookmark-gt-prompt-for-tags-flag)
 (defvar bookmark-gt-default-tags-mode)
 
@@ -183,7 +185,7 @@ Two records collide when they share handler and filename (nil
 equals nil; non-nil filenames compare via `file-equal-p' when
 both exist, otherwise `string=').  Returns nil when no
 collision."
-  (when-let ((existing (bookmark-get-bookmark name 'noerror)))
+  (when-let* ((existing (bookmark-get-bookmark name 'noerror)))
     (let ((h-old (bookmark-prop-get existing 'handler))
           (h-new (alist-get 'handler new-record))
           (f-old (bookmark-prop-get existing 'filename))
@@ -500,7 +502,7 @@ overlay per match."
                    (not (file-remote-p f))
                    (file-exists-p f)
                    (file-equal-p f path))
-          (when-let ((ov (bookmark-gt-highlight--make-overlay rec)))
+          (when-let* ((ov (bookmark-gt-highlight--make-overlay rec)))
             (push ov bookmark-gt-highlight--overlays)))))))
 
 (defun bookmark-gt-highlight--refresh-all-visible ()
@@ -839,7 +841,7 @@ is marked immediately after storage."
   (when (and (stringp name)
              (seq-some (lambda (pat) (string-match-p pat name))
                        bookmark-gt-auto-temp-names))
-    (when-let ((rec (bookmark-get-bookmark name 'noerror)))
+    (when-let* ((rec (bookmark-get-bookmark name 'noerror)))
       (bookmark-prop-set rec bookmark-gt-temp-key t))))
 
 ;;;; File-type handler dispatch
@@ -913,12 +915,25 @@ stored (NAME . DATA) pair."
          ;; bookmark-gt owns the Dired handler; when setting from a
          ;; Dired buffer, force our handler so the record is
          ;; unambiguous on disk regardless of what Dired's
-         ;; `bookmark-make-record-function' produced.
-         (record-data (if (derived-mode-p 'dired-mode)
-                          (cons (cons 'handler
-                                      'bookmark-gt-handler-dired-jump)
-                                (assq-delete-all 'handler record-data))
-                        record-data))
+         ;; `bookmark-make-record-function' produced.  Also splice
+         ;; in the dired state (marks, inserted/hidden subdirs, ls
+         ;; switches, `dired-directory') so jumps restore what the
+         ;; user saw.  Existing keys with the same name are dropped
+         ;; first so re-setting an already-dired record refreshes
+         ;; the captured state instead of accumulating stale copies.
+         (record-data
+          (if (derived-mode-p 'dired-mode)
+              (let* ((state (bookmark-gt--dired-collect-state))
+                     (state-keys (mapcar #'car state))
+                     (stripped (seq-remove
+                                (lambda (cell)
+                                  (memq (car-safe cell) state-keys))
+                                record-data))
+                     (rehandled (cons (cons 'handler
+                                            'bookmark-gt-handler-dired-jump)
+                                      (assq-delete-all 'handler stripped))))
+                (append rehandled state))
+            record-data))
          (suggested-name
           (or (and (stringp (car raw-record)) (car raw-record))
               (car (bookmark-prop-get raw-record 'defaults))

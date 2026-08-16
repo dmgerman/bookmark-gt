@@ -68,15 +68,14 @@
 (defconst bookmark-gt-migrate--strip-props
   '(bmkp-gt-load-index
     buffer-name
-    dired-directory
-    dired-marked
-    dired-subdirs
-    dired-hidden-dirs
-    dired-switches
     front-context-region-string
     rear-context-region-string)
   "Bookmark+ bookkeeping props removed from every migrated record.
-`created' and `last-modified' are kept — bookmark-gt uses both.")
+`created' and `last-modified' are kept — bookmark-gt uses both.
+The Dired state keys (`dired-directory', `dired-marked',
+`dired-subdirs', `dired-hidden-dirs', `dired-switches',
+`dired-virtual') are also kept — bookmark-gt's Dired handler
+consumes them just like bookmark+ did.")
 
 (defun bookmark-gt-migrate--rewrite-record (record)
   "Rewrite RECORD in place; return non-nil when a change was made."

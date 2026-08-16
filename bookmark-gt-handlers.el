@@ -331,25 +331,231 @@ handler is unknown (derive-fallback)."
 ;;;; Dired handler — bookmark-gt owns this one end-to-end
 ;;
 ;; The built-in Emacs's `dired.el' does not ship a bookmark handler;
-;; Dired bookmarks are a bookmark+ invention.  To let users
-;; migrate off bookmark+ without breaking their existing Dired
-;; records, this module ships its own trivial handler that just
-;; opens the record's `filename' in Dired.  It ignores the
-;; bookmark+-specific alist keys (`dired-marked', `dired-subdirs',
-;; `dired-hidden-dirs', `dired-switches') — those preserved
-;; state features can come back later if wanted; the primary
-;; contract (\"open the directory\") is honored.
+;; Dired bookmarks are a bookmark+ invention.  This module ships
+;; its own handler and captures the same state bookmark+ does,
+;; using the same alist keys and the same dired primitives
+;; (`dired-remember-marks', `dired-remember-hidden',
+;; `dired-mark-remembered'), so records interchange on disk:
+;;
+;;   `dired-directory'   Original `dired-directory' value — a
+;;                       string (plain path or wildcard), a
+;;                       (dirname . files) list, or a directory
+;;                       list.  Preferred on jump over `filename'.
+;;   `dired-marked'      Alist of (ABSOLUTE-FILENAME . MARK-CHAR)
+;;                       for lines whose mark is not space.
+;;   `dired-subdirs'     Inserted subdirectories (top excluded).
+;;                       Shape is a list of singleton lists
+;;                       ((DIR) (DIR) ...) — what bookmark+ writes
+;;                       and what `dired-insert-old-subdirs' reads.
+;;   `dired-hidden-dirs' Currently hidden subdirectories.
+;;   `dired-switches'    Value of `dired-actual-switches'.
+;;
+;; Two keys are bookmark-gt's own — bookmark+ does not record
+;; them and reopens virtual-dired buffers as real dired, which
+;; fails when the source is not a real directory:
+;;
+;;   `dired-virtual'     t when set from a virtual-dired buffer
+;;                       (detected via `revert-buffer-function'
+;;                       bound to `dired-virtual-revert').
+;;   `dired-listing'     For virtual dired only: the buffer's
+;;                       exact textual listing, captured with
+;;                       `buffer-string' and inlined in the
+;;                       record.  Restored on jump with
+;;                       `dired-virtual'.  Capped by
+;;                       `bookmark-gt-dired-virtual-max-size'.
+
+(defvar dired-actual-switches)
+(defvar dired-subdir-alist)
+(declare-function dired "dired" (dirname &optional switches))
+(declare-function dired-mode "dired" (&optional dirname switches))
+(declare-function dired-get-filename "dired"
+                  (&optional localp no-error-if-not-filep))
+(declare-function dired-goto-file "dired" (file))
+(declare-function dired-goto-subdir "dired-aux" (dir))
+(declare-function dired-hide-subdir "dired-aux" (arg))
+(declare-function dired-maybe-insert-subdir "dired-aux"
+                  (dirname &optional switches no-error-if-not-dir-p))
+(declare-function dired-subdir-hidden-p "dired" (dir))
+(declare-function dired-revert "dired" (&optional arg noconfirm))
+(declare-function dired-virtual "dired-x" (dirname &optional switches))
+(declare-function dired-remember-marks "dired" (beg end))
+(declare-function dired-mark-remembered "dired" (target))
+(declare-function dired-remember-hidden "dired" ())
+(declare-function dired-insert-old-subdirs "dired" (old-subdir-alist))
+
+(defcustom bookmark-gt-dired-virtual-max-size 524288
+  "Maximum size, in bytes, of a virtual-dired buffer to inline in a bookmark.
+Setting a bookmark from a `dired-virtual-mode' buffer captures
+the buffer's textual listing under the `dired-listing' key so
+the jump handler can recreate the buffer exactly.  When the
+listing exceeds this limit, `bookmark-gt-set' signals a
+`user-error' rather than embedding a large payload in the
+bookmark file — raise this value to allow the bookmark, or
+lower it to be more conservative.  The bookmark file is
+loaded whole at startup and rewritten whole on every save, so
+listings scale that cost with them."
+  :type 'natnum
+  :group 'bookmark-gt)
+
+(defun bookmark-gt--dired-remember-marks ()
+  "Return alist of (ABSOLUTE-FILENAME . MARK-CHAR) for the current Dired buffer.
+Shape is what `dired-remember-marks' returns.  Matches the format
+that bookmark+ writes so records interchange on disk."
+  (dired-remember-marks (point-min) (point-max)))
+
+(defun bookmark-gt--dired-collect-inserted-subdirs ()
+  "Return the inserted subdirectories of the current Dired buffer.
+Excludes the top-level directory (the last entry of
+`dired-subdir-alist').  Each element is a singleton list (DIR)
+— the same shape bookmark+ writes under `dired-subdirs' and
+that `dired-insert-old-subdirs' consumes on restore."
+  (when (bound-and-true-p dired-subdir-alist)
+    (mapcar (lambda (entry) (list (car entry)))
+            (cdr (reverse dired-subdir-alist)))))
+
+(defun bookmark-gt--dired-collect-hidden-subdirs ()
+  "Return the hidden subdirectories of the current Dired buffer.
+Delegates to `dired-remember-hidden' — same shape bookmark+
+records under `dired-hidden-dirs'."
+  (require 'dired-aux)
+  (when (fboundp 'dired-remember-hidden)
+    (save-excursion (dired-remember-hidden))))
+
+(defun bookmark-gt--dired-collect-state ()
+  "Return an alist of Dired state to splice into a bookmark record.
+Assumes the current buffer is in `dired-mode' (or a derived mode).
+Values that are nil/empty are omitted so records stay minimal.
+For a `dired-virtual-mode' buffer, also captures the raw
+listing under `dired-listing' so `dired-virtual' can rebuild
+the buffer on jump.  Signals `user-error' when that listing
+exceeds `bookmark-gt-dired-virtual-max-size'."
+  (require 'dired)
+  (let* ((dir dired-directory)
+         (marks (bookmark-gt--dired-remember-marks))
+         (subdirs (bookmark-gt--dired-collect-inserted-subdirs))
+         (hidden (bookmark-gt--dired-collect-hidden-subdirs))
+         (switches dired-actual-switches)
+         ;; `dired-virtual' does not derive a distinct major mode
+         ;; from `dired-mode' — the only reliable buffer-local
+         ;; signal it leaves is `revert-buffer-function' bound to
+         ;; `dired-virtual-revert'.
+         (virtual (eq revert-buffer-function 'dired-virtual-revert))
+         (listing (when virtual (buffer-string)))
+         (out nil))
+    (when (and listing
+               (> (string-bytes listing)
+                  bookmark-gt-dired-virtual-max-size))
+      (user-error
+       "Virtual-dired listing is %d bytes; exceeds `bookmark-gt-dired-virtual-max-size' (%d).  Raise the cap or skip"
+       (string-bytes listing)
+       bookmark-gt-dired-virtual-max-size))
+    (when dir       (push (cons 'dired-directory dir) out))
+    (when marks     (push (cons 'dired-marked marks) out))
+    (when subdirs   (push (cons 'dired-subdirs subdirs) out))
+    (when hidden    (push (cons 'dired-hidden-dirs hidden) out))
+    (when switches  (push (cons 'dired-switches switches) out))
+    (when virtual   (push (cons 'dired-virtual t) out))
+    (when listing   (push (cons 'dired-listing listing) out))
+    (nreverse out)))
+
+(defun bookmark-gt--dired-target (bookmark)
+  "Return the Dired target for BOOKMARK.
+Prefers the `dired-directory' alist entry so wildcard and
+explicit-file-list forms round-trip; falls back to `filename'."
+  (let ((dd (bookmark-prop-get bookmark 'dired-directory)))
+    (or dd (bookmark-gt-filename-of bookmark))))
+
+(defun bookmark-gt--dired-target-exists-p (target)
+  "Return non-nil when TARGET is a form `dired' can open."
+  (cond
+   ((stringp target)
+    (or (file-directory-p target)
+        ;; Wildcard: parent dir exists and target contains a glob char.
+        (and (string-match-p "[[*?]" target)
+             (file-directory-p (file-name-directory target)))))
+   ((consp target)
+    ;; Explicit-file-list form: (dirname . files) or (dirname file...).
+    (let ((base (if (stringp (car target)) (car target) nil)))
+      (or (null base) (file-directory-p base))))
+   (t nil)))
+
+(defun bookmark-gt--dired-mark-remembered (alist)
+  "Mark files in the current Dired buffer per ALIST.
+ALIST is the shape returned by `dired-remember-marks': entries
+of (ABSOLUTE-FILENAME . MARK-CHAR).  Delegates to
+`dired-mark-remembered' — the same primitive bookmark+ uses on
+jump, so any record that bookmark+ can restore, we can too."
+  (dired-mark-remembered alist))
+
+(defun bookmark-gt--dired-restore-virtual (bookmark target switches marks)
+  "Restore a virtual-dired BOOKMARK into a fresh buffer.
+TARGET, SWITCHES, MARKS are the recorded values.  Uses the
+inlined `dired-listing' when present; otherwise falls back to a
+real `dired' when TARGET is an existing directory, else errors."
+  (let ((listing (bookmark-prop-get bookmark 'dired-listing)))
+    (cond
+     (listing
+      (require 'dired-x)
+      (let* ((dir (cond ((stringp target) target)
+                        ((and (consp target) (stringp (car target)))
+                         (car target))
+                        (t default-directory)))
+             (buf (get-buffer-create
+                   (format "*Dired-virtual: %s*"
+                           (abbreviate-file-name dir)))))
+        (pop-to-buffer-same-window buf)
+        (let ((inhibit-read-only t))
+          (erase-buffer)
+          (insert listing))
+        (goto-char (point-min))
+        (dired-virtual (or dir default-directory) switches)
+        (when marks
+          (let ((inhibit-read-only t))
+            (bookmark-gt--dired-mark-remembered marks)))))
+     ((and (stringp target) (file-directory-p target))
+      (if switches (dired target switches) (dired target))
+      (when marks
+        (let ((inhibit-read-only t))
+          (bookmark-gt--dired-mark-remembered marks))))
+     (t
+      (user-error
+       "Virtual-dired bookmark has no inlined listing and target is unavailable: %S"
+       target)))))
 
 (defun bookmark-gt-handler-dired-jump (bookmark)
   "Bookmark handler for Dired bookmarks.
-Opens BOOKMARK's `filename' (a directory) via `dired'."
+Opens the directory recorded in BOOKMARK (from `dired-directory'
+when present, else `filename') via `dired'.  Then restores the
+recorded ls switches, inserted subdirectories, hidden
+subdirectories, and file marks — matching the state that was
+captured when the bookmark was set.  Bookmarks set from
+`dired-virtual-mode' are recreated from the inlined
+`dired-listing' when present."
   (require 'dired)
-  (let ((dir (bookmark-gt-filename-of bookmark)))
-    (unless dir
-      (user-error "Dired bookmark has no `filename' property"))
-    (unless (file-directory-p dir)
-      (user-error "Dired bookmark's `filename' is not a directory: %s" dir))
-    (dired dir)))
+  (let* ((target (bookmark-gt--dired-target bookmark))
+         (switches (bookmark-prop-get bookmark 'dired-switches))
+         (subdirs (bookmark-prop-get bookmark 'dired-subdirs))
+         (hidden (bookmark-prop-get bookmark 'dired-hidden-dirs))
+         (marks (bookmark-prop-get bookmark 'dired-marked))
+         (virtual (bookmark-prop-get bookmark 'dired-virtual)))
+    (unless target
+      (user-error "Dired bookmark has no `dired-directory' or `filename'"))
+    (cond
+     (virtual
+      (bookmark-gt--dired-restore-virtual bookmark target switches marks))
+     (t
+      (unless (bookmark-gt--dired-target-exists-p target)
+        (user-error "Dired bookmark's target does not exist: %S" target))
+      (if switches (dired target switches) (dired target))
+      (let ((inhibit-read-only t))
+        (when subdirs
+          (require 'dired-aux)
+          (dired-insert-old-subdirs subdirs))
+        (dolist (sub hidden)
+          (when (ignore-errors (dired-goto-subdir sub))
+            (ignore-errors (dired-hide-subdir 1))))
+        (when marks
+          (bookmark-gt--dired-mark-remembered marks)))))))
 
 ;;;; URL handler — bookmark-gt owns this one end-to-end
 

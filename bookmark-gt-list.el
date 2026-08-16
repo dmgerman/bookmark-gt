@@ -346,7 +346,7 @@ leaves the state alist nil (defaults apply)."
 (defun bookmark-gt-list--state-apply ()
   "Apply `bookmark-gt-list--state' to the current buffer.
 No-op when the state alist is empty."
-  (when-let ((v (alist-get 'sort-key bookmark-gt-list--state)))
+  (when-let* ((v (alist-get 'sort-key bookmark-gt-list--state)))
     (setq tabulated-list-sort-key v))
   (when (assq 'show-temp bookmark-gt-list--state)
     (setq bookmark-gt-list--show-temp
@@ -509,7 +509,7 @@ Sorting: click a column header, or press `S' for column-at-point sort.
 
 (defun bookmark-gt-list--name-at-point ()
   "Return the visible name of the record at point, or nil."
-  (when-let ((rec (tabulated-list-get-id)))
+  (when-let* ((rec (tabulated-list-get-id)))
     (bookmark-gt-display-name (car rec))))
 
 (defun bookmark-gt-list--goto-name (name)

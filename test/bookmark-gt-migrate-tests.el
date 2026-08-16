@@ -73,7 +73,9 @@
 ;;;; Bookkeeping strip
 
 (ert-deftest bookmark-gt-migrate-test-strips-bookmark-plus-props ()
-  "Bookmark+ bookkeeping keys are removed from migrated records."
+  "Bookmark+ bookkeeping keys are removed from migrated records.
+The Dired state keys are preserved — bookmark-gt's Dired handler
+consumes them the same way bookmark+ did."
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-migrate-test--push
      "d" '((handler . bmkp-jump-dired)
@@ -89,11 +91,13 @@
            (rear-context-region-string)))
     (bookmark-gt-migrate-from-bookmark-plus)
     (let ((keys (mapcar #'car (cdr (assoc "d" bookmark-alist)))))
-      (dolist (removed '(bmkp-gt-load-index buffer-name dired-directory
-                         dired-marked dired-subdirs dired-hidden-dirs
-                         dired-switches front-context-region-string
+      (dolist (removed '(bmkp-gt-load-index buffer-name
+                         front-context-region-string
                          rear-context-region-string))
-        (should-not (memq removed keys))))))
+        (should-not (memq removed keys)))
+      (dolist (kept '(dired-directory dired-marked dired-subdirs
+                      dired-hidden-dirs dired-switches))
+        (should (memq kept keys))))))
 
 (ert-deftest bookmark-gt-migrate-test-strips-empty-annotation-and-tags ()
   (bookmark-gt-test-with-clean-bookmarks
