@@ -101,6 +101,11 @@
   "Face for the Name column of view bookmarks."
   :group 'bookmark-gt)
 
+(defface bookmark-gt-face-kmacro
+  '((t :inherit font-lock-constant-face))
+  "Face for the Name column of keyboard-macro bookmarks."
+  :group 'bookmark-gt)
+
 (defface bookmark-gt-face-group
   '((t :inherit font-lock-type-face))
   "Face for the Group column in the bookmark list."
@@ -359,6 +364,10 @@ to avoid colliding with any third-party `view' type — but the
 predicate is unqualified for discoverability."
   (eq (bookmark-gt-handler-type record) 'bookmark-gt-view))
 
+(defun bookmark-gt-handler-kmacro-p (record)
+  "Return non-nil when RECORD is a keyboard-macro bookmark."
+  (eq (bookmark-gt-handler-type record) 'kmacro))
+
 ;;;; Dired handler — bookmark-gt owns this one end-to-end
 ;;
 ;; The built-in Emacs's `dired.el' does not ship a bookmark handler;
@@ -593,13 +602,13 @@ captured when the bookmark was set.  Bookmarks set from
 (defun bookmark-gt-handler-url-jump (bookmark)
   "Bookmark handler for URL bookmark BOOKMARK.
 Opens the URL via `browse-url' and throws
-`bookmark-gt-skip-post-handler' to suppress the built-in
-post-jump popup."
+`bookmark-gt-skip-post-handler' to suppress the annotation
+popup, which would otherwise pull window-manager focus back
+to Emacs after the browser has been raised."
   (let ((url (bookmark-gt-url-of bookmark)))
     (unless url
       (user-error "URL bookmark has no `url' or `location' property"))
     (browse-url url)
-    (bookmark-gt-record-visit bookmark)
     (bookmark-gt-skip-post-handler 'url)))
 
 ;;;###autoload
@@ -738,19 +747,28 @@ Returns the stored (NAME . DATA) pair."
        :face 'bookmark-gt-face-sequence :narrow-char ?Q
        :doc "Bookmark that jumps each of a list of bookmarks in order."))
 
+;; Keyboard-macro bookmarks — jump replays a stored key vector.
+(bookmark-gt-handler-register
+ '(bookmark-gt-handler-kmacro-jump)
+ (list :type 'kmacro :name "Kmacro" :group 'other
+       :face 'bookmark-gt-face-kmacro :narrow-char ?K
+       :doc "Bookmark that replays a keyboard macro on jump."))
+
 ;;;; Function bookmarks — jump runs an arbitrary callable
 
 (defun bookmark-gt-handler-function-jump (bookmark)
   "Bookmark handler for function bookmark BOOKMARK.
-Runs the record's `function' prop (a symbol or lambda) and
-throws `bookmark-gt-skip-post-handler'."
+Runs the record's `function' prop (a symbol or lambda).  The
+`bookmark-gt-skip-post-handler' throw suppresses the annotation
+popup — visit tracking is handled by the after-jump hook, and
+the buffer displayed after jump is whatever the function left
+current."
   (let ((fn (bookmark-prop-get bookmark 'function)))
     (unless fn
       (user-error "Function bookmark has no `function' property"))
     (unless (functionp fn)
       (user-error "Function bookmark's `function' is not callable: %S" fn))
     (funcall fn)
-    (bookmark-gt-record-visit bookmark)
     (bookmark-gt-skip-post-handler 'function)))
 
 ;;;###autoload
@@ -771,18 +789,153 @@ Returns the stored (NAME . DATA) pair."
     (bookmark-gt-set-non-file
      name 'bookmark-gt-handler-function-jump props)))
 
+;;;; Keyboard-macro bookmarks — jump replays the recorded key vector
+;;
+;; A distinct type from function bookmarks.  bookmark+ overloads the
+;; function-bookmark handler (`bmkp-jump-function' dispatches on
+;; whether the payload is a callable or a vector), so its records
+;; classify as \"Function\" in the list buffer regardless.  We
+;; keep macros separate so the list buffer / narrow / filter can
+;; distinguish them.  Trade-off: on-disk records are NOT
+;; interchangeable with bookmark+'s macro bookmarks.
+
+(defun bookmark-gt-handler-kmacro-jump (bookmark)
+  "Bookmark handler for keyboard-macro bookmark BOOKMARK.
+Replays the record's `kmacro' prop (a vector of key events) via
+`execute-kbd-macro'.  Honors `current-prefix-arg' as the repeat
+count.  Whatever buffer the macro leaves current is what the
+jump-via display step will show."
+  (let ((mac (bookmark-prop-get bookmark 'kmacro)))
+    (unless mac
+      (user-error "Kmacro bookmark has no `kmacro' property"))
+    (unless (or (vectorp mac) (stringp mac))
+      (user-error
+       "Kmacro bookmark's `kmacro' is not a key vector or string: %S"
+       mac))
+    (execute-kbd-macro mac current-prefix-arg)
+    (bookmark-gt-skip-post-handler 'kmacro)))
+
+(defun bookmark-gt--kmacro-named-p (sym)
+  "Return non-nil when SYM names a keyboard macro.
+A symbol qualifies when its `symbol-function' is a string or
+vector (a legacy defined-kbd-macro) or when it carries a
+non-nil `kmacro' property (a modern `kmacro' object registered
+via `kmacro-name-last-macro')."
+  (and (symbolp sym)
+       (fboundp sym)
+       (or (stringp (symbol-function sym))
+           (vectorp (symbol-function sym))
+           (get sym 'kmacro))))
+
+(declare-function kmacro-p "kmacro" (x))
+;; `kmacro--keys' is a `cl-defstruct' accessor generated at load
+;; time; check-declare cannot see it as a `defun', so we pass the
+;; FILEONLY flag (fourth arg t) to skip the existence check.
+(declare-function kmacro--keys "kmacro" (kmacro) t)
+
+(defun bookmark-gt--kmacro-as-vector (macro)
+  "Return MACRO as a key vector suitable for `execute-kbd-macro'.
+MACRO may be a vector, a string (converted with
+`read-kbd-macro'), a `kmacro' object (unwrapped via
+`kmacro--keys' — Emacs' only accessor for the key sequence, so
+we live with the internal-name marker), or a symbol naming a
+keyboard macro (its `kmacro' property or `symbol-function' is
+consulted recursively)."
+  (cond
+   ((vectorp macro) macro)
+   ((stringp macro)
+    (read-kbd-macro macro 'need-vector))
+   ((and (fboundp 'kmacro-p) (kmacro-p macro))
+    (kmacro--keys macro))
+   ((and (symbolp macro) (get macro 'kmacro))
+    (bookmark-gt--kmacro-as-vector (get macro 'kmacro)))
+   ((symbolp macro)
+    (bookmark-gt--kmacro-as-vector (symbol-function macro)))
+   (t
+    (user-error "Cannot convert to key vector: %S" macro))))
+
+(defconst bookmark-gt--kmacro-last-sentinel "[last-kbd-macro]"
+  "Completion candidate that represents `last-kbd-macro'.
+Bracketed so it cannot collide with any real symbol name.")
+
+(defun bookmark-gt--kmacro-named-symbols ()
+  "Return the list of symbols that name a keyboard macro."
+  (let (out)
+    (mapatoms (lambda (s) (when (bookmark-gt--kmacro-named-p s)
+                            (push s out))))
+    out))
+
+(defun bookmark-gt--kmacro-read ()
+  "Interactively read a keyboard macro.
+Presents named kmacros plus a `[last-kbd-macro]' sentinel in a
+single `completing-read'.  The sentinel is the default when
+`last-kbd-macro' is set; otherwise the first named kmacro is.
+Returns the selected macro (a symbol, or `last-kbd-macro'
+resolved to its vector value).  Signals `user-error' when
+there is nothing to pick."
+  (let* ((last-avail (and (boundp 'last-kbd-macro) last-kbd-macro))
+         (named (bookmark-gt--kmacro-named-symbols))
+         (candidates (append (and last-avail
+                                  (list bookmark-gt--kmacro-last-sentinel))
+                             (mapcar #'symbol-name named)))
+         (default (cond (last-avail bookmark-gt--kmacro-last-sentinel)
+                        (named (symbol-name (car named)))
+                        (t (user-error
+                            "No `last-kbd-macro' defined and no named keyboard macros")))))
+    (let ((pick (completing-read
+                 (format-prompt "Keyboard macro" default)
+                 candidates nil t nil nil default)))
+      (if (equal pick bookmark-gt--kmacro-last-sentinel)
+          last-kbd-macro
+        (intern pick)))))
+
+;;;###autoload
+(defun bookmark-gt-set-kmacro (name macro &optional tags)
+  "Store a keyboard-macro bookmark called NAME whose jump replays MACRO.
+Interactive: prompts for the macro via a single completion over
+the current named keyboard macros plus a `[last-kbd-macro]'
+sentinel that stands for the anonymous most-recent macro.  The
+sentinel is the default when `last-kbd-macro' is defined; else
+the first named macro is.  Errors when neither exists.
+
+Named kmacros are any symbols whose `symbol-function' is a
+string or vector, or which carry a `kmacro' property (as
+produced by `kmacro-name-last-macro').
+
+MACRO is stored under the `kmacro' alist key as a key vector.
+TAGS is an optional initial tag list; when omitted, the
+tag-reader hook decides.
+
+Returns the stored (NAME . DATA) pair."
+  (interactive
+   (let* ((mac (bookmark-gt--kmacro-read))
+          (default-name (if (symbolp mac) (symbol-name mac) "kmacro"))
+          (name (read-string
+                 (format-prompt "Kmacro bookmark name" default-name)
+                 nil nil default-name)))
+     (list name mac nil)))
+  (let* ((vec (bookmark-gt--kmacro-as-vector macro))
+         (props (list (cons 'kmacro vec))))
+    (when tags
+      (push (cons 'tags tags) props))
+    (bookmark-gt-set-non-file
+     name 'bookmark-gt-handler-kmacro-jump props)))
+
 ;;;; Sequence bookmarks — jump each of a list of bookmarks in order
 
 (defun bookmark-gt-handler-sequence-jump (bookmark)
   "Bookmark handler for sequence bookmark BOOKMARK.
-Jump to each name in the record's `sequence' prop in order,
-then throw `bookmark-gt-skip-post-handler'."
+Jump to each name in the record's `sequence' prop in order.
+Whatever buffer the last jump leaves current is what the
+jump-via display step will show.  Throws
+`bookmark-gt-skip-post-handler' to suppress the annotation
+popup for the sequence record itself (annotations of the
+member bookmarks pop up via their own jumps as usual)."
   (let ((names (bookmark-prop-get bookmark 'sequence)))
     (unless (listp names)
       (user-error "Sequence bookmark's `sequence' is not a list"))
     (dolist (name names)
       (bookmark-jump name))
-    (bookmark-gt-record-visit bookmark)
     (bookmark-gt-skip-post-handler 'sequence)))
 
 ;;;###autoload

@@ -192,7 +192,7 @@ data columns.
 | 1   | ~^~    | Auto-update: ~^~ if the record carries the ~auto-update~ prop, blank else           |
 | 2   | ~t~    | Temp: ~t~ if the record carries ~bmkp-temp~, blank else                             |
 | 3   | Name   | Truncated at ~bookmark-gt-list-name-width~ (default 32) with an ellipsis            |
-| 4   | Type   | From the handler registry — File, URL, EWW, Dired, Info, Org, PDF, BrowserTab, Function, Sequence, BkView, ... |
+| 4   | Type   | From the handler registry — File, URL, EWW, Dired, Info, Org, PDF, BrowserTab, Function, Sequence, Kmacro, BkView, ... |
 | 5   | Group  | Aggregate category — Web, File, Doc, Code, Media, Other                             |
 | 6   | Tags   | ~,~-joined, truncated at ~bookmark-gt-list-tags-width~ (default 24)                  |
 | 7   | Loc    | ~filename~, or the URL if non-file                                                  |
@@ -444,6 +444,40 @@ Elisp:
 (bookmark-gt-set-function "flip-theme"
                           (lambda () (my-toggle-theme)))
 #+end_src
+
+*** Keyboard-macro bookmarks — ~bookmark-gt-set-kmacro~
+
+A kmacro bookmark stores a key-event vector under the
+~kmacro~ alist key and replays it on jump via
+~execute-kbd-macro~ (with ~current-prefix-arg~ as the repeat
+count).
+
+Interactive: prompts for the macro via a single completion
+whose candidates are the current named keyboard macros plus
+a ~[last-kbd-macro]~ sentinel that stands for the anonymous
+most-recent macro.  The sentinel is the default when
+~last-kbd-macro~ is defined; otherwise the first named macro
+is the default.  Errors when neither exists.
+
+Named keyboard macros are any symbols whose ~symbol-function~
+is a string or vector, or which carry a ~kmacro~ property (as
+produced by ~M-x kmacro-name-last-macro~).
+
+Elisp:
+
+#+begin_src emacs-lisp
+(bookmark-gt-set-kmacro "type-hi" [?h ?i])
+(bookmark-gt-set-kmacro "type-abc" "abc")   ; parsed by `read-kbd-macro'
+#+end_src
+
+Unlike bookmark+, which overloads the function-bookmark
+handler (its ~bmkp-jump-function~ dispatches by payload type),
+bookmark-gt gives kmacros their own type and handler so the
+list buffer, narrow, and filter can distinguish them.
+Trade-off: kmacro records are NOT interchangeable on disk with
+bookmark+ (a bookmark+ macro record still classifies as Function
+under bookmark-gt because the record's handler symbol is
+~bmkp-jump-function~).
 
 *** Sequence bookmarks — ~bookmark-gt-set-sequence~
 
@@ -779,7 +813,7 @@ Type predicates — one per registered type:
 ~bookmark-gt-handler-file-p~, ~-url-p~, ~-eww-p~, ~-dired-p~,
 ~-info-p~, ~-org-p~, ~-pdf-p~, ~-browser-tab-p~, ~-magit-p~,
 ~-help-p~, ~-image-p~, ~-epub-p~, ~-function-p~,
-~-sequence-p~, ~-view-p~.  Each does
+~-sequence-p~, ~-kmacro-p~, ~-view-p~.  Each does
 ~(eq (bookmark-gt-handler-type record) 'TYPE)~.
 
 ** Group registry

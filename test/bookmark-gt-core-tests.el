@@ -370,5 +370,59 @@ records for the round-trip."
                          (bookmark-get-bookmark "org-capture-last-stored"))))
         (advice-remove 'bookmark-store #'bookmark-gt--auto-temp-advice)))))
 
+;;;; jump-via override: skip only annotation, not display
+
+(defun bookmark-gt-core-tests--handler-that-opens-buffer (_bookmark)
+  "Test handler: switch to a fresh buffer, then throw skip-post-handler.
+Emulates the shape of the kmacro / function handlers: they leave
+`current-buffer' pointing at their target, then throw.  The
+override must still call the display-function on that target
+after the throw."
+  (let ((buf (generate-new-buffer " *bg-target-test*")))
+    (switch-to-buffer buf)
+    (insert "target")
+    (bookmark-gt-skip-post-handler 'test)))
+
+(ert-deftest bookmark-gt-jump-via-override-displays-buffer-after-throw ()
+  "The override's throw must not skip the display step.
+Regression test for the reported bug where a kmacro bookmark
+that ran `find-file' did open the target Dired buffer but the
+buffer was never displayed because the throw jumped out of
+`bookmark--jump-via' before `funcall display-function' ran."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-set-non-file
+     "bg-throw" 'bookmark-gt-core-tests--handler-that-opens-buffer nil)
+    (let ((was-enabled bookmark-gt-mode))
+      (unwind-protect
+          (progn
+            (unless was-enabled (bookmark-gt-mode 1))
+            (bookmark-jump "bg-throw")
+            (let ((buf (get-buffer " *bg-target-test*")))
+              (unwind-protect
+                  (progn
+                    (should (buffer-live-p buf))
+                    (should (eq (window-buffer (selected-window)) buf)))
+                (when (buffer-live-p buf) (kill-buffer buf)))))
+        (unless was-enabled (bookmark-gt-mode -1))))))
+
+(ert-deftest bookmark-gt-jump-via-override-runs-after-jump-hook-after-throw ()
+  "The override's throw must not skip `bookmark-after-jump-hook'."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-set-non-file
+     "bg-throw-hook"
+     'bookmark-gt-core-tests--handler-that-opens-buffer nil)
+    (let ((was-enabled bookmark-gt-mode)
+          (ran nil))
+      (unwind-protect
+          (progn
+            (unless was-enabled (bookmark-gt-mode 1))
+            (add-hook 'bookmark-after-jump-hook
+                      (lambda () (setq ran t)))
+            (bookmark-jump "bg-throw-hook")
+            (should ran))
+        (let ((buf (get-buffer " *bg-target-test*")))
+          (when (buffer-live-p buf) (kill-buffer buf)))
+        (unless was-enabled (bookmark-gt-mode -1))))))
+
 (provide 'bookmark-gt-core-tests)
 ;;; bookmark-gt-core-tests.el ends here

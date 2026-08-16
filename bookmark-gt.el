@@ -72,7 +72,7 @@ bookmark-gt*.el file by scripts/update-version.sh; the CI target
   (cond
    (bookmark-gt-mode
     (advice-add 'bookmark-save     :around #'bookmark-gt--save-filter-advice)
-    (advice-add 'bookmark--jump-via :around #'bookmark-gt--jump-via-catch-advice)
+    (advice-add 'bookmark--jump-via :override #'bookmark-gt--jump-via-override)
     (advice-add 'rename-file       :around #'bookmark-gt--rename-file-advice)
     (advice-add 'bookmark-default-handler
                 :around #'bookmark-gt--file-type-handler-advice)
@@ -88,7 +88,7 @@ bookmark-gt*.el file by scripts/update-version.sh; the CI target
     (bookmark-gt-jump--install-marginalia))
    (t
     (advice-remove 'bookmark-save     #'bookmark-gt--save-filter-advice)
-    (advice-remove 'bookmark--jump-via #'bookmark-gt--jump-via-catch-advice)
+    (advice-remove 'bookmark--jump-via #'bookmark-gt--jump-via-override)
     (advice-remove 'rename-file       #'bookmark-gt--rename-file-advice)
     (advice-remove 'bookmark-default-handler
                    #'bookmark-gt--file-type-handler-advice)

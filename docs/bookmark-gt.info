@@ -73,6 +73,7 @@ Non-file bookmark types
 * URL bookmarks — bookmark-gt-set-url::
 * Dired bookmarks — bookmark-gt-handler-dired-jump::
 * Function bookmarks — bookmark-gt-set-function::
+* Keyboard-macro bookmarks — bookmark-gt-set-kmacro::
 * Sequence bookmarks — bookmark-gt-set-sequence::
 * File-type handlers — override the file-jump path per pattern::
 * View bookmarks — save the list buffer's current view::
@@ -322,12 +323,12 @@ File: bookmark-gt.info,  Node: Columns,  Next: Keys,  Up: The *Bookmarks-gt List
 -------------
 
 Col   Header   Meaning
---------------------------------------------------------------------------------------------------------------------------------
+----------------------------------------------------------------------------------------------------------------------------------------
 0     ‘*’      Selection: ‘*’ if marked with ‘m’, ‘D’ if flagged for deletion with ‘d’, blank else
 1     ‘^’      Auto-update: ‘^’ if the record carries the ‘auto-update’ prop, blank else
 2     ‘t’      Temp: ‘t’ if the record carries ‘bmkp-temp’, blank else
 3     Name     Truncated at ‘bookmark-gt-list-name-width’ (default 32) with an ellipsis
-4     Type     From the handler registry — File, URL, EWW, Dired, Info, Org, PDF, BrowserTab, Function, Sequence, BkView, ...
+4     Type     From the handler registry — File, URL, EWW, Dired, Info, Org, PDF, BrowserTab, Function, Sequence, Kmacro, BkView, ...
 5     Group    Aggregate category — Web, File, Doc, Code, Media, Other
 6     Tags     ‘,’-joined, truncated at ‘bookmark-gt-list-tags-width’ (default 24)
 7     Loc      ‘filename’, or the URL if non-file
@@ -502,6 +503,7 @@ File: bookmark-gt.info,  Node: Non-file bookmark types,  Prev: Jump reader bookm
 * URL bookmarks — bookmark-gt-set-url::
 * Dired bookmarks — bookmark-gt-handler-dired-jump::
 * Function bookmarks — bookmark-gt-set-function::
+* Keyboard-macro bookmarks — bookmark-gt-set-kmacro::
 * Sequence bookmarks — bookmark-gt-set-sequence::
 * File-type handlers — override the file-jump path per pattern::
 * View bookmarks — save the list buffer's current view::
@@ -579,7 +581,7 @@ bookmark+::).
      cost on every unrelated bookmark change.
 
 
-File: bookmark-gt.info,  Node: Function bookmarks — bookmark-gt-set-function,  Next: Sequence bookmarks — bookmark-gt-set-sequence,  Prev: Dired bookmarks — bookmark-gt-handler-dired-jump,  Up: Non-file bookmark types
+File: bookmark-gt.info,  Node: Function bookmarks — bookmark-gt-set-function,  Next: Keyboard-macro bookmarks — bookmark-gt-set-kmacro,  Prev: Dired bookmarks — bookmark-gt-handler-dired-jump,  Up: Non-file bookmark types
 
 3.3.3 Function bookmarks — ‘bookmark-gt-set-function’
 -----------------------------------------------------
@@ -600,9 +602,43 @@ A function bookmark stores a callable (a symbol or lambda) under the
                                (lambda () (my-toggle-theme)))
 
 
-File: bookmark-gt.info,  Node: Sequence bookmarks — bookmark-gt-set-sequence,  Next: File-type handlers — override the file-jump path per pattern,  Prev: Function bookmarks — bookmark-gt-set-function,  Up: Non-file bookmark types
+File: bookmark-gt.info,  Node: Keyboard-macro bookmarks — bookmark-gt-set-kmacro,  Next: Sequence bookmarks — bookmark-gt-set-sequence,  Prev: Function bookmarks — bookmark-gt-set-function,  Up: Non-file bookmark types
 
-3.3.4 Sequence bookmarks — ‘bookmark-gt-set-sequence’
+3.3.4 Keyboard-macro bookmarks — ‘bookmark-gt-set-kmacro’
+---------------------------------------------------------
+
+A kmacro bookmark stores a key-event vector under the ‘kmacro’ alist key
+and replays it on jump via ‘execute-kbd-macro’ (with
+‘current-prefix-arg’ as the repeat count).
+
+   Interactive: prompts for the macro via a single completion whose
+candidates are the current named keyboard macros plus a
+‘[last-kbd-macro]’ sentinel that stands for the anonymous most-recent
+macro.  The sentinel is the default when ‘last-kbd-macro’ is defined;
+otherwise the first named macro is the default.  Errors when neither
+exists.
+
+   Named keyboard macros are any symbols whose ‘symbol-function’ is a
+string or vector, or which carry a ‘kmacro’ property (as produced by
+‘M-x kmacro-name-last-macro’).
+
+   Elisp:
+
+     (bookmark-gt-set-kmacro "type-hi" [?h ?i])
+     (bookmark-gt-set-kmacro "type-abc" "abc")   ; parsed by `read-kbd-macro'
+
+   Unlike bookmark+, which overloads the function-bookmark handler (its
+‘bmkp-jump-function’ dispatches by payload type), bookmark-gt gives
+kmacros their own type and handler so the list buffer, narrow, and
+filter can distinguish them.  Trade-off: kmacro records are NOT
+interchangeable on disk with bookmark+ (a bookmark+ macro record still
+classifies as Function under bookmark-gt because the record's handler
+symbol is ‘bmkp-jump-function’).
+
+
+File: bookmark-gt.info,  Node: Sequence bookmarks — bookmark-gt-set-sequence,  Next: File-type handlers — override the file-jump path per pattern,  Prev: Keyboard-macro bookmarks — bookmark-gt-set-kmacro,  Up: Non-file bookmark types
+
+3.3.5 Sequence bookmarks — ‘bookmark-gt-set-sequence’
 -----------------------------------------------------
 
 A sequence bookmark stores a list of bookmark names under the ‘sequence’
@@ -619,7 +655,7 @@ bookmark names one at a time until you enter empty input.
 
 File: bookmark-gt.info,  Node: File-type handlers — override the file-jump path per pattern,  Next: View bookmarks — save the list buffer's current view,  Prev: Sequence bookmarks — bookmark-gt-set-sequence,  Up: Non-file bookmark types
 
-3.3.5 File-type handlers — override the file-jump path per pattern
+3.3.6 File-type handlers — override the file-jump path per pattern
 ------------------------------------------------------------------
 
 ‘bookmark-gt-file-type-handlers’ is an alist mapping a filename regexp
@@ -652,7 +688,7 @@ and removed when the mode turns off.
 
 File: bookmark-gt.info,  Node: View bookmarks — save the list buffer's current view,  Prev: File-type handlers — override the file-jump path per pattern,  Up: Non-file bookmark types
 
-3.3.6 View bookmarks — save the list buffer's current view
+3.3.7 View bookmarks — save the list buffer's current view
 ----------------------------------------------------------
 
 A view bookmark captures the presentation state of the ‘*Bookmarks-gt
@@ -993,8 +1029,8 @@ registration.  Its group defaults to ‘other’.
    Type predicates — one per registered type:
 ‘bookmark-gt-handler-file-p’, ‘-url-p’, ‘-eww-p’, ‘-dired-p’, ‘-info-p’,
 ‘-org-p’, ‘-pdf-p’, ‘-browser-tab-p’, ‘-magit-p’, ‘-help-p’, ‘-image-p’,
-‘-epub-p’, ‘-function-p’, ‘-sequence-p’, ‘-view-p’.  Each does ‘(eq
-(bookmark-gt-handler-type record) 'TYPE)’.
+‘-epub-p’, ‘-function-p’, ‘-sequence-p’, ‘-kmacro-p’, ‘-view-p’.  Each
+does ‘(eq (bookmark-gt-handler-type record) 'TYPE)’.
 
 
 File: bookmark-gt.info,  Node: Group registry,  Next: Extension points,  Prev: Handler registry,  Up: Extension API
@@ -1241,50 +1277,51 @@ GPL-3.0-or-later.  See ‘LICENSE’.
 
 Tag Table:
 Node: Top205
-Node: Install2313
-Node: Getting started3856
-Node: Master switch bookmark-gt-mode4054
-Node: Opt-in modes6382
-Node: bookmark-gt-auto-update-mode6733
-Node: bookmark-gt-default-tags-mode7598
-Node: bookmark-gt-browsel-tabs-mode8626
-Node: User interface9749
-Node: The *Bookmarks-gt List* buffer9999
-Node: Columns10525
-Node: Keys11747
-Node: Persisting view state13540
-Node: Jump reader bookmark-gt-jump14468
-Node: Elisp signatures15855
-Node: Non-file bookmark types18611
-Node: URL bookmarks — bookmark-gt-set-url19121
-Node: Dired bookmarks — bookmark-gt-handler-dired-jump19855
-Ref: Virtual dired21425
-Node: Function bookmarks — bookmark-gt-set-function22638
-Node: Sequence bookmarks — bookmark-gt-set-sequence23447
-Node: File-type handlers — override the file-jump path per pattern24199
-Node: View bookmarks — save the list buffer's current view25733
-Node: Setting bookmarks26895
-Node: Tag reader27133
-Node: Same-name policy28138
-Node: Relocate change a bookmark's target30113
-Node: In-file behaviors31262
-Node: In-buffer cycling31491
-Node: Per-bookmark highlighting32491
-Node: Region bookmarks34448
-Node: Trackers35969
-Node: Visit tracker36145
-Node: File-rename tracker36995
-Node: Extension API37982
-Node: Handler registry38183
-Node: Group registry40365
-Node: Extension points42018
-Node: Compatibility43714
-Node: Data compat with bookmark+43915
-Node: Migrating from bookmark+45045
-Node: Reference47143
-Node: Selected customization47306
-Node: Acknowledgements52287
-Node: License54172
+Node: Install2369
+Node: Getting started3912
+Node: Master switch bookmark-gt-mode4110
+Node: Opt-in modes6438
+Node: bookmark-gt-auto-update-mode6789
+Node: bookmark-gt-default-tags-mode7654
+Node: bookmark-gt-browsel-tabs-mode8682
+Node: User interface9805
+Node: The *Bookmarks-gt List* buffer10055
+Node: Columns10581
+Node: Keys11819
+Node: Persisting view state13612
+Node: Jump reader bookmark-gt-jump14540
+Node: Elisp signatures15927
+Node: Non-file bookmark types18683
+Node: URL bookmarks — bookmark-gt-set-url19249
+Node: Dired bookmarks — bookmark-gt-handler-dired-jump19983
+Ref: Virtual dired21553
+Node: Function bookmarks — bookmark-gt-set-function22766
+Node: Keyboard-macro bookmarks — bookmark-gt-set-kmacro23579
+Node: Sequence bookmarks — bookmark-gt-set-sequence25237
+Node: File-type handlers — override the file-jump path per pattern25993
+Node: View bookmarks — save the list buffer's current view27527
+Node: Setting bookmarks28689
+Node: Tag reader28927
+Node: Same-name policy29932
+Node: Relocate change a bookmark's target31907
+Node: In-file behaviors33056
+Node: In-buffer cycling33285
+Node: Per-bookmark highlighting34285
+Node: Region bookmarks36242
+Node: Trackers37763
+Node: Visit tracker37939
+Node: File-rename tracker38789
+Node: Extension API39776
+Node: Handler registry39977
+Node: Group registry42176
+Node: Extension points43829
+Node: Compatibility45525
+Node: Data compat with bookmark+45726
+Node: Migrating from bookmark+46856
+Node: Reference48954
+Node: Selected customization49117
+Node: Acknowledgements54098
+Node: License55983
 
 End Tag Table
 

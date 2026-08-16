@@ -88,14 +88,23 @@
 ;;;; Handler path — URL
 
 (ert-deftest bookmark-gt-visit-test-url-handler-records-visit ()
-  "The URL handler calls `bookmark-gt-record-visit' before its throw."
+  "URL bookmarks get their visit counted on jump.
+Verifies the after-jump-hook path: with `bookmark-gt-mode' on,
+`bookmark--jump-via' is overridden so
+`bookmark-after-jump-hook' runs even when the URL handler
+throws `bookmark-gt-skip-post-handler'."
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-set-non-file
      "u" 'bookmark-gt-handler-url-jump
      '((url . "https://example.org")))
-    (cl-letf (((symbol-function 'browse-url) (lambda (&rest _) nil)))
-      (bookmark-gt-handler-url-jump (car bookmark-alist)))
-    (should (= (bookmark-prop-get "u" 'visits) 1))))
+    (let ((was-enabled bookmark-gt-mode))
+      (unwind-protect
+          (progn
+            (unless was-enabled (bookmark-gt-mode 1))
+            (cl-letf (((symbol-function 'browse-url) (lambda (&rest _) nil)))
+              (bookmark-jump "u"))
+            (should (= (bookmark-prop-get "u" 'visits) 1)))
+        (unless was-enabled (bookmark-gt-mode -1))))))
 
 (provide 'bookmark-gt-visit-tests)
 ;;; bookmark-gt-visit-tests.el ends here

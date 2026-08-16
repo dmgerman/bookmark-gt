@@ -356,48 +356,83 @@ other observers refresh."
       (message "%s temp on %S"
                (if current "Cleared" "Set") name))))
 
-;;;; jump-via catch tag
+;;;; jump-via override
 ;;
-;; The built-in `bookmark--jump-via' calls the handler, then unconditionally
-;; runs `bookmark-after-jump-hook' and (if
-;; `bookmark-automatically-show-annotations' is non-nil) pops up the
-;; annotation buffer.  For handlers whose target is external — a
-;; web browser opened via `browse-url', a browser tab focused via
-;; browsel — the annotation buffer moves focus from the
-;; browser back to Emacs, which is not what the user wants.
+;; Built-in `bookmark--jump-via' runs, in order:
+;;   1. `save-window-excursion' around `bookmark-handle-bookmark',
+;;      capturing the handler's final buffer + point;
+;;   2. `funcall' DISPLAY-FUNCTION on that buffer;
+;;   3. `set-window-point' on the displayed window;
+;;   4. fringe-mark;
+;;   5. `run-hooks' `bookmark-after-jump-hook';
+;;   6. `bookmark-show-annotation' when
+;;      `bookmark-automatically-show-annotations' is non-nil.
 ;;
-;; The handler cannot let-bind
-;; `bookmark-automatically-show-annotations' to nil because the
-;; check happens after the handler returns and the let has unwound.
+;; For handlers whose target is external (a URL opened via
+;; `browse-url', a browser tab focused via browsel) step 6 pops
+;; the annotation buffer and moves focus off the target back to
+;; Emacs.  Handlers want to suppress step 6.
 ;;
-;; Bookmark+ solves this by redefining `bookmark--jump-via' with a
-;; `(catch 'bookmark--jump-via ...)' around the body; handlers
-;; then throw to skip everything after step 2.  We do the same
-;; less intrusively via `:around' advice that wraps the built-in
-;; body in our own catch tag; handlers throw
-;; `bookmark-gt-skip-post-handler' to opt out.
+;; Handlers cannot let-bind `bookmark-automatically-show-annotations'
+;; to nil around themselves because the check happens after their
+;; let unwinds.  Bookmark+ works around this by wrapping the
+;; whole body in a catch and having handlers throw at their tail,
+;; skipping steps 2-6 entirely.  We used to do the same via
+;; :around advice, but that also skipped step 2 — so a handler
+;; that opens a real target buffer (a kmacro running `find-file',
+;; a function switching to a buffer) had its buffer created but
+;; never displayed.
 ;;
-;; The install/uninstall pair is wired to `bookmark-gt-mode' so
-;; a user who never enables the package sees the built-in
-;; behavior.  Handlers wrap their throw in a `condition-case' /
-;; `no-catch' shim so a throw when the advice is not installed
-;; silently degrades to a no-op.
+;; New semantics: replace `bookmark--jump-via' with an override
+;; that catches the throw immediately around
+;; `bookmark-handle-bookmark' (step 1), remembers a flag, and
+;; uses the flag to gate ONLY step 6.  Steps 2-5 always run.
+;; That way `bookmark-gt-skip-post-handler' means what it
+;; says — skip the annotation popup only.
 
-(defun bookmark-gt--jump-via-catch-advice (orig-fn &rest args)
-  "Wrap ORIG-FN (called with ARGS) in a `bookmark-gt-skip-post-handler' catch.
-Handlers throw that tag to bail out of the post-handler steps
-that built-in `bookmark--jump-via' runs (annotation buffer,
-`bookmark-after-jump-hook', fringe mark)."
-  (catch 'bookmark-gt-skip-post-handler
-    (apply orig-fn args)))
+(declare-function bookmark--set-fringe-mark "bookmark" ())
+
+(defun bookmark-gt--jump-via-override (bookmark-name-or-record display-function)
+  "Override of `bookmark--jump-via'.
+Handle BOOKMARK-NAME-OR-RECORD, then call DISPLAY-FUNCTION on
+the buffer left current by the handler.  Same behavior as the
+built-in EXCEPT that a handler which throws
+`bookmark-gt-skip-post-handler' suppresses only
+`bookmark-show-annotation'; display, `set-window-point',
+fringe mark, and `bookmark-after-jump-hook' all still run."
+  (let (buf point skip)
+    (save-window-excursion
+      (setq skip (catch 'bookmark-gt-skip-post-handler
+                   (bookmark-handle-bookmark bookmark-name-or-record)
+                   nil))
+      (setq buf (current-buffer)
+            point (point)))
+    (funcall display-function buf)
+    (when-let* ((win (get-buffer-window buf 0)))
+      (set-window-point win point))
+    (when bookmark-fringe-mark
+      (let ((overlays (overlays-in (pos-bol) (1+ (pos-bol))))
+            temp found)
+        (while (and (not found) (setq temp (pop overlays)))
+          (when (eq 'bookmark (overlay-get temp 'category))
+            (setq found t)))
+        (unless found
+          (bookmark--set-fringe-mark))))
+    (run-hooks 'bookmark-after-jump-hook)
+    (when (and bookmark-automatically-show-annotations (not skip))
+      (bookmark-show-annotation bookmark-name-or-record))))
 
 (defmacro bookmark-gt-skip-post-handler (value)
-  "Throw VALUE to the catch tag `bookmark-gt-skip-post-handler'.
-Handlers use this at their tail to abort the built-in post-
-handler steps (annotation buffer, hooks, fringe mark) for the
-current jump.  Safe to call even when the catch is not
-installed: a `no-catch' error is silently swallowed by the
-surrounding `condition-case'."
+  "Throw VALUE to suppress this jump's annotation popup.
+Handlers call this at their tail to prevent
+`bookmark-show-annotation' from opening on jump.  Useful for
+handlers whose target is external (a browser URL, a browser
+tab): opening the annotation buffer would move window-manager
+focus from the external target back to Emacs.
+Does NOT skip display, `set-window-point', fringe mark, or
+`bookmark-after-jump-hook'; the buffer-display flow and the
+visit-tracker hook always run.  Safe to call when the enclosing
+override is not installed — a `no-catch' signal is swallowed."
   `(condition-case nil
        (throw 'bookmark-gt-skip-post-handler ,value)
      (no-catch nil)))
@@ -410,7 +445,7 @@ surrounding `condition-case'."
 ;; visited (`find-file-hook') and when a bookmark mutates
 ;; (`bookmark-gt-set-after-hook').  Mode-off removes them.
 ;;
-;; Optimized single-file refresh: after-hook fires with a
+;; Optimized single-file refresh: after-hook runs with a
 ;; specific record → only the buffer visiting that record's file
 ;; is refreshed.  Full sweep only for the `nil' sentinel (batch
 ;; operations, unknown provenance).
@@ -443,7 +478,7 @@ but stale entries are ignored on next refresh.")
   "Buffer-local hash: record cons → integer point after a jump.
 Records without a numeric `position' (e.g. org-heading
 bookmarks whose location is resolved by the handler at jump
-time) go here after `bookmark-after-jump-hook' fires, so
+time) go here after `bookmark-after-jump-hook' runs, so
 subsequent refreshes still overlay them.")
 
 (defun bookmark-gt-highlight--effective-position (record)
@@ -629,7 +664,7 @@ Wraps from start to end when before the first one."
 ;; When `bookmark-gt-set' is called with an active region and
 ;; `bookmark-gt-use-region' is non-nil, the record captures both
 ;; region anchors plus context strings around the end.  On jump,
-;; `bookmark-gt--on-jump-restore-region' (fired from
+;; `bookmark-gt--on-jump-restore-region' (called from
 ;; `bookmark-after-jump-hook') pushes the mark at the end
 ;; position and activates it, so the region reappears
 ;; highlighted.
@@ -719,11 +754,12 @@ propagates to the end anchor."
 ;; jump.  These two alist keys drive `bookmark-gt-jump''s
 ;; `:sort-by 'mru' and `:sort-by 'visits' features.
 ;;
-;; Wiring: built-in `bookmark-after-jump-hook' fires the tracker
-;; for file-typed jumps.  Handlers that throw
-;; `bookmark-gt-skip-post-handler' (URL, browser-tab) call
-;; `bookmark-gt-record-visit' directly at their tail because the
-;; throw bypasses the after-jump-hook.
+;; Wiring: `bookmark-after-jump-hook' runs
+;; `bookmark-gt--on-jump-record-visit' after every jump.  Under
+;; the current `bookmark-gt--jump-via-override' the hook always
+;; runs — even when the handler throws
+;; `bookmark-gt-skip-post-handler' — so handlers no longer need
+;; to call `bookmark-gt-record-visit' themselves.
 ;;
 ;; Mutation does NOT bump `bookmark-alist-modification-count' —
 ;; visit tracking on every jump should not trigger an auto-save
@@ -744,9 +780,9 @@ disk write per jump."
   "Hook for `bookmark-after-jump-hook'.
 Records the visit against `bookmark-current-bookmark' (set by
 built-in `bookmark-handle-bookmark' before the after-jump-hook
-runs).  Handlers that throw `bookmark-gt-skip-post-handler'
-bypass this hook and must call `bookmark-gt-record-visit'
-themselves."
+runs).  Runs on every jump — `bookmark-gt-skip-post-handler'
+no longer bypasses the after-jump-hook under the current
+`bookmark-gt--jump-via-override'."
   (when bookmark-current-bookmark
     (bookmark-gt-record-visit bookmark-current-bookmark)))
 
@@ -863,7 +899,7 @@ argument, the bookmark record; it may read any record prop —
 `filename', `position', `tags', and so on.
 
 If the function opens an external target and does not want
-the built-in post-jump popup, it should end with
+the annotation popup to open, it should end with
 `(bookmark-gt-skip-post-handler \\='file-type)'.
 
 Entries are tried in order; the first matching regexp wins."
