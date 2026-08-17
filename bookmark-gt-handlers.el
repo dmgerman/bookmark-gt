@@ -601,15 +601,11 @@ captured when the bookmark was set.  Bookmarks set from
 
 (defun bookmark-gt-handler-url-jump (bookmark)
   "Bookmark handler for URL bookmark BOOKMARK.
-Opens the URL via `browse-url' and throws
-`bookmark-gt-skip-post-handler' to suppress the annotation
-popup, which would otherwise pull window-manager focus back
-to Emacs after the browser has been raised."
+Opens the URL via `browse-url'."
   (let ((url (bookmark-gt-url-of bookmark)))
     (unless url
       (user-error "URL bookmark has no `url' or `location' property"))
-    (browse-url url)
-    (bookmark-gt-skip-post-handler 'url)))
+    (browse-url url)))
 
 ;;;###autoload
 (defun bookmark-gt-set-url (url &optional name tags)
@@ -924,16 +920,12 @@ Returns the stored (NAME . DATA) pair."
   "Bookmark handler for sequence bookmark BOOKMARK.
 Jump to each name in the record's `sequence' prop in order.
 Whatever buffer the last jump leaves current is what the
-jump-via display step will show.  Throws
-`bookmark-gt-skip-post-handler' to suppress the annotation
-popup for the sequence record itself (annotations of the
-member bookmarks pop up via their own jumps as usual)."
+jump-via display step will show."
   (let ((names (bookmark-prop-get bookmark 'sequence)))
     (unless (listp names)
       (user-error "Sequence bookmark's `sequence' is not a list"))
     (dolist (name names)
-      (bookmark-jump name))
-    (bookmark-gt-skip-post-handler 'sequence)))
+      (bookmark-jump name))))
 
 ;;;###autoload
 (defun bookmark-gt-set-sequence (name bookmarks &optional tags)

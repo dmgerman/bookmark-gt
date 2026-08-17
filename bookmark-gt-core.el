@@ -368,27 +368,15 @@ other observers refresh."
 ;;   6. `bookmark-show-annotation' when
 ;;      `bookmark-automatically-show-annotations' is non-nil.
 ;;
-;; For handlers whose target is external (a URL opened via
-;; `browse-url', a browser tab focused via browsel) step 6 pops
-;; the annotation buffer and moves focus off the target back to
-;; Emacs.  Handlers want to suppress step 6.
-;;
-;; Handlers cannot let-bind `bookmark-automatically-show-annotations'
-;; to nil around themselves because the check happens after their
-;; let unwinds.  Bookmark+ works around this by wrapping the
-;; whole body in a catch and having handlers throw at their tail,
-;; skipping steps 2-6 entirely.  We used to do the same via
-;; :around advice, but that also skipped step 2 — so a handler
-;; that opens a real target buffer (a kmacro running `find-file',
-;; a function switching to a buffer) had its buffer created but
-;; never displayed.
-;;
-;; New semantics: replace `bookmark--jump-via' with an override
-;; that catches the throw immediately around
-;; `bookmark-handle-bookmark' (step 1), remembers a flag, and
-;; uses the flag to gate ONLY step 6.  Steps 2-5 always run.
-;; That way `bookmark-gt-skip-post-handler' means what it
-;; says — skip the annotation popup only.
+;; This override behaves identically EXCEPT that a handler which
+;; throws `bookmark-gt-skip-post-handler' suppresses only step 6.
+;; Steps 2-5 always run.  This exists as an extension point for
+;; third-party handlers whose target is external (a URL opened
+;; via `browse-url', a browser tab focused via a bridge) and
+;; whose annotation popup would move window-manager focus off the
+;; external target back to Emacs.  No handler shipped in
+;; bookmark-gt itself calls the macro — the mechanism is retained
+;; for third-party use only.
 
 (declare-function bookmark--set-fringe-mark "bookmark" ())
 
@@ -424,15 +412,17 @@ fringe mark, and `bookmark-after-jump-hook' all still run."
 
 (defmacro bookmark-gt-skip-post-handler (value)
   "Throw VALUE to suppress this jump's annotation popup.
-Handlers call this at their tail to prevent
-`bookmark-show-annotation' from opening on jump.  Useful for
-handlers whose target is external (a browser URL, a browser
-tab): opening the annotation buffer would move window-manager
-focus from the external target back to Emacs.
+Extension point for third-party handlers.  A handler that calls
+this at its tail prevents `bookmark-show-annotation' from
+opening after the jump.  Intended for handlers whose target is
+external (a browser URL, a browser tab, an OS application):
+opening the annotation buffer would move window-manager focus
+from the external target back to Emacs.
 Does NOT skip display, `set-window-point', fringe mark, or
 `bookmark-after-jump-hook'; the buffer-display flow and the
 visit-tracker hook always run.  Safe to call when the enclosing
-override is not installed — a `no-catch' signal is swallowed."
+override is not installed — a `no-catch' signal is swallowed.
+No handler shipped with bookmark-gt calls this macro."
   `(condition-case nil
        (throw 'bookmark-gt-skip-post-handler ,value)
      (no-catch nil)))
@@ -756,10 +746,9 @@ propagates to the end anchor."
 ;;
 ;; Wiring: `bookmark-after-jump-hook' runs
 ;; `bookmark-gt--on-jump-record-visit' after every jump.  Under
-;; the current `bookmark-gt--jump-via-override' the hook always
-;; runs — even when the handler throws
-;; `bookmark-gt-skip-post-handler' — so handlers no longer need
-;; to call `bookmark-gt-record-visit' themselves.
+;; `bookmark-gt--jump-via-override' the after-jump-hook always
+;; runs, so handlers do not need to call
+;; `bookmark-gt-record-visit' themselves.
 ;;
 ;; Mutation does NOT bump `bookmark-alist-modification-count' —
 ;; visit tracking on every jump should not trigger an auto-save
@@ -780,8 +769,7 @@ disk write per jump."
   "Hook for `bookmark-after-jump-hook'.
 Records the visit against `bookmark-current-bookmark' (set by
 built-in `bookmark-handle-bookmark' before the after-jump-hook
-runs).  Runs on every jump — `bookmark-gt-skip-post-handler'
-no longer bypasses the after-jump-hook under the current
+runs).  Runs on every jump under
 `bookmark-gt--jump-via-override'."
   (when bookmark-current-bookmark
     (bookmark-gt-record-visit bookmark-current-bookmark)))
@@ -897,10 +885,6 @@ bookmark record and takes over the jump.  The function's
 contract is the same as a standard `bookmark.el' handler: one
 argument, the bookmark record; it may read any record prop —
 `filename', `position', `tags', and so on.
-
-If the function opens an external target and does not want
-the annotation popup to open, it should end with
-`(bookmark-gt-skip-post-handler \\='file-type)'.
 
 Entries are tried in order; the first matching regexp wins."
   :type '(alist :key-type regexp :value-type function)

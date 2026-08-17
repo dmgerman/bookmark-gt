@@ -155,8 +155,6 @@ list buffer's Tags column and in the `;tag' particle filter."
                       (cons bookmark-gt-browsel-tabs--marker-key t))))
     (when (and (stringp browser) (not (string-empty-p browser)))
       (push (cons 'tags (list browser)) props))
-    (when (and (stringp title) (not (string-empty-p title)))
-      (push (cons 'annotation title) props))
     (bookmark-gt-set-non-file base
                               'bookmark-gt-handler-url-jump
                               props

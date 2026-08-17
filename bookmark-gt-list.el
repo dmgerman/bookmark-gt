@@ -1075,9 +1075,7 @@ The special KEY `unfilter' clears every active filter."
   "Restore the list buffer view saved in BOOKMARK.
 Reads `filters', `sort-key', and `show-temp' from the record,
 opens the list buffer if needed, applies the saved state, and
-redraws.  Does not throw `bookmark-gt-skip-post-handler' —
-the target is an Emacs buffer, so the built-in post-handler
-display and visit-tracking flow are what we want."
+redraws."
   (let ((filters   (bookmark-prop-get bookmark 'filters))
         (sort-key  (bookmark-prop-get bookmark 'sort-key))
         (show-temp (bookmark-prop-get bookmark 'show-temp)))

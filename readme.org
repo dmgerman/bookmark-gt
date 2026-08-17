@@ -163,6 +163,15 @@ Turning the mode off clears the tab records added by this mode.
 Records owned by other browsel-related packages
 (~browsel-tab-manager-bookmark-jump~ etc.) are left alone.
 
+Deleting a browser-tab bookmark from the
+~*Bookmarks-gt List*~ buffer removes only the bookmark record;
+the browser tab itself stays open and the next refresh will
+re-add the record.  Closing the tab in the browser is a
+separate operation.  This matches the rest of bookmark-gt:
+deleting a bookmark never touches the resource it points to
+(no file is deleted, no buffer is killed, no URL is
+un-visited).
+
 The refresh loop suppresses per-tab hook execution and
 auto-save inside the batch — with 100+ tabs the whole refresh
 takes ~50 ms total (30 ms fetch + 20 ms store).
@@ -367,10 +376,7 @@ Elisp:
 #+end_src
 
 The URL bookmark's handler (~bookmark-gt-handler-url-jump~) opens
-the URL via ~browse-url~.  It also throws
-~bookmark-gt-skip-post-handler~ so the built-in post-handler flow
-does not pop up an annotation buffer moving focus from the browser
-back to Emacs.
+the URL via ~browse-url~.
 
 *** Dired bookmarks — ~bookmark-gt-handler-dired-jump~
 
@@ -518,10 +524,6 @@ instead of an Emacs buffer.
       '(("\\.pdf\\'"          . my-mac-open)
         ("\\.\\(mp4\\|mkv\\)\\'" . my-mac-open)))
 #+end_src
-
-If the handler opens an external target and does not want the
-built-in post-jump popup, it should end with
-~(bookmark-gt-skip-post-handler 'file-type)~.
 
 Entries are tried in list order; the first matching regexp
 wins.  The advice on ~bookmark-default-handler~ is installed
@@ -733,10 +735,8 @@ Customization:
 When ~bookmark-gt-mode~ is on, an entry on
 ~bookmark-after-jump-hook~ increments each jumped bookmark's
 ~visits~ property by one and refreshes its ~last-visited~ prop
-to the current time.  URL and browser-tab handlers throw
-~bookmark-gt-skip-post-handler~ (which bypasses the hook), so
-they call ~bookmark-gt-record-visit~ at the end of their
-handler body — same effect.
+to the current time.  The hook runs on every jump, including
+jumps handled by URL and browser-tab handlers.
 
 Enables ~:sort-by 'mru~ and ~:sort-by 'visits~ in the jump
 reader for every bookmark type without user action.
@@ -1003,8 +1003,7 @@ Concretely reused:
   bookmark+'s corresponding handlers (~bmkp-jump-url-browse~ and
   ~bmkp-jump-dired~) and lightly adapted — same jump semantics,
   same record-shape expectations, minor changes to fit
-  bookmark-gt's registry and its
-  ~bookmark-gt-skip-post-handler~ throw convention.
+  bookmark-gt's registry.
 - *Record schema.*  The on-disk alist keys — ~tags~,
   ~bmkp-temp~, ~auto-update~, ~visits~, ~last-visited~,
   ~location~ (URL alias), ~front-context-region-string~ /

@@ -276,6 +276,13 @@ disk).  Requires ‘browsel’ to be installed and connected.
 Records owned by other browsel-related packages
 (‘browsel-tab-manager-bookmark-jump’ etc.)  are left alone.
 
+   Deleting a browser-tab bookmark from the ‘*Bookmarks-gt List*’ buffer
+removes only the bookmark record; the browser tab itself stays open and
+the next refresh will re-add the record.  Closing the tab in the browser
+is a separate operation.  This matches the rest of bookmark-gt: deleting
+a bookmark never touches the resource it points to (no file is deleted,
+no buffer is killed, no URL is un-visited).
+
    The refresh loop suppresses per-tab hook execution and auto-save
 inside the batch — with 100+ tabs the whole refresh takes ~50 ms total
 (30 ms fetch + 20 ms store).
@@ -525,9 +532,7 @@ Interactive:
      (bookmark-gt-set-url "https://example.org" "Example" '("web" "reference"))
 
    The URL bookmark's handler (‘bookmark-gt-handler-url-jump’) opens the
-URL via ‘browse-url’.  It also throws ‘bookmark-gt-skip-post-handler’ so
-the built-in post-handler flow does not pop up an annotation buffer
-moving focus from the browser back to Emacs.
+URL via ‘browse-url’.
 
 
 File: bookmark-gt.info,  Node: Dired bookmarks — bookmark-gt-handler-dired-jump,  Next: Function bookmarks — bookmark-gt-set-function,  Prev: URL bookmarks — bookmark-gt-set-url,  Up: Non-file bookmark types
@@ -676,10 +681,6 @@ of an Emacs buffer.
      (setq bookmark-gt-file-type-handlers
            '(("\\.pdf\\'"          . my-mac-open)
              ("\\.\\(mp4\\|mkv\\)\\'" . my-mac-open)))
-
-   If the handler opens an external target and does not want the
-built-in post-jump popup, it should end with
-‘(bookmark-gt-skip-post-handler 'file-type)’.
 
    Entries are tried in list order; the first matching regexp wins.  The
 advice on ‘bookmark-default-handler’ is installed by ‘bookmark-gt-mode’
@@ -938,10 +939,8 @@ File: bookmark-gt.info,  Node: Visit tracker,  Next: File-rename tracker,  Up: T
 
 When ‘bookmark-gt-mode’ is on, an entry on ‘bookmark-after-jump-hook’
 increments each jumped bookmark's ‘visits’ property by one and refreshes
-its ‘last-visited’ prop to the current time.  URL and browser-tab
-handlers throw ‘bookmark-gt-skip-post-handler’ (which bypasses the
-hook), so they call ‘bookmark-gt-record-visit’ at the end of their
-handler body — same effect.
+its ‘last-visited’ prop to the current time.  The hook runs on every
+jump, including jumps handled by URL and browser-tab handlers.
 
    Enables ‘:sort-by 'mru’ and ‘:sort-by 'visits’ in the jump reader for
 every bookmark type without user action.
@@ -1251,7 +1250,7 @@ file-rename tracker — was first introduced in bookmark+.
      corresponding handlers (‘bmkp-jump-url-browse’ and
      ‘bmkp-jump-dired’) and lightly adapted — same jump semantics, same
      record-shape expectations, minor changes to fit bookmark-gt's
-     registry and its ‘bookmark-gt-skip-post-handler’ throw convention.
+     registry.
    • *Record schema.*  The on-disk alist keys — ‘tags’, ‘bmkp-temp’,
      ‘auto-update’, ‘visits’, ‘last-visited’, ‘location’ (URL alias),
      ‘front-context-region-string’ / ‘rear-context-region-string’
@@ -1284,44 +1283,44 @@ Node: Opt-in modes6438
 Node: bookmark-gt-auto-update-mode6789
 Node: bookmark-gt-default-tags-mode7654
 Node: bookmark-gt-browsel-tabs-mode8682
-Node: User interface9805
-Node: The *Bookmarks-gt List* buffer10055
-Node: Columns10581
-Node: Keys11819
-Node: Persisting view state13612
-Node: Jump reader bookmark-gt-jump14540
-Node: Elisp signatures15927
-Node: Non-file bookmark types18683
-Node: URL bookmarks — bookmark-gt-set-url19249
-Node: Dired bookmarks — bookmark-gt-handler-dired-jump19983
-Ref: Virtual dired21553
-Node: Function bookmarks — bookmark-gt-set-function22766
-Node: Keyboard-macro bookmarks — bookmark-gt-set-kmacro23579
-Node: Sequence bookmarks — bookmark-gt-set-sequence25237
-Node: File-type handlers — override the file-jump path per pattern25993
-Node: View bookmarks — save the list buffer's current view27527
-Node: Setting bookmarks28689
-Node: Tag reader28927
-Node: Same-name policy29932
-Node: Relocate change a bookmark's target31907
-Node: In-file behaviors33056
-Node: In-buffer cycling33285
-Node: Per-bookmark highlighting34285
-Node: Region bookmarks36242
-Node: Trackers37763
-Node: Visit tracker37939
-Node: File-rename tracker38789
-Node: Extension API39776
-Node: Handler registry39977
-Node: Group registry42176
-Node: Extension points43829
-Node: Compatibility45525
-Node: Data compat with bookmark+45726
-Node: Migrating from bookmark+46856
-Node: Reference48954
-Node: Selected customization49117
-Node: Acknowledgements54098
-Node: License55983
+Node: User interface10217
+Node: The *Bookmarks-gt List* buffer10467
+Node: Columns10993
+Node: Keys12231
+Node: Persisting view state14024
+Node: Jump reader bookmark-gt-jump14952
+Node: Elisp signatures16339
+Node: Non-file bookmark types19095
+Node: URL bookmarks — bookmark-gt-set-url19661
+Node: Dired bookmarks — bookmark-gt-handler-dired-jump20227
+Ref: Virtual dired21797
+Node: Function bookmarks — bookmark-gt-set-function23010
+Node: Keyboard-macro bookmarks — bookmark-gt-set-kmacro23823
+Node: Sequence bookmarks — bookmark-gt-set-sequence25481
+Node: File-type handlers — override the file-jump path per pattern26237
+Node: View bookmarks — save the list buffer's current view27610
+Node: Setting bookmarks28772
+Node: Tag reader29010
+Node: Same-name policy30015
+Node: Relocate change a bookmark's target31990
+Node: In-file behaviors33139
+Node: In-buffer cycling33368
+Node: Per-bookmark highlighting34368
+Node: Region bookmarks36325
+Node: Trackers37846
+Node: Visit tracker38022
+Node: File-rename tracker38766
+Node: Extension API39753
+Node: Handler registry39954
+Node: Group registry42153
+Node: Extension points43806
+Node: Compatibility45502
+Node: Data compat with bookmark+45703
+Node: Migrating from bookmark+46833
+Node: Reference48931
+Node: Selected customization49094
+Node: Acknowledgements54075
+Node: License55899
 
 End Tag Table
 
