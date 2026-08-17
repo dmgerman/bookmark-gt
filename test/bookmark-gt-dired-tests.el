@@ -130,8 +130,13 @@ directory bound to DIR-VAR.  DIR-VAR ends with a slash."
             (with-current-buffer buf
               (bookmark-gt-set "d4"))
             (let ((rec (car bookmark-alist)))
+              ;; `dired-noselect' normalizes its input with
+              ;; `abbreviate-file-name' + `expand-file-name'
+              ;; before setting `dired-directory', so mirror that
+              ;; here rather than compare against the raw input.
               (should (equal (bookmark-prop-get rec 'dired-directory)
-                             pattern))))
+                             (abbreviate-file-name
+                              (expand-file-name pattern))))))
         (bookmark-gt-dired-test--kill-dired-buffers dir)))))
 
 (ert-deftest bookmark-gt-dired-test-set-explicit-file-list-preserves-form ()
