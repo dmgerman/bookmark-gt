@@ -88,7 +88,7 @@ EMACS_BATCH = $(EMACS) -Q --batch \
         compile-30 compile-31 compile-all \
         test-30 test-31 test-all \
         version set-version check-version \
-        info pdf docs clean-docs
+        info
 
 # Default target: byte-compile.  Lint is not included here so the
 # common edit-then-`make' loop stays fast; run `make check' or
@@ -111,10 +111,7 @@ help:
 	@echo "  make set-version VERSION=X.Y.Z"
 	@echo "                     update every source's version to X.Y.Z"
 	@echo "  make check-version verify every source agrees on the version"
-	@echo "  make info          build bookmark-gt.info from readme.org"
-	@echo "  make pdf           build bookmark-gt.pdf  from readme.org (needs TeX)"
-	@echo "  make docs          build both bookmark-gt.info and bookmark-gt.pdf"
-	@echo "  make clean-docs    remove generated .info / .pdf / .texi / .tex artifacts"
+	@echo "  make info          build bookmark-gt.info and dir from readme.org"
 
 # assert-emacs: verify a named Emacs binary exists before delegating.
 define assert-emacs
@@ -210,38 +207,33 @@ clean:
 # Documentation targets
 #
 # readme.org is the single source of truth.  Info output requires
-# `makeinfo' (bundled with Emacs / Homebrew).  PDF output requires
-# a TeX distribution — BasicTeX (~100 MB) is enough.  Both
-# artifacts land under docs/ (see `#+EXPORT_FILE_NAME' in
-# readme.org).
+# `makeinfo' (bundled with Emacs / Homebrew) and `install-info'.
+# `bookmark-gt.info' and `dir' live at the repo root and are
+# committed as source-of-truth artifacts consumed by ELPA
+# activation; `make clean' does NOT remove them.  Regenerate
+# after editing readme.org.
 
-info: docs/bookmark-gt.info
+INFO_FILE = bookmark-gt.info
+INFO_DIR  = dir
 
-docs/bookmark-gt.info: readme.org
-	@mkdir -p docs
-	$(CI_EMACS) -Q --batch $< \
+info: $(INFO_FILE) $(INFO_DIR)
+
+# Stage readme.org as bookmark-gt.org so Org's basename-derived
+# output filename matches `#+texinfo_filename'.  Without this,
+# Org would produce readme.texi -> bookmark-gt.info (from
+# @setfilename) and then its post-processing would look for
+# readme.info and fail.
+$(INFO_FILE): readme.org
+	cp readme.org bookmark-gt.org
+	$(CI_EMACS) -Q --batch \
+	  --eval "(setq load-prefer-newer t)" \
 	  --eval "(require 'ox-texinfo)" \
+	  bookmark-gt.org \
 	  -f org-texinfo-export-to-info
-	@rm -f docs/bookmark-gt.texi
+	@rm -f bookmark-gt.org bookmark-gt.texi
 
-pdf: docs/bookmark-gt.pdf
-
-docs/bookmark-gt.pdf: readme.org
-	@mkdir -p docs
-	$(CI_EMACS) -Q --batch $< \
-	  --eval "(require 'ox-latex)" \
-	  -f org-latex-export-to-pdf
-	@rm -f docs/bookmark-gt.tex docs/bookmark-gt.aux \
-	       docs/bookmark-gt.log docs/bookmark-gt.out \
-	       docs/bookmark-gt.toc
-
-docs: info pdf
-
-clean-docs:
-	rm -f docs/bookmark-gt.info docs/bookmark-gt.texi \
-	      docs/bookmark-gt.pdf docs/bookmark-gt.tex \
-	      docs/bookmark-gt.aux docs/bookmark-gt.log \
-	      docs/bookmark-gt.out docs/bookmark-gt.toc
+$(INFO_DIR): $(INFO_FILE)
+	install-info --info-file=$(INFO_FILE) --dir-file=$(INFO_DIR)
 
 check: compile lint checkdoc check-declare check-version
 

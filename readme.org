@@ -4,13 +4,10 @@
 #+EMAIL: dmg@turingmachine.org
 #+LANGUAGE: en
 #+OPTIONS: toc:3
-#+EXPORT_FILE_NAME: docs/bookmark-gt
-#+TEXINFO_FILENAME: docs/bookmark-gt.info
+#+TEXINFO_FILENAME: bookmark-gt.info
 #+TEXINFO_DIR_CATEGORY: Emacs
 #+TEXINFO_DIR_TITLE: bookmark-gt: (bookmark-gt)
 #+TEXINFO_DIR_DESC: Bookmark manager for Emacs.
-#+LATEX_CLASS: article
-#+LATEX_HEADER: \usepackage[margin=1in]{geometry}
 
 A bookmark manager for Emacs, that replaces the the built-in
 ~bookmark.el~ inspired by [[https://www.emacswiki.org/emacs/BookmarkPlus][bookmark+]].

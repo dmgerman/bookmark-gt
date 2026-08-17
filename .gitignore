@@ -2,12 +2,9 @@
 *~
 .elpa/
 
-# Intermediate documentation artifacts (built by `make info` /
-# `make pdf`; the final .info and .pdf live under docs/ and are
-# committed).
-docs/bookmark-gt.texi
-docs/bookmark-gt.tex
-docs/bookmark-gt.aux
-docs/bookmark-gt.log
-docs/bookmark-gt.out
-docs/bookmark-gt.toc
+# Intermediate documentation artifacts (staged and produced by
+# `make info' at the repo root and removed on success; listed
+# here so a failed build does not leave them tracked).  The final
+# `bookmark-gt.info' and `dir' are committed at the repo root.
+bookmark-gt.org
+bookmark-gt.texi

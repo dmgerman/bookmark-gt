@@ -11,7 +11,7 @@ Written 2026-08-11 as a scoping document; not a commitment.
 
 Keep the current user-facing feature set (tags, non-file bookmark
 types, the ~*Bookmark List*~ tag/type columns, consult jump, auto-
-update, browsel-tabs, master switch) but remove ~bookmark+~ as a
+update, browser-gt-tabs, master switch) but remove ~bookmark+~ as a
 runtime dependency.  Rewrite the ~*Bookmark List*~ buffer from scratch
 against ~tabulated-list-mode~.
 
@@ -103,12 +103,12 @@ We already fall back to vanilla ~bookmark--set-fringe-mark~ (Emacs
 28+) alongside these.  Could drop lit integration entirely without
 loss.
 
-** Temporary bookmarks — used by browsel-tabs only
+** Temporary bookmarks — used by browser-gt-tabs only
 
 ~bmkp-temp~ property, ~bmkp-make-bookmark-temporary~,
 ~bmkp-toggle-temporary-bookmark~, ~bmkp-modified-bookmarks~.
 
-The browsel-tabs feature depends on temp bookmarks (browser tabs
+The browser-gt-tabs feature depends on temp bookmarks (browser tabs
 shouldn't persist).  Vanilla has no concept.
 
 ** Save / load persistence
@@ -215,7 +215,7 @@ annotator registration.
 ** Refresh coordination (~40 lines across 4 files)
 
 We call ~bmkp-refresh/rebuild-menu-list~ from
-=bookmark-plus-gt-auto-update.el=, =bookmark-plus-gt-browsel-tabs.el=,
+=bookmark-plus-gt-auto-update.el=, =bookmark-plus-gt-browser-gt-tabs.el=,
 =bookmark-plus-gt-tags.el=, plus 5 comments about it in the entry
 file.  Every mutation has to manually poke the bmenu buffer to
 rebuild.  ~tabulated-list-mode~ ships ~revert-buffer~ for free.
@@ -227,7 +227,7 @@ browser-tab / EWW bookmarks (vanilla ~bookmark-set~ chokes on nil
 ~filename~, and bookmark+ needed something round-trippable).  We
 work around the workaround:
 
-- =browsel-tabs.el:270= — stuffs the placeholder when creating
+- =browser-gt-tabs.el:270= — stuffs the placeholder when creating
   browser-tab bookmarks.
 - =jump.el:1054= — the annotator has to detect it and pick alignment
   direction.
@@ -588,9 +588,9 @@ against ~bookmark-alist~ directly.  They keep working through the
 rewrite as long as the alist shape stays the same.  Test after each
 stage.
 
-** browsel-tabs handler compatibility
+** browser-gt-tabs handler compatibility
 
-The browsel-tabs feature registers ~bmkp-gt-browsel-tabs-jump~ as a
+The browser-gt-tabs feature registers ~bmkp-gt-browsel-tabs-jump~ as a
 bookmark handler.  New handler registry must accept it, and the
 temp-bookmark filter must exclude persisted-on-save.  Kept in mind
 during Stage 3.
@@ -688,7 +688,7 @@ of the new one being stable.
    storage/lookup API.  Small file per registry: schema + example
    entry + rationale.  In parallel, invoke the ~melpa-submit~
    skill to land the full MELPA infrastructure on day one:
-   =LICENSE=, =Makefile= (browsel-ported), =.github/workflows/=,
+   =LICENSE=, =Makefile= (browser-gt-ported), =.github/workflows/=,
    =melpa/= recipe + README, =.gitignore=, and stub ~.el~ files
    with the full MELPA-compliant header block.  Every subsequent
    commit passes ~make check-ci~; there is no accumulated
@@ -760,7 +760,7 @@ sequential rewrites of an existing one:
   stage, weeks 2–4, and runs *before* the buffer, not alongside a
   half-migrated one.
 - *Old Stage 3 (cleanup)* — folds into weeks 8–11 (auto-update,
-  default-tags, browsel-tabs, tests).
+  default-tags, browser-gt-tabs, tests).
 
 * References
 
