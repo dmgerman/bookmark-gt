@@ -42,6 +42,14 @@
 ;; `bookmark-gt-mode' and shared utilities used by the other
 ;; bookmark-gt-*.el files.
 
+;;; Acknowledgements:
+;;
+;; bookmark-gt takes design and features from bookmark+ by Drew
+;; Adams — tags, non-file bookmark types, temporary bookmarks,
+;; visit tracking, and the on-disk alist schema all originate
+;; there.  See the Acknowledgements section of readme.org for
+;; details.
+
 ;;; Code:
 
 (defconst bookmark-gt-version "0.1.0"

@@ -989,11 +989,11 @@ bookmark file before running.
 * Acknowledgements
 
 bookmark-gt owes a substantial debt to [[https://www.emacswiki.org/emacs/DrewsElispLibraries][Drew Adams]] and his
-[[https://www.emacswiki.org/emacs/BookmarkPlus][bookmark+]] package, both in design and in code.  Nearly every
-feature bookmark-gt provides — tags, non-file bookmark types
-(URL, EWW, region bookmarks), temporary bookmarks, visit
-tracking, per-bookmark highlighting, tag-driven filtering,
-the file-rename tracker — was first introduced in bookmark+.
+[[https://www.emacswiki.org/emacs/BookmarkPlus][bookmark+]] package, both in design and in code.  Most of the
+features bookmark-gt provides — tags, non-file bookmark types
+(URL, EWW, region, function, sequence, kmacro), temporary
+bookmarks, visit tracking, per-bookmark highlighting, and
+tag-driven filtering — were first introduced in bookmark+.
 
 Concretely reused:
 

@@ -43,6 +43,23 @@
 ;; Also ships the URL handler bookmark-gt owns end-to-end
 ;; (`bookmark-gt-handler-url-jump' + `bookmark-gt-set-url').
 
+;;; Acknowledgements:
+;;
+;; The URL and Dired handler bodies (`bookmark-gt-handler-url-jump'
+;; and `bookmark-gt-handler-dired-jump') are adapted from Drew
+;; Adams's bookmark+ (`bmkp-jump-url-browse' and `bmkp-jump-dired'
+;; respectively) — same jump behavior and same record fields,
+;; modified to call bookmark-gt's handler registry.
+;;
+;; The function, sequence, and kmacro bookmark types were first
+;; added in bookmark+ (`bmkp-jump-function', `bmkp-jump-sequence',
+;; `bmkp-jump-kmacro-list').  bookmark-gt reimplements the
+;; handlers and setters but reuses the same alist keys
+;; (`function', `sequence', `kmacro'), so records written by
+;; either package can be read by the other.
+;;
+;; See the Acknowledgements section of readme.org for details.
+
 ;;; Code:
 
 (require 'bookmark)

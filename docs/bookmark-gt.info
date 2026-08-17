@@ -1237,10 +1237,10 @@ File: bookmark-gt.info,  Node: Acknowledgements,  Next: License,  Prev: Referenc
 bookmark-gt owes a substantial debt to Drew Adams
 (https://www.emacswiki.org/emacs/DrewsElispLibraries) and his bookmark+
 (https://www.emacswiki.org/emacs/BookmarkPlus) package, both in design
-and in code.  Nearly every feature bookmark-gt provides — tags, non-file
-bookmark types (URL, EWW, region bookmarks), temporary bookmarks, visit
-tracking, per-bookmark highlighting, tag-driven filtering, the
-file-rename tracker — was first introduced in bookmark+.
+and in code.  Most of the features bookmark-gt provides — tags, non-file
+bookmark types (URL, EWW, region, function, sequence, kmacro), temporary
+bookmarks, visit tracking, per-bookmark highlighting, and tag-driven
+filtering — were first introduced in bookmark+.
 
    Concretely reused:
 
@@ -1320,7 +1320,7 @@ Node: Migrating from bookmark+46833
 Node: Reference48931
 Node: Selected customization49094
 Node: Acknowledgements54075
-Node: License55899
+Node: License55897
 
 End Tag Table
 
