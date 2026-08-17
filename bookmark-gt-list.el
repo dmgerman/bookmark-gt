@@ -927,16 +927,21 @@ toggle."
     (message "Sorted by: %s" next)))
 
 (defun bookmark-gt-list-describe-record ()
-  "Pretty-print the raw record of the bookmark on the current line."
+  "Pretty-print the raw record of the bookmark on the current line.
+The record's name string is copied without text properties
+before printing, so the bookmark+ `bmkp-full-record' snapshot
+that some packages attach to the name as a text property does
+not appear inline in the pretty-printed output."
   (interactive nil bookmark-gt-list-mode)
   (let* ((record (bookmark-gt-list--require-record))
-         (name (bookmark-gt-display-name (car record)))
+         (clean (cons (substring-no-properties (car record))
+                      (cdr record)))
          (buf (get-buffer-create bookmark-gt-list-record-buffer-name)))
     (with-current-buffer buf
       (setq buffer-read-only nil)
       (erase-buffer)
-      (insert (format ";; Record for bookmark: %S\n;;\n" name))
-      (pp record (current-buffer))
+      (insert (format ";; Record for bookmark: %S\n;;\n" (car clean)))
+      (pp clean (current-buffer))
       (goto-char (point-min))
       (emacs-lisp-mode)
       (view-mode 1))
