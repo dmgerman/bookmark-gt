@@ -1,4 +1,4 @@
-;;; bookmark-gt-browsel-tabs.el --- Browser tabs as ephemeral bookmarks  -*- lexical-binding: t; -*-
+;;; bookmark-gt-browser-tabs.el --- Browser tabs as ephemeral bookmarks  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2026 Daniel M. German <dmg@turingmachine.org>
 
@@ -26,7 +26,7 @@
 
 ;;; Commentary:
 ;;
-;; Fetches the browser's open tabs (via the browsel WebSocket
+;; Fetches the browser's open tabs (via the browser-gt WebSocket
 ;; bridge) and exposes them as temp bookmarks with a dedicated
 ;; browser-tab handler.  Temp records carry the `bmkp-temp' alist
 ;; key and are excluded from `bookmark-save' output — restarting
@@ -34,14 +34,14 @@
 ;;
 ;; Entry points:
 ;;
-;;   `bookmark-gt-browsel-tabs-refresh' — one-shot rebuild.
-;;   `bookmark-gt-browsel-tabs-mode'    — global minor mode; when
+;;   `bookmark-gt-browser-tabs-refresh' — one-shot rebuild.
+;;   `bookmark-gt-browser-tabs-mode'    — global minor mode; when
 ;;                                        enabled, an idle timer
 ;;                                        refreshes tabs every
-;;                                        `bookmark-gt-browsel-tabs-interval'
+;;                                        `bookmark-gt-browser-tabs-interval'
 ;;                                        seconds.
 ;;
-;; Loads lazily: if browsel is not installed the file is a no-op
+;; Loads lazily: if browser-gt is not installed the file is a no-op
 ;; and every command signals a friendly `user-error'.
 
 ;;; Code:
@@ -52,17 +52,17 @@
 (require 'bookmark-gt-handlers)
 (require 'bookmark-gt-list)
 
-(require 'browsel nil t)
+(require 'browser-gt nil t)
 
-;; browsel is a soft-dep loaded at the top with (require 'browsel nil t).
+;; browser-gt is a soft-dep loaded at the top with (require 'browser-gt nil t).
 ;; The `ext:' prefix on the FILE argument tells `check-declare' this
 ;; symbol lives in an external package that need not be present at
 ;; compile time, so it skips validation.
-(declare-function browsel-browser-tabs "ext:browsel")
-(declare-function browsel-connected-clients "ext:browsel")
+(declare-function browser-gt-browser-tabs "ext:browser-gt")
+(declare-function browser-gt-connected-clients "ext:browser-gt")
 
-(defvar browsel-client-connected-functions)
-(defvar browsel-client-disconnected-functions)
+(defvar browser-gt-client-connected-functions)
+(defvar browser-gt-client-disconnected-functions)
 
 ;; Defined in `bookmark-gt-tags'; declared here so the byte-compiler
 ;; treats it as dynamic when the refresh loop let-binds it.
@@ -70,13 +70,13 @@
 
 ;;;; Customization
 
-(defcustom bookmark-gt-browsel-tabs-browsers nil
-  "List of browsel browser clients to query for tabs, or nil for all."
+(defcustom bookmark-gt-browser-tabs-browsers nil
+  "List of browser-gt browser clients to query for tabs, or nil for all."
   :type '(choice (const :tag "All connected browsers" nil)
                  (repeat string))
   :group 'bookmark-gt)
 
-(defcustom bookmark-gt-browsel-tabs-filter nil
+(defcustom bookmark-gt-browser-tabs-filter nil
   "Filter applied to each candidate tab before storing.
 Value shape:
 
@@ -88,7 +88,7 @@ Value shape:
                  (function :tag "Predicate function"))
   :group 'bookmark-gt)
 
-(defcustom bookmark-gt-browsel-tabs-debounce 0.3
+(defcustom bookmark-gt-browser-tabs-debounce 0.3
   "Seconds to coalesce browser connect/disconnect events before refreshing.
 A single connect or disconnect can arrive as several events in
 rapid succession (e.g. reload, multiple windows).  The connect
@@ -100,35 +100,35 @@ refresh."
 
 ;;;; Own-record predicate
 ;;
-;; Records stored by this module carry a `bookmark-gt-browsel-tab'
+;; Records stored by this module carry a `bookmark-gt-browser-tab'
 ;; marker; `--clear' filters on it so records owned by other
-;; browsel-related packages are not touched.
+;; browser-gt-related packages are not touched.
 
-(defconst bookmark-gt-browsel-tabs--marker-key 'bookmark-gt-browsel-tab
+(defconst bookmark-gt-browser-tabs--marker-key 'bookmark-gt-browser-tab
   "Alist key that marks a record as stored by this module.")
 
-(defun bookmark-gt-browsel-tabs--own-record-p (record)
+(defun bookmark-gt-browser-tabs--own-record-p (record)
   "Return non-nil when RECORD was stored by this module."
-  (bookmark-prop-get record bookmark-gt-browsel-tabs--marker-key))
+  (bookmark-prop-get record bookmark-gt-browser-tabs--marker-key))
 
 ;;;; Fetch + filter
 
-(defun bookmark-gt-browsel-tabs--fetch ()
-  "Return the browser tab list from browsel, or nil after warning."
-  (unless (featurep 'browsel)
+(defun bookmark-gt-browser-tabs--fetch ()
+  "Return the browser tab list from browser-gt, or nil after warning."
+  (unless (featurep 'browser-gt)
     (user-error "Browsel is not loaded"))
   (condition-case err
-      (browsel-browser-tabs bookmark-gt-browsel-tabs-browsers)
+      (browser-gt-browser-tabs bookmark-gt-browser-tabs-browsers)
     (error
-     (display-warning 'bookmark-gt-browsel-tabs
+     (display-warning 'bookmark-gt-browser-tabs
                       (format "Cannot fetch tabs: %s"
                               (error-message-string err))
                       :warning)
      nil)))
 
-(defun bookmark-gt-browsel-tabs--accept-p (tab)
-  "Return non-nil when TAB passes `bookmark-gt-browsel-tabs-filter'."
-  (let ((filt bookmark-gt-browsel-tabs-filter)
+(defun bookmark-gt-browser-tabs--accept-p (tab)
+  "Return non-nil when TAB passes `bookmark-gt-browser-tabs-filter'."
+  (let ((filt bookmark-gt-browser-tabs-filter)
         (url (or (plist-get tab :url) "")))
     (cond
      ((null filt)      t)
@@ -138,21 +138,21 @@ refresh."
 
 ;;;; Store
 
-(defun bookmark-gt-browsel-tabs--store (tab)
-  "Store TAB (a browsel plist) as a temp browser-tab bookmark.
+(defun bookmark-gt-browser-tabs--store (tab)
+  "Store TAB (a browser-gt plist) as a temp browser-tab bookmark.
 The name is the tab title, falling back to the URL.  The
 owning browser's client name becomes a tag so it shows up in the
 list buffer's Tags column and in the `;tag' particle filter."
   (let* ((url (or (plist-get tab :url) ""))
          (title (or (plist-get tab :title) ""))
          (id (plist-get tab :id))
-         (browser (plist-get tab :browsel-browser))
+         (browser (plist-get tab :browser-gt-browser))
          (base (if (string-empty-p title) url title))
          (props (list (cons 'url url)
-                      (cons 'browsel-id id)
-                      (cons 'browsel-browser browser)
+                      (cons 'browser-gt-id id)
+                      (cons 'browser-gt-browser browser)
                       (cons bookmark-gt-temp-key t)
-                      (cons bookmark-gt-browsel-tabs--marker-key t))))
+                      (cons bookmark-gt-browser-tabs--marker-key t))))
     (when (and (stringp browser) (not (string-empty-p browser)))
       (push (cons 'tags (list browser)) props))
     (bookmark-gt-set-non-file base
@@ -160,13 +160,13 @@ list buffer's Tags column and in the `;tag' particle filter."
                               props
                               t)))
 
-(defun bookmark-gt-browsel-tabs--clear ()
-  "Remove every browsel-owned record from `bookmark-alist'.
+(defun bookmark-gt-browser-tabs--clear ()
+  "Remove every browser-gt-owned record from `bookmark-alist'.
 Matches only records carrying the
-`bookmark-gt-browsel-tabs--marker-key' marker, so records
-owned by other browsel-related packages are left alone."
+`bookmark-gt-browser-tabs--marker-key' marker, so records
+owned by other browser-gt-related packages are left alone."
   (setq bookmark-alist
-        (seq-remove #'bookmark-gt-browsel-tabs--own-record-p
+        (seq-remove #'bookmark-gt-browser-tabs--own-record-p
                     bookmark-alist))
   (setq bookmark-alist-modification-count
         (1+ bookmark-alist-modification-count))
@@ -174,25 +174,25 @@ owned by other browsel-related packages are left alone."
 
 ;;;; Refresh
 
-(defvar bookmark-gt-browsel-tabs--refreshing nil
-  "Non-nil while `bookmark-gt-browsel-tabs-refresh' is running.
+(defvar bookmark-gt-browser-tabs--refreshing nil
+  "Non-nil while `bookmark-gt-browser-tabs-refresh' is running.
 Prevents re-entrancy: the idle timer might fire while a manual
 refresh (or the mode-on immediate refresh) is still in progress,
 which would produce duplicate records.  A second refresh that
 finds this flag set silently returns.")
 
 ;;;###autoload
-(defun bookmark-gt-browsel-tabs-refresh ()
+(defun bookmark-gt-browser-tabs-refresh ()
   "Rebuild browser-tab bookmarks from live browser state.
 Clears existing tab records, fetches the current tabs via
-browsel, applies `bookmark-gt-browsel-tabs-filter', and stores
+browser-gt, applies `bookmark-gt-browser-tabs-filter', and stores
 one temp bookmark per surviving tab.  Guarded against
 re-entrancy."
   (interactive)
-  (if bookmark-gt-browsel-tabs--refreshing
+  (if bookmark-gt-browser-tabs--refreshing
       (when (called-interactively-p 'interactive)
         (message "Browser-tab refresh already in progress; skipping"))
-    (let ((bookmark-gt-browsel-tabs--refreshing t)
+    (let ((bookmark-gt-browser-tabs--refreshing t)
           (count 0))
       ;; Silence the after-hook (would fire once per stored tab) and
       ;; auto-save (would trigger mid-batch once modification-count
@@ -204,106 +204,106 @@ re-entrancy."
       (let ((bookmark-save-flag nil)
             ;; Silence per-tab tag prompt during the batch.
             (bookmark-gt-prompt-for-tags-flag nil))
-        (bookmark-gt-browsel-tabs--clear)
-        (dolist (tab (bookmark-gt-browsel-tabs--fetch))
+        (bookmark-gt-browser-tabs--clear)
+        (dolist (tab (bookmark-gt-browser-tabs--fetch))
           (let ((url (plist-get tab :url)))
             (when (and (stringp url) (not (string-empty-p url))
-                       (bookmark-gt-browsel-tabs--accept-p tab))
-              (bookmark-gt-browsel-tabs--store tab)
+                       (bookmark-gt-browser-tabs--accept-p tab))
+              (bookmark-gt-browser-tabs--store tab)
               (setq count (1+ count))))))
       (bookmark-gt-list-refresh)
       (message "Refreshed %d browser-tab bookmark(s)" count))))
 
 ;;;; Mode
 ;;
-;; No idle timer.  The mode subscribes to browsel's
-;; `browsel-client-connected-functions' and
-;; `browsel-client-disconnected-functions' hooks and refreshes
+;; No idle timer.  The mode subscribes to browser-gt's
+;; `browser-gt-client-connected-functions' and
+;; `browser-gt-client-disconnected-functions' hooks and refreshes
 ;; whenever a browser connects or disconnects.  Bursts of events
 ;; (e.g. several tabs reloading at once) are coalesced through a
 ;; single debounce timer.  Explicit `g' in the list buffer and
-;; `M-x bookmark-gt-browsel-tabs-refresh' still work on demand.
+;; `M-x bookmark-gt-browser-tabs-refresh' still work on demand.
 
-(defvar bookmark-gt-browsel-tabs-mode)
+(defvar bookmark-gt-browser-tabs-mode)
 
-(defvar bookmark-gt-browsel-tabs--debounce-timer nil
+(defvar bookmark-gt-browser-tabs--debounce-timer nil
   "Pending debounce timer for a coalesced refresh, or nil.")
 
-(defun bookmark-gt-browsel-tabs--debounced-refresh ()
+(defun bookmark-gt-browser-tabs--debounced-refresh ()
   "Timer callback: run the coalesced refresh.
 Clears the debounce timer, then calls
-`bookmark-gt-browsel-tabs-refresh' if the mode is still on."
-  (setq bookmark-gt-browsel-tabs--debounce-timer nil)
-  (when bookmark-gt-browsel-tabs-mode
-    (bookmark-gt-browsel-tabs-refresh)))
+`bookmark-gt-browser-tabs-refresh' if the mode is still on."
+  (setq bookmark-gt-browser-tabs--debounce-timer nil)
+  (when bookmark-gt-browser-tabs-mode
+    (bookmark-gt-browser-tabs-refresh)))
 
-(defun bookmark-gt-browsel-tabs--schedule-refresh (&rest _)
+(defun bookmark-gt-browser-tabs--schedule-refresh (&rest _)
   "Schedule a debounced refresh, coalescing bursts of client events.
-Attached to `browsel-client-connected-functions' and
-`browsel-client-disconnected-functions'; ignores its arguments,
+Attached to `browser-gt-client-connected-functions' and
+`browser-gt-client-disconnected-functions'; ignores its arguments,
 which carry the client name.  When a refresh is already pending,
 this call folds into it."
-  (unless bookmark-gt-browsel-tabs--debounce-timer
-    (setq bookmark-gt-browsel-tabs--debounce-timer
-          (run-at-time bookmark-gt-browsel-tabs-debounce nil
-                       #'bookmark-gt-browsel-tabs--debounced-refresh))))
+  (unless bookmark-gt-browser-tabs--debounce-timer
+    (setq bookmark-gt-browser-tabs--debounce-timer
+          (run-at-time bookmark-gt-browser-tabs-debounce nil
+                       #'bookmark-gt-browser-tabs--debounced-refresh))))
 
-(defun bookmark-gt-browsel-tabs--cancel-debounce-timer ()
+(defun bookmark-gt-browser-tabs--cancel-debounce-timer ()
   "Cancel and forget any pending debounce timer."
-  (when bookmark-gt-browsel-tabs--debounce-timer
-    (cancel-timer bookmark-gt-browsel-tabs--debounce-timer)
-    (setq bookmark-gt-browsel-tabs--debounce-timer nil)))
+  (when bookmark-gt-browser-tabs--debounce-timer
+    (cancel-timer bookmark-gt-browser-tabs--debounce-timer)
+    (setq bookmark-gt-browser-tabs--debounce-timer nil)))
 
 ;;;###autoload
-(define-minor-mode bookmark-gt-browsel-tabs-mode
+(define-minor-mode bookmark-gt-browser-tabs-mode
   "Global minor mode that keeps browser-tab bookmarks in sync.
 
-When enabled, subscribes to browsel's
-`browsel-client-connected-functions' and
-`browsel-client-disconnected-functions' hooks and refreshes
+When enabled, subscribes to browser-gt's
+`browser-gt-client-connected-functions' and
+`browser-gt-client-disconnected-functions' hooks and refreshes
 browser-tab bookmarks whenever a browser connects or disconnects.
-Bursts of events within `bookmark-gt-browsel-tabs-debounce'
+Bursts of events within `bookmark-gt-browser-tabs-debounce'
 seconds are coalesced into one refresh.  On mode-on, if any
 browser is already connected, one refresh runs immediately;
 otherwise the first refresh runs when a browser connects.
 
 Refreshes are also on-demand via `g' (revert) in the
 `*Bookmarks-gt List*' buffer and `M-x
-bookmark-gt-browsel-tabs-refresh'.
+bookmark-gt-browser-tabs-refresh'.
 
 Turning the mode off removes the hooks, cancels any pending
 debounced refresh, and clears any tab records added by this mode
 from the alist (only records with our own handler symbol;
-records from other browsel-related packages are untouched).
+records from other browser-gt-related packages are untouched).
 
-Requires browsel to be installed.  Enable is a `user-error'
-no-op when browsel is not loaded."
+Requires browser-gt to be installed.  Enable is a `user-error'
+no-op when browser-gt is not loaded."
   :global t
   :group 'bookmark-gt
   (cond
-   ((and bookmark-gt-browsel-tabs-mode (not (featurep 'browsel)))
-    (setq bookmark-gt-browsel-tabs-mode nil)
+   ((and bookmark-gt-browser-tabs-mode (not (featurep 'browser-gt)))
+    (setq bookmark-gt-browser-tabs-mode nil)
     (user-error "Browsel is not loaded"))
-   (bookmark-gt-browsel-tabs-mode
-    (add-hook 'browsel-client-connected-functions
-              #'bookmark-gt-browsel-tabs--schedule-refresh)
-    (add-hook 'browsel-client-disconnected-functions
-              #'bookmark-gt-browsel-tabs--schedule-refresh)
-    (when (browsel-connected-clients)
-      (bookmark-gt-browsel-tabs-refresh)))
+   (bookmark-gt-browser-tabs-mode
+    (add-hook 'browser-gt-client-connected-functions
+              #'bookmark-gt-browser-tabs--schedule-refresh)
+    (add-hook 'browser-gt-client-disconnected-functions
+              #'bookmark-gt-browser-tabs--schedule-refresh)
+    (when (browser-gt-connected-clients)
+      (bookmark-gt-browser-tabs-refresh)))
    (t
-    (remove-hook 'browsel-client-connected-functions
-                 #'bookmark-gt-browsel-tabs--schedule-refresh)
-    (remove-hook 'browsel-client-disconnected-functions
-                 #'bookmark-gt-browsel-tabs--schedule-refresh)
-    (bookmark-gt-browsel-tabs--cancel-debounce-timer)
-    (bookmark-gt-browsel-tabs--clear))))
+    (remove-hook 'browser-gt-client-connected-functions
+                 #'bookmark-gt-browser-tabs--schedule-refresh)
+    (remove-hook 'browser-gt-client-disconnected-functions
+                 #'bookmark-gt-browser-tabs--schedule-refresh)
+    (bookmark-gt-browser-tabs--cancel-debounce-timer)
+    (bookmark-gt-browser-tabs--clear))))
 
-(provide 'bookmark-gt-browsel-tabs)
+(provide 'bookmark-gt-browser-tabs)
 
 
 ;; Local Variables:
 ;; package-lint-main-file: "bookmark-gt.el"
 ;; End:
 
-;;; bookmark-gt-browsel-tabs.el ends here
+;;; bookmark-gt-browser-tabs.el ends here

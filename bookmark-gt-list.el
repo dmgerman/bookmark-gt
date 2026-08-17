@@ -48,8 +48,8 @@
 
 ;; Optional-mode ephemeral refreshers, called from
 ;; `bookmark-gt-list--revert' (`g') when their mode is on.
-(declare-function bookmark-gt-browsel-tabs-refresh
-                  "bookmark-gt-browsel-tabs")
+(declare-function bookmark-gt-browser-tabs-refresh
+                  "bookmark-gt-browser-tabs")
 (declare-function bookmark-gt-auto-update-tick
                   "bookmark-gt-auto-update")
 
@@ -581,8 +581,8 @@ mode defaults."
   "Revert function for the bookmark-gt list buffer.
 Refreshes ephemeral sources (browser tabs, auto-update
 positions) that are currently enabled, then redraws."
-  (when (bound-and-true-p bookmark-gt-browsel-tabs-mode)
-    (bookmark-gt-browsel-tabs-refresh))
+  (when (bound-and-true-p bookmark-gt-browser-tabs-mode)
+    (bookmark-gt-browser-tabs-refresh))
   (when (bound-and-true-p bookmark-gt-auto-update-mode)
     (bookmark-gt-auto-update-tick))
   (bookmark-gt-list--redraw-preserving-point))

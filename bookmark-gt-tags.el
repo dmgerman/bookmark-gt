@@ -218,7 +218,7 @@ list."
 ;;
 ;; Gated by `bookmark-gt-prompt-for-tags-flag' — a defcustom so
 ;; users can disable prompts globally, and batch callers
-;; (`bookmark-gt-browsel-tabs-refresh', tests) let-bind it to
+;; (`bookmark-gt-browser-tabs-refresh', tests) let-bind it to
 ;; nil around their loops.  Previously this check was
 ;; `called-interactively-p 'any', which is unreliable when the
 ;; hook is invoked via funcall through seq-reduce (the

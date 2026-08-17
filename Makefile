@@ -46,7 +46,7 @@ CI_EMACS ?= $(EMACS_30)
 #   6. bookmark-gt-jump.el     — consult reader, marginalia annotator, orderless
 #   7. bookmark-gt-auto-update.el — idle timer, per-record state, refresh triggers
 #   8. bookmark-gt-default-tags.el — default-tags DSL, tag-reader hook
-#   9. bookmark-gt-browsel-tabs.el — browser tabs as temp bookmarks
+#   9. bookmark-gt-browser-tabs.el — browser tabs as temp bookmarks
 EL_FILES = bookmark-gt.el \
            bookmark-gt-core.el \
            bookmark-gt-handlers.el \
@@ -55,7 +55,7 @@ EL_FILES = bookmark-gt.el \
            bookmark-gt-jump.el \
            bookmark-gt-auto-update.el \
            bookmark-gt-default-tags.el \
-           bookmark-gt-browsel-tabs.el \
+           bookmark-gt-browser-tabs.el \
            bookmark-gt-migrate.el
 
 # Project-local ELPA so the user's personal package directory is not
@@ -64,7 +64,7 @@ ELPA_DIR = .elpa
 
 # Dependencies installed into the project-local ELPA before lint/compile.
 # bookmark-gt has NO hard runtime dependencies beyond Emacs itself
-# (per Package-Requires); marginalia, consult, orderless, and browsel
+# (per Package-Requires); marginalia, consult, orderless, and browser-gt
 # are all optional soft-deps loaded with `(require 'foo nil t)'.
 # Install them here so byte-compile / package-lint can resolve the
 # feature symbols without warnings.  `package-lint' is the lint tool

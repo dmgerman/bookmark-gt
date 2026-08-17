@@ -70,7 +70,7 @@ bookmark-gt*.el file by scripts/update-version.sh; the CI target
 (require 'bookmark-gt-jump)
 (require 'bookmark-gt-auto-update)
 (require 'bookmark-gt-default-tags)
-(require 'bookmark-gt-browsel-tabs)
+(require 'bookmark-gt-browser-tabs)
 
 ;;;###autoload
 (define-minor-mode bookmark-gt-mode

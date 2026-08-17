@@ -706,15 +706,15 @@ Returns the stored (NAME . DATA) pair."
        :doc "Location bookmarked from pdf-tools."))
 
 ;; Browser tab — our own handler plus the two ecosystem variants
-;; (old bookmark-plus-gt and browsel-tab-manager).  Note: type
-;; membership does NOT imply cleanup ownership; the browsel-tabs
+;; (old bookmark-plus-gt and browser-gt-tab-manager).  Note: type
+;; membership does NOT imply cleanup ownership; the browser-gt-tabs
 ;; module clears only records whose handler is its OWN symbol.
 (bookmark-gt-handler-register
  '(bmkp-gt-browsel-tabs-jump
-   browsel-tab-manager-bookmark-jump)
+   browser-gt-tab-manager-bookmark-jump)
  (list :type 'browser-tab :name "BrowserTab" :group 'web
        :face 'bookmark-gt-face-url :narrow-char ?b
-       :doc "Browser tab bookmarked from browsel or its ecosystem."))
+       :doc "Browser tab bookmarked from browser-gt or its ecosystem."))
 
 ;; Third-party types worth showing by default (all follow the
 ;; standard naming convention, so the derive fallback would also

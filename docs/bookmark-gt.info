@@ -50,7 +50,7 @@ Opt-in modes
 
 * bookmark-gt-auto-update-mode::
 * bookmark-gt-default-tags-mode::
-* bookmark-gt-browsel-tabs-mode::
+* bookmark-gt-browser-tabs-mode::
 
 User interface
 
@@ -134,7 +134,8 @@ without them):
    • ‘marginalia’ — bookmark completion annotator (tags · type · path).
    • ‘consult’ — jump reader UI (falls back to plain ‘completing-read’).
    • ‘orderless’ — enables the ‘,@type’ / ‘;tag’ narrowing particles.
-   • ‘browsel’ — required only for the browser-tabs feature.  See below
+   • ‘browser-gt’ — required only for the browser-tabs feature.  See
+     below
 
    The bindings above rebind the standard ‘C-x r m’, ‘C-x r l’, and ‘C-x
 r b’ to the bookmark-gt equivalents.  In particular: prefer
@@ -198,8 +199,8 @@ unmodified.
 
    Disabling the mode removes every advice and hook that enabling
 installed.  The three opt-in modes described below (auto-update,
-default-tags, browsel-tabs) each add further behavior and are controlled
-independently.
+default-tags, browser-gt-tabs) each add further behavior and are
+controlled independently.
 
 
 File: bookmark-gt.info,  Node: Opt-in modes,  Prev: Master switch bookmark-gt-mode,  Up: Getting started
@@ -214,7 +215,7 @@ if you use the feature.
 
 * bookmark-gt-auto-update-mode::
 * bookmark-gt-default-tags-mode::
-* bookmark-gt-browsel-tabs-mode::
+* bookmark-gt-browser-tabs-mode::
 
 
 File: bookmark-gt.info,  Node: bookmark-gt-auto-update-mode,  Next: bookmark-gt-default-tags-mode,  Up: Opt-in modes
@@ -236,7 +237,7 @@ the buffer redraws.
 or ‘M-x bookmark-gt-auto-update-toggle NAME’.
 
 
-File: bookmark-gt.info,  Node: bookmark-gt-default-tags-mode,  Next: bookmark-gt-browsel-tabs-mode,  Prev: bookmark-gt-auto-update-mode,  Up: Opt-in modes
+File: bookmark-gt.info,  Node: bookmark-gt-default-tags-mode,  Next: bookmark-gt-browser-tabs-mode,  Prev: bookmark-gt-auto-update-mode,  Up: Opt-in modes
 
 2.2.2 ‘bookmark-gt-default-tags-mode’
 -------------------------------------
@@ -259,22 +260,22 @@ applied without user confirmation.  The user always sees the defaults as
 prefill in the tag reader and can edit or clear them.
 
 
-File: bookmark-gt.info,  Node: bookmark-gt-browsel-tabs-mode,  Prev: bookmark-gt-default-tags-mode,  Up: Opt-in modes
+File: bookmark-gt.info,  Node: bookmark-gt-browser-tabs-mode,  Prev: bookmark-gt-default-tags-mode,  Up: Opt-in modes
 
-2.2.3 ‘bookmark-gt-browsel-tabs-mode’
+2.2.3 ‘bookmark-gt-browser-tabs-mode’
 -------------------------------------
 
 Exposes the browser's open tabs as bookmarks (temporary — not saved to
-disk).  Requires ‘browsel’ to be installed and connected.
+disk).  Requires ‘browser-gt’ to be installed and connected.
 
    Refresh is on-demand, not on a timer:
    • one refresh on mode enable;
    • ‘g’ (revert) in the list buffer;
-   • ‘M-x bookmark-gt-browsel-tabs-refresh’ for a manual refresh.
+   • ‘M-x bookmark-gt-browser-tabs-refresh’ for a manual refresh.
 
    Turning the mode off clears the tab records added by this mode.
-Records owned by other browsel-related packages
-(‘browsel-tab-manager-bookmark-jump’ etc.)  are left alone.
+Records owned by other browser-gt-related packages
+(‘browser-gt-tab-manager-bookmark-jump’ etc.)  are left alone.
 
    Deleting a browser-tab bookmark from the ‘*Bookmarks-gt List*’ buffer
 removes only the bookmark record; the browser tab itself stays open and
@@ -289,9 +290,9 @@ inside the batch — with 100+ tabs the whole refresh takes ~50 ms total
 
    Customizable:
 
-   • ‘bookmark-gt-browsel-tabs-browsers’ — list of browser clients to
+   • ‘bookmark-gt-browser-tabs-browsers’ — list of browser clients to
      query, nil = all connected.
-   • ‘bookmark-gt-browsel-tabs-filter’ — nil / regexp / predicate
+   • ‘bookmark-gt-browser-tabs-filter’ — nil / regexp / predicate
      applied per tab before storing.
 
 
@@ -1225,8 +1226,8 @@ Variable                               Default                               Wha
 ‘bookmark-gt-highlight-enable’         ‘t’                                   Per-bookmark line overlays in file-visiting buffers.  Off suppresses the overlays even while ‘bookmark-gt-mode’ is on.
 ‘bookmark-gt-auto-temp-names’          ‘("\\`org-capture-last-stored\\'")’   Names (regexps) auto-marked temporary on 'bookmark-store' — third-party transient bookmarks that should not persist.
 ‘bookmark-gt-file-type-handlers’       ‘nil’                                 Alist mapping filename regexp to a handler function; when a file bookmark's ‘filename’ matches, the function is called with the record instead of the built-in ‘find-file’ path.
-‘bookmark-gt-browsel-tabs-browsers’    ‘nil’                                 List of browsel browser client names to query for tabs (e.g.  ‘'("chrome" "firefox")’), or ‘nil’ to query every browser browsel is connected to.
-‘bookmark-gt-browsel-tabs-filter’      ‘nil’                                 Filter applied to each fetched tab before it is stored.  ‘nil’ = accept every tab; a regexp = keep tabs whose URL matches; a function = called with the tab plist, kept when it returns non-nil.
+‘bookmark-gt-browser-tabs-browsers’    ‘nil’                                 List of browser-gt browser client names to query for tabs (e.g.  ‘'("chrome" "firefox")’), or ‘nil’ to query every browser browser-gt is connected to.
+‘bookmark-gt-browser-tabs-filter’      ‘nil’                                 Filter applied to each fetched tab before it is stored.  ‘nil’ = accept every tab; a regexp = keep tabs whose URL matches; a function = called with the tab plist, kept when it returns non-nil.
 
 
 File: bookmark-gt.info,  Node: Acknowledgements,  Next: License,  Prev: Reference,  Up: Top
@@ -1277,50 +1278,50 @@ GPL-3.0-or-later.  See ‘LICENSE’.
 Tag Table:
 Node: Top205
 Node: Install2369
-Node: Getting started3912
-Node: Master switch bookmark-gt-mode4110
-Node: Opt-in modes6438
-Node: bookmark-gt-auto-update-mode6789
-Node: bookmark-gt-default-tags-mode7654
-Node: bookmark-gt-browsel-tabs-mode8682
-Node: User interface10217
-Node: The *Bookmarks-gt List* buffer10467
-Node: Columns10993
-Node: Keys12231
-Node: Persisting view state14024
-Node: Jump reader bookmark-gt-jump14952
-Node: Elisp signatures16339
-Node: Non-file bookmark types19095
-Node: URL bookmarks — bookmark-gt-set-url19661
-Node: Dired bookmarks — bookmark-gt-handler-dired-jump20227
-Ref: Virtual dired21797
-Node: Function bookmarks — bookmark-gt-set-function23010
-Node: Keyboard-macro bookmarks — bookmark-gt-set-kmacro23823
-Node: Sequence bookmarks — bookmark-gt-set-sequence25481
-Node: File-type handlers — override the file-jump path per pattern26237
-Node: View bookmarks — save the list buffer's current view27610
-Node: Setting bookmarks28772
-Node: Tag reader29010
-Node: Same-name policy30015
-Node: Relocate change a bookmark's target31990
-Node: In-file behaviors33139
-Node: In-buffer cycling33368
-Node: Per-bookmark highlighting34368
-Node: Region bookmarks36325
-Node: Trackers37846
-Node: Visit tracker38022
-Node: File-rename tracker38766
-Node: Extension API39753
-Node: Handler registry39954
-Node: Group registry42153
-Node: Extension points43806
-Node: Compatibility45502
-Node: Data compat with bookmark+45703
-Node: Migrating from bookmark+46833
-Node: Reference48931
-Node: Selected customization49094
-Node: Acknowledgements54075
-Node: License55897
+Node: Getting started3920
+Node: Master switch bookmark-gt-mode4118
+Node: Opt-in modes6449
+Node: bookmark-gt-auto-update-mode6800
+Node: bookmark-gt-default-tags-mode7665
+Node: bookmark-gt-browser-tabs-mode8693
+Node: User interface10237
+Node: The *Bookmarks-gt List* buffer10487
+Node: Columns11013
+Node: Keys12251
+Node: Persisting view state14044
+Node: Jump reader bookmark-gt-jump14972
+Node: Elisp signatures16359
+Node: Non-file bookmark types19115
+Node: URL bookmarks — bookmark-gt-set-url19681
+Node: Dired bookmarks — bookmark-gt-handler-dired-jump20247
+Ref: Virtual dired21817
+Node: Function bookmarks — bookmark-gt-set-function23030
+Node: Keyboard-macro bookmarks — bookmark-gt-set-kmacro23843
+Node: Sequence bookmarks — bookmark-gt-set-sequence25501
+Node: File-type handlers — override the file-jump path per pattern26257
+Node: View bookmarks — save the list buffer's current view27630
+Node: Setting bookmarks28792
+Node: Tag reader29030
+Node: Same-name policy30035
+Node: Relocate change a bookmark's target32010
+Node: In-file behaviors33159
+Node: In-buffer cycling33388
+Node: Per-bookmark highlighting34388
+Node: Region bookmarks36345
+Node: Trackers37866
+Node: Visit tracker38042
+Node: File-rename tracker38786
+Node: Extension API39773
+Node: Handler registry39974
+Node: Group registry42173
+Node: Extension points43826
+Node: Compatibility45522
+Node: Data compat with bookmark+45723
+Node: Migrating from bookmark+46853
+Node: Reference48951
+Node: Selected customization49114
+Node: Acknowledgements54101
+Node: License55923
 
 End Tag Table
 

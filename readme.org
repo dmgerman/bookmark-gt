@@ -48,7 +48,7 @@ without them):
 - ~marginalia~ — bookmark completion annotator (tags · type · path).
 - ~consult~ — jump reader UI (falls back to plain ~completing-read~).
 - ~orderless~ — enables the ~,@type~ / ~;tag~ narrowing particles.
-- ~browsel~ — required only for the browser-tabs feature. See below
+- ~browser-gt~ — required only for the browser-tabs feature. See below
 
 The bindings above rebind the standard ~C-x r m~, ~C-x r l~,
 and ~C-x r b~ to the bookmark-gt equivalents.  In particular:
@@ -102,7 +102,7 @@ When enabled:
 
 Disabling the mode removes every advice and hook that
 enabling installed.  The three opt-in modes described below
-(auto-update, default-tags, browsel-tabs) each add further
+(auto-update, default-tags, browser-gt-tabs) each add further
 behavior and are controlled independently.
 
 ** Opt-in modes
@@ -149,19 +149,19 @@ is applied without user confirmation.  The user always sees
 the defaults as prefill in the tag reader and can edit or
 clear them.
 
-*** ~bookmark-gt-browsel-tabs-mode~
+*** ~bookmark-gt-browser-tabs-mode~
 
 Exposes the browser's open tabs as bookmarks (temporary — not
-saved to disk).  Requires ~browsel~ to be installed and connected.
+saved to disk).  Requires ~browser-gt~ to be installed and connected.
 
 Refresh is on-demand, not on a timer:
 - one refresh on mode enable;
 - ~g~ (revert) in the list buffer;
-- ~M-x bookmark-gt-browsel-tabs-refresh~ for a manual refresh.
+- ~M-x bookmark-gt-browser-tabs-refresh~ for a manual refresh.
 
 Turning the mode off clears the tab records added by this mode.
-Records owned by other browsel-related packages
-(~browsel-tab-manager-bookmark-jump~ etc.) are left alone.
+Records owned by other browser-gt-related packages
+(~browser-gt-tab-manager-bookmark-jump~ etc.) are left alone.
 
 Deleting a browser-tab bookmark from the
 ~*Bookmarks-gt List*~ buffer removes only the bookmark record;
@@ -178,9 +178,9 @@ takes ~50 ms total (30 ms fetch + 20 ms store).
 
 Customizable:
 
-- ~bookmark-gt-browsel-tabs-browsers~ — list of browser clients to
+- ~bookmark-gt-browser-tabs-browsers~ — list of browser clients to
   query, nil = all connected.
-- ~bookmark-gt-browsel-tabs-filter~ — nil / regexp / predicate
+- ~bookmark-gt-browser-tabs-filter~ — nil / regexp / predicate
   applied per tab before storing.
 
 * User interface
@@ -983,8 +983,8 @@ bookmark file before running.
 | ~bookmark-gt-highlight-enable~        | ~t~       | Per-bookmark line overlays in file-visiting buffers.  Off suppresses the overlays even while ~bookmark-gt-mode~ is on.    |
 | ~bookmark-gt-auto-temp-names~         | ~("\\`org-capture-last-stored\\'")~ | Names (regexps) auto-marked temporary on `bookmark-store' — third-party transient bookmarks that should not persist. |
 | ~bookmark-gt-file-type-handlers~      | ~nil~     | Alist mapping filename regexp to a handler function; when a file bookmark's ~filename~ matches, the function is called with the record instead of the built-in ~find-file~ path. |
-| ~bookmark-gt-browsel-tabs-browsers~   | ~nil~     | List of browsel browser client names to query for tabs (e.g. ~'("chrome" "firefox")~), or ~nil~ to query every browser browsel is connected to. |
-| ~bookmark-gt-browsel-tabs-filter~     | ~nil~     | Filter applied to each fetched tab before it is stored.  ~nil~ = accept every tab; a regexp = keep tabs whose URL matches; a function = called with the tab plist, kept when it returns non-nil. |
+| ~bookmark-gt-browser-tabs-browsers~   | ~nil~     | List of browser-gt browser client names to query for tabs (e.g. ~'("chrome" "firefox")~), or ~nil~ to query every browser browser-gt is connected to. |
+| ~bookmark-gt-browser-tabs-filter~     | ~nil~     | Filter applied to each fetched tab before it is stored.  ~nil~ = accept every tab; a regexp = keep tabs whose URL matches; a function = called with the tab plist, kept when it returns non-nil. |
 
 * Acknowledgements
 

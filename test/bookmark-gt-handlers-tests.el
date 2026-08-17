@@ -68,10 +68,10 @@
     (should (eq (bookmark-gt-handler-type (car bookmark-alist)) 'dired))
     (should (bookmark-gt-handler-dired-p (car bookmark-alist)))))
 
-(ert-deftest bookmark-gt-test-classify-browsel-tab-manager-alias ()
-  "`browsel-tab-manager-bookmark-jump' classifies as browser-tab."
+(ert-deftest bookmark-gt-test-classify-browser-gt-tab-manager-alias ()
+  "`browser-gt-tab-manager-bookmark-jump' classifies as browser-tab."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "t" 'browsel-tab-manager-bookmark-jump nil)
+    (bookmark-gt-set-non-file "t" 'browser-gt-tab-manager-bookmark-jump nil)
     (should (eq (bookmark-gt-handler-type (car bookmark-alist))
                 'browser-tab))
     (should (bookmark-gt-handler-browser-tab-p (car bookmark-alist)))))
