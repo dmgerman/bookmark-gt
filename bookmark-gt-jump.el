@@ -97,6 +97,21 @@ supplied.  Valid values match `bookmark-gt-jump--sort-records':
                  (const :tag "Pool order"         nil))
   :group 'bookmark-gt)
 
+(defvar bookmark-gt-jump-before-read-hook nil
+  "Hook run once inside the jump readers before the reader displays.
+Runs at the top of `bookmark-gt-jump', `bookmark-gt-jump-other-window',
+and `bookmark-gt-jump-tagged', immediately before the candidate pool
+is computed — but only when the entry point is going to prompt the
+user (i.e. `:BOOKMARK' was not supplied).  Not run again on tag-filter
+restart within a single call.
+
+Called with no arguments.  Contributors typically refresh a pool
+that grows stale between reads.  `bookmark-gt-browser-tabs-mode'
+registers `bookmark-gt-browser-tabs-refresh' here so live browser
+tabs are current whenever the jump reader opens.  Third parties
+may add their own refreshers (auto-update sweep, remote-tab
+poll, etc.) — each is called synchronously in the order added.")
+
 (defcustom bookmark-gt-jump-candidate-format-function
   #'bookmark-gt-jump-candidate-default
   "Function that builds one `consult--read' candidate string for the jump reader.
@@ -269,7 +284,8 @@ Returns a three-field annotation: tags, type, path.  Fields use
 
 (defun bookmark-gt-jump--install-marginalia ()
   "Register `bookmark-gt-jump-annotate' as a bookmark-category annotator.
-No-op when marginalia is not loaded.  Idempotent."
+No-op when marginalia is not loaded.  Idempotent, so it is safe to
+call from every jump read as well as from `bookmark-gt-mode' on."
   (when (featurep 'marginalia)
     (let ((entry (assq 'bookmark marginalia-annotators)))
       (if entry
@@ -480,7 +496,15 @@ scans `bookmark-alist'."
       (bookmark-gt-jump--read-plain prompt candidates))))
 
 (defun bookmark-gt-jump--read (prompt)
-  "Read a bookmark name under PROMPT, running the tag-filter restart loop."
+  "Read a bookmark name under PROMPT, running the tag-filter restart loop.
+Runs `bookmark-gt-jump-before-read-hook' exactly once, before the
+first reader iteration, so pool-refresh contributors fire per jump
+rather than per tag-filter restart.  Also re-runs
+`bookmark-gt-jump--install-marginalia' at the top so a marginalia
+that loaded after `bookmark-gt-mode' still gets our annotator —
+the mode-on install is a no-op in that case."
+  (bookmark-gt-jump--install-marginalia)
+  (run-hooks 'bookmark-gt-jump-before-read-hook)
   (let (result)
     (while (null result)
       (setq bookmark-gt-jump--restart-p nil)

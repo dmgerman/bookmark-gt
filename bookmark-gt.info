@@ -13,7 +13,7 @@ bookmark-gt
 ***********
 
 A bookmark manager for Emacs, that replaces the the built-in
-‘bookmark.el’ inspired by bookmark+
+‘bookmark.el’.  It is inspired by bookmark+
 (https://www.emacswiki.org/emacs/BookmarkPlus).
 
    It supports most of ‘bookmark+’'s features: tags, non-file bookmark
@@ -55,7 +55,7 @@ Opt-in modes
 User interface
 
 * The *Bookmarks-gt List* buffer::
-* Jump reader bookmark-gt-jump::
+* Jump to a bookmark bookmark-gt-jump::
 * Non-file bookmark types::
 
 The ‘*Bookmarks-gt List*’ buffer
@@ -64,7 +64,7 @@ The ‘*Bookmarks-gt List*’ buffer
 * Keys::
 * Persisting view state::
 
-Jump reader: ‘bookmark-gt-jump’
+Jump to a bookmark: ‘bookmark-gt-jump’
 
 * Elisp signatures::
 
@@ -199,8 +199,8 @@ unmodified.
 
    Disabling the mode removes every advice and hook that enabling
 installed.  The three opt-in modes described below (auto-update,
-default-tags, browser-gt-tabs) each add further behavior and are
-controlled independently.
+default-tags, browser-tabs) each add further behavior and are controlled
+independently.
 
 
 File: bookmark-gt.info,  Node: Opt-in modes,  Prev: Master switch bookmark-gt-mode,  Up: Getting started
@@ -268,14 +268,31 @@ File: bookmark-gt.info,  Node: bookmark-gt-browser-tabs-mode,  Prev: bookmark-gt
 Exposes the browser's open tabs as bookmarks (temporary — not saved to
 disk).  Requires ‘browser-gt’ to be installed and connected.
 
-   Refresh is on-demand, not on a timer:
-   • one refresh on mode enable;
-   • ‘g’ (revert) in the list buffer;
+   Refresh triggers:
+
+   • Every ‘bookmark-gt-jump’ call.  The mode adds
+     ‘bookmark-gt-browser-tabs-refresh’ to
+     ‘bookmark-gt-jump-before-read-hook’, so the reader sees current
+     tabs at each read.  Tab state changes faster than connect and
+     disconnect events fire, and one fetch per jump is cheaper than a
+     polling timer.
+   • Browser connect and disconnect events.  The mode subscribes to
+     ‘browser-gt-client-connected-functions’ and
+     ‘browser-gt-client-disconnected-functions’ and refreshes the tab
+     records whenever a browser attaches or detaches.  Bursts of events
+     within ‘bookmark-gt-browser-tabs-debounce’ seconds (default 0.3)
+     are coalesced into a single refresh.
+   • Mode enable: one refresh runs immediately when a browser is already
+     connected.  When no browser is connected, the first refresh runs on
+     the next connect event or the next jump.
+   • ‘g’ (revert) in the ‘*Bookmarks-gt List*’ buffer.
    • ‘M-x bookmark-gt-browser-tabs-refresh’ for a manual refresh.
 
-   Turning the mode off clears the tab records added by this mode.
-Records owned by other browser-gt-related packages
-(‘browser-gt-tab-manager-bookmark-jump’ etc.)  are left alone.
+   Turning the mode off removes the connect and disconnect hooks and the
+jump-before-read hook, cancels any pending debounced refresh, and clears
+the tab records added by this mode.  Records owned by other
+browser-gt-related packages (‘browser-gt-tab-manager-bookmark-jump’
+etc.)  are left alone.
 
    Deleting a browser-tab bookmark from the ‘*Bookmarks-gt List*’ buffer
 removes only the bookmark record; the browser tab itself stays open and
@@ -284,9 +301,17 @@ is a separate operation.  This matches the rest of bookmark-gt: deleting
 a bookmark never touches the resource it points to (no file is deleted,
 no buffer is killed, no URL is un-visited).
 
-   The refresh loop suppresses per-tab hook execution and auto-save
-inside the batch — with 100+ tabs the whole refresh takes ~50 ms total
-(30 ms fetch + 20 ms store).
+   The refresh loop let-binds ‘bookmark-save-flag’ to nil and suppresses
+the per-record tag prompt, so a full refresh runs as a single batch
+without mid-batch auto-saves or user prompts.
+
+   Each stored tab record's ‘last-visited’ is seeded from the tab's
+‘:lastAccessed’ field (Chrome / Firefox report this as the last time the
+tab was focused, in milliseconds since epoch).  MRU sort in
+‘bookmark-gt-jump’ therefore orders tabs by the browser's own
+last-focused ordering, and every pre-jump refresh re-reads the field so
+the ordering tracks browser activity rather than bookmark-gt jump
+history.
 
    Customizable:
 
@@ -294,6 +319,9 @@ inside the batch — with 100+ tabs the whole refresh takes ~50 ms total
      query, nil = all connected.
    • ‘bookmark-gt-browser-tabs-filter’ — nil / regexp / predicate
      applied per tab before storing.
+   • ‘bookmark-gt-browser-tabs-debounce’ — seconds to coalesce browser
+     connect and disconnect events before triggering a refresh (default
+     0.3).
 
 
 File: bookmark-gt.info,  Node: User interface,  Next: Setting bookmarks,  Prev: Getting started,  Up: Top
@@ -304,11 +332,11 @@ File: bookmark-gt.info,  Node: User interface,  Next: Setting bookmarks,  Prev: 
 * Menu:
 
 * The *Bookmarks-gt List* buffer::
-* Jump reader bookmark-gt-jump::
+* Jump to a bookmark bookmark-gt-jump::
 * Non-file bookmark types::
 
 
-File: bookmark-gt.info,  Node: The *Bookmarks-gt List* buffer,  Next: Jump reader bookmark-gt-jump,  Up: User interface
+File: bookmark-gt.info,  Node: The *Bookmarks-gt List* buffer,  Next: Jump to a bookmark bookmark-gt-jump,  Up: User interface
 
 3.1 The ‘*Bookmarks-gt List*’ buffer
 ====================================
@@ -356,7 +384,7 @@ Key         Action
 ‘RET’       Jump
 ‘o’         Jump in another window
 ‘C-o’       Same as ‘o’
-‘v’         Preview in another window (leaves point in the list)
+‘TAB’       Preview in another window (leaves point in the list)
 ‘m’         Mark row (numeric prefix: mark N rows down)
 ‘d’         Flag row for deletion
 ‘x’         Delete every flagged row (prompts for confirmation)
@@ -406,10 +434,10 @@ bookmark-gt-list-reset-view’ to restore defaults; the reset itself is
 persisted when the file is enabled.
 
 
-File: bookmark-gt.info,  Node: Jump reader bookmark-gt-jump,  Next: Non-file bookmark types,  Prev: The *Bookmarks-gt List* buffer,  Up: User interface
+File: bookmark-gt.info,  Node: Jump to a bookmark bookmark-gt-jump,  Next: Non-file bookmark types,  Prev: The *Bookmarks-gt List* buffer,  Up: User interface
 
-3.2 Jump reader: ‘bookmark-gt-jump’
-===================================
+3.2 Jump to a bookmark: ‘bookmark-gt-jump’
+==========================================
 
 Recommended replacement for the built-in ‘bookmark-jump’.  The same
 command binds naturally to ‘C-x r b’ (see Install) and is the entry
@@ -439,7 +467,7 @@ orderless is loaded:
 * Elisp signatures::
 
 
-File: bookmark-gt.info,  Node: Elisp signatures,  Up: Jump reader bookmark-gt-jump
+File: bookmark-gt.info,  Node: Elisp signatures,  Up: Jump to a bookmark bookmark-gt-jump
 
 3.2.1 Elisp signatures
 ----------------------
@@ -501,7 +529,7 @@ record and must return a propertized string with the ‘bookmark-gt-name’,
                               :bookmarks-filter #'bookmark-gt-handler-file-p)
 
 
-File: bookmark-gt.info,  Node: Non-file bookmark types,  Prev: Jump reader bookmark-gt-jump,  Up: User interface
+File: bookmark-gt.info,  Node: Non-file bookmark types,  Prev: Jump to a bookmark bookmark-gt-jump,  Up: User interface
 
 3.3 Non-file bookmark types
 ===========================
@@ -999,7 +1027,7 @@ Each entry:
                  :face FACE :narrow-char CHAR :doc STRING))
 
    Multiple handler symbols may share the same ‘:type’ (URL has three
-handler-symbol aliases, browser-tab has three, etc.).  Entries are
+handler-symbol aliases, browser-tab has two, etc.).  Entries are
 included for: file, URL, EWW, Dired, Info, Org, PDF, browser-tab, Magit,
 Help, Image, EPUB (nov.el).
 
@@ -1099,6 +1127,17 @@ Every non-trivial mechanism is expected to have an extension point:
      ‘(name . data)’ pair.  bookmark-gt's own list buffer refresh does
      NOT go through this hook — it is wired directly.  Third-party
      observers register here to react to any change.
+   • ‘bookmark-gt-jump-before-read-hook’ — runs once inside
+     ‘bookmark-gt-jump’, ‘bookmark-gt-jump-other-window’, and
+     ‘bookmark-gt-jump-tagged’, immediately before the reader displays.
+     Fires only when the entry point is going to prompt the user (i.e.
+     ‘:BOOKMARK’ was not supplied) and does not re-fire on tag-filter
+     restart within the same call.  Called with no arguments; each
+     function runs synchronously in the order added.
+     ‘bookmark-gt-browser-tabs-mode’ registers
+     ‘bookmark-gt-browser-tabs-refresh’ here so live browser tabs are
+     current at each read.  Register your own pool refreshers
+     (auto-update sweep, remote-tab poll, ...) here.
    • ‘bookmark-gt-filter-alist’ — filter registry for the list buffer's
      ‘/’ command.
    • ‘bookmark-gt-sort-alist’ — sort registry (includes name and type
@@ -1277,51 +1316,51 @@ GPL-3.0-or-later.  See ‘LICENSE’.
 
 Tag Table:
 Node: Top205
-Node: Install2369
-Node: Getting started3920
-Node: Master switch bookmark-gt-mode4118
-Node: Opt-in modes6449
-Node: bookmark-gt-auto-update-mode6800
-Node: bookmark-gt-default-tags-mode7665
-Node: bookmark-gt-browser-tabs-mode8693
-Node: User interface10237
-Node: The *Bookmarks-gt List* buffer10487
-Node: Columns11013
-Node: Keys12251
-Node: Persisting view state14044
-Node: Jump reader bookmark-gt-jump14972
-Node: Elisp signatures16359
-Node: Non-file bookmark types19115
-Node: URL bookmarks — bookmark-gt-set-url19681
-Node: Dired bookmarks — bookmark-gt-handler-dired-jump20247
-Ref: Virtual dired21817
-Node: Function bookmarks — bookmark-gt-set-function23030
-Node: Keyboard-macro bookmarks — bookmark-gt-set-kmacro23843
-Node: Sequence bookmarks — bookmark-gt-set-sequence25501
-Node: File-type handlers — override the file-jump path per pattern26257
-Node: View bookmarks — save the list buffer's current view27630
-Node: Setting bookmarks28792
-Node: Tag reader29030
-Node: Same-name policy30035
-Node: Relocate change a bookmark's target32010
-Node: In-file behaviors33159
-Node: In-buffer cycling33388
-Node: Per-bookmark highlighting34388
-Node: Region bookmarks36345
-Node: Trackers37866
-Node: Visit tracker38042
-Node: File-rename tracker38786
-Node: Extension API39773
-Node: Handler registry39974
-Node: Group registry42173
-Node: Extension points43826
-Node: Compatibility45522
-Node: Data compat with bookmark+45723
-Node: Migrating from bookmark+46853
-Node: Reference48951
-Node: Selected customization49114
-Node: Acknowledgements54101
-Node: License55923
+Node: Install2391
+Node: Getting started3942
+Node: Master switch bookmark-gt-mode4140
+Node: Opt-in modes6468
+Node: bookmark-gt-auto-update-mode6819
+Node: bookmark-gt-default-tags-mode7684
+Node: bookmark-gt-browser-tabs-mode8712
+Node: User interface11858
+Node: The *Bookmarks-gt List* buffer12115
+Node: Columns12648
+Node: Keys13886
+Node: Persisting view state15679
+Node: Jump to a bookmark bookmark-gt-jump16607
+Node: Elisp signatures18015
+Node: Non-file bookmark types20778
+Node: URL bookmarks — bookmark-gt-set-url21351
+Node: Dired bookmarks — bookmark-gt-handler-dired-jump21917
+Ref: Virtual dired23487
+Node: Function bookmarks — bookmark-gt-set-function24700
+Node: Keyboard-macro bookmarks — bookmark-gt-set-kmacro25513
+Node: Sequence bookmarks — bookmark-gt-set-sequence27171
+Node: File-type handlers — override the file-jump path per pattern27927
+Node: View bookmarks — save the list buffer's current view29300
+Node: Setting bookmarks30462
+Node: Tag reader30700
+Node: Same-name policy31705
+Node: Relocate change a bookmark's target33680
+Node: In-file behaviors34829
+Node: In-buffer cycling35058
+Node: Per-bookmark highlighting36058
+Node: Region bookmarks38015
+Node: Trackers39536
+Node: Visit tracker39712
+Node: File-rename tracker40456
+Node: Extension API41443
+Node: Handler registry41644
+Node: Group registry43841
+Node: Extension points45494
+Node: Compatibility47909
+Node: Data compat with bookmark+48110
+Node: Migrating from bookmark+49240
+Node: Reference51338
+Node: Selected customization51501
+Node: Acknowledgements56488
+Node: License58310
 
 End Tag Table
 

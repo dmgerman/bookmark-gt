@@ -64,6 +64,30 @@
       (should (bookmark-gt-temp-p record))
       (should (equal (bookmark-gt-tags-of record) '("chrome"))))))
 
+(ert-deftest bookmark-gt-browser-gt-test-store-seeds-last-visited-from-accessed ()
+  "The tab's `:lastAccessed' (ms) becomes the record's `last-visited'."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-browser-tabs--store
+     (list :url "https://example.org"
+           :title "Example"
+           :id "1"
+           :browser-gt-browser "chrome"
+           :lastAccessed 1785939461849.99))
+    (let* ((record (car bookmark-alist))
+           (lv (bookmark-prop-get record 'last-visited)))
+      (should lv)
+      (should (equal (time-convert lv 'integer) 1785939461)))))
+
+(ert-deftest bookmark-gt-browser-gt-test-store-omits-last-visited-when-absent ()
+  "A tab plist without `:lastAccessed' produces a record without `last-visited'."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-browser-tabs--store
+     (list :url "https://example.org"
+           :title "Example"
+           :id "1"
+           :browser-gt-browser "chrome"))
+    (should-not (bookmark-prop-get (car bookmark-alist) 'last-visited))))
+
 (ert-deftest bookmark-gt-browser-gt-test-store-empty-title-uses-url ()
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-browser-tabs--store

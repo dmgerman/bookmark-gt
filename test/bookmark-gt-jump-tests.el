@@ -164,5 +164,43 @@
       (mapcar bookmark-gt-jump-candidate-format-function bookmark-alist)
       (should called))))
 
+;;;; Marginalia install
+;;
+;; `--install-marginalia' is called both from `bookmark-gt-mode' on
+;; and from `bookmark-gt-jump--read'.  The read-time call self-heals
+;; the "marginalia loaded after mode-on" case: the mode-on install
+;; is a no-op when marginalia is not yet loaded, and the next jump
+;; re-runs the install and picks up the now-loaded package.
+
+(ert-deftest bookmark-gt-jump-test-read-installs-marginalia-annotator ()
+  "`bookmark-gt-jump--read' installs our marginalia annotator lazily."
+  (skip-unless (featurep 'marginalia))
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-set-non-file "u" 'bookmark-gt-handler-url-jump
+                              '((url . "https://example.org")))
+    (let ((marginalia-annotators nil))
+      (cl-letf (((symbol-function 'bookmark-gt-jump--read-once)
+                 (lambda (_prompt) "u")))
+        (bookmark-gt-jump--read "prompt"))
+      (should (memq 'bookmark-gt-jump-annotate
+                    (assq 'bookmark marginalia-annotators))))))
+
+;;;; Before-read hook
+
+(ert-deftest bookmark-gt-jump-test-before-read-hook-fires-once ()
+  "`bookmark-gt-jump-before-read-hook' runs once per outer read call."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-set-non-file "u" 'bookmark-gt-handler-url-jump
+                              '((url . "https://example.org")))
+    (let* ((count 0)
+           (bookmark-gt-jump-before-read-hook
+            (list (lambda () (setq count (1+ count)))))
+           ;; Stub the reader so `--read' returns without user I/O.
+           (bookmark-gt-jump--pool bookmark-alist))
+      (cl-letf (((symbol-function 'bookmark-gt-jump--read-once)
+                 (lambda (_prompt) "u")))
+        (bookmark-gt-jump--read "prompt"))
+      (should (= count 1)))))
+
 (provide 'bookmark-gt-jump-tests)
 ;;; bookmark-gt-jump-tests.el ends here

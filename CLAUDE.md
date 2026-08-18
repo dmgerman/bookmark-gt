@@ -157,6 +157,11 @@ patch bindings via `define-key`.
 - `bookmark-gt-set-name-reader-hook` — refine the default name.
 - `bookmark-gt-set-tag-reader-hook` — contribute to the tag
   pipeline.
+- `bookmark-gt-jump-before-read-hook` — refresh a candidate
+  pool before the jump reader displays.  Fires once per outer
+  `bookmark-gt-jump*` call; contributors run synchronously in
+  order.  Used by `bookmark-gt-browser-tabs-mode` to refresh
+  live browser tabs per jump.
 - `bookmark-gt-handler-alist` — register a handler symbol under
   a type (via `bookmark-gt-handler-register`).
 - `bookmark-gt-group-alist` — register a new group.

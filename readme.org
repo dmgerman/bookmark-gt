@@ -99,7 +99,7 @@ When enabled:
 
 Disabling the mode removes every advice and hook that
 enabling installed.  The three opt-in modes described below
-(auto-update, default-tags, browser-gt-tabs) each add further
+(auto-update, default-tags, browser-tabs) each add further
 behavior and are controlled independently.
 
 ** Opt-in modes
@@ -151,12 +151,29 @@ clear them.
 Exposes the browser's open tabs as bookmarks (temporary — not
 saved to disk).  Requires ~browser-gt~ to be installed and connected.
 
-Refresh is on-demand, not on a timer:
-- one refresh on mode enable;
-- ~g~ (revert) in the list buffer;
+Refresh triggers:
+
+- Every ~bookmark-gt-jump~ call.  The mode adds
+  ~bookmark-gt-browser-tabs-refresh~ to
+  ~bookmark-gt-jump-before-read-hook~, so the reader sees
+  current tabs at each read.  Tab state changes faster than
+  connect and disconnect events fire, and one fetch per jump
+  is cheaper than a polling timer.
+- Browser connect and disconnect events.  The mode subscribes
+  to ~browser-gt-client-connected-functions~ and
+  ~browser-gt-client-disconnected-functions~ and refreshes the
+  tab records whenever a browser attaches or detaches.  Bursts
+  of events within ~bookmark-gt-browser-tabs-debounce~ seconds
+  (default 0.3) are coalesced into a single refresh.
+- Mode enable: one refresh runs immediately when a browser is
+  already connected.  When no browser is connected, the first
+  refresh runs on the next connect event or the next jump.
+- ~g~ (revert) in the ~*Bookmarks-gt List*~ buffer.
 - ~M-x bookmark-gt-browser-tabs-refresh~ for a manual refresh.
 
-Turning the mode off clears the tab records added by this mode.
+Turning the mode off removes the connect and disconnect hooks
+and the jump-before-read hook, cancels any pending debounced
+refresh, and clears the tab records added by this mode.
 Records owned by other browser-gt-related packages
 (~browser-gt-tab-manager-bookmark-jump~ etc.) are left alone.
 
@@ -169,9 +186,17 @@ deleting a bookmark never touches the resource it points to
 (no file is deleted, no buffer is killed, no URL is
 un-visited).
 
-The refresh loop suppresses per-tab hook execution and
-auto-save inside the batch — with 100+ tabs the whole refresh
-takes ~50 ms total (30 ms fetch + 20 ms store).
+The refresh loop let-binds ~bookmark-save-flag~ to nil and
+suppresses the per-record tag prompt, so a full refresh runs
+as a single batch without mid-batch auto-saves or user prompts.
+
+Each stored tab record's ~last-visited~ is seeded from the
+tab's ~:lastAccessed~ field (Chrome / Firefox report this as
+the last time the tab was focused, in milliseconds since
+epoch).  MRU sort in ~bookmark-gt-jump~ therefore orders tabs
+by the browser's own last-focused ordering, and every pre-jump
+refresh re-reads the field so the ordering tracks browser
+activity rather than bookmark-gt jump history.
 
 Customizable:
 
@@ -179,6 +204,9 @@ Customizable:
   query, nil = all connected.
 - ~bookmark-gt-browser-tabs-filter~ — nil / regexp / predicate
   applied per tab before storing.
+- ~bookmark-gt-browser-tabs-debounce~ — seconds to coalesce
+  browser connect and disconnect events before triggering a
+  refresh (default 0.3).
 
 * User interface
 
@@ -215,7 +243,7 @@ local only.
 | ~RET~ | Jump                                                         |
 | ~o~   | Jump in another window                                       |
 | ~C-o~ | Same as ~o~                                                  |
-| ~v~   | Preview in another window (leaves point in the list)         |
+| ~TAB~ | Preview in another window (leaves point in the list)         |
 | ~m~   | Mark row (numeric prefix: mark N rows down)                  |
 | ~d~   | Flag row for deletion                                        |
 | ~x~   | Delete every flagged row (prompts for confirmation)          |
@@ -775,7 +803,7 @@ symbol.  Each entry:
 #+end_src
 
 Multiple handler symbols may share the same ~:type~ (URL has
-three handler-symbol aliases, browser-tab has three, etc.).
+three handler-symbol aliases, browser-tab has two, etc.).
 Entries are included for: file, URL, EWW, Dired, Info, Org,
 PDF, browser-tab, Magit, Help, Image, EPUB (nov.el).
 
@@ -876,6 +904,17 @@ Every non-trivial mechanism is expected to have an extension point:
   buffer refresh does NOT go through this hook — it is wired
   directly.  Third-party observers register here to react to any
   change.
+- ~bookmark-gt-jump-before-read-hook~ — runs once inside
+  ~bookmark-gt-jump~, ~bookmark-gt-jump-other-window~, and
+  ~bookmark-gt-jump-tagged~, immediately before the reader
+  displays.  Fires only when the entry point is going to
+  prompt the user (i.e. ~:BOOKMARK~ was not supplied) and does
+  not re-fire on tag-filter restart within the same call.
+  Called with no arguments; each function runs synchronously in
+  the order added.  ~bookmark-gt-browser-tabs-mode~ registers
+  ~bookmark-gt-browser-tabs-refresh~ here so live browser tabs
+  are current at each read.  Register your own pool refreshers
+  (auto-update sweep, remote-tab poll, ...) here.
 - ~bookmark-gt-filter-alist~ — filter registry for the list
   buffer's ~/~ command.
 - ~bookmark-gt-sort-alist~ — sort registry (includes name and
