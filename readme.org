@@ -264,7 +264,7 @@ Selection marks and point are never persisted.  Use ~V~ or
 ~M-x bookmark-gt-list-reset-view~ to restore defaults; the
 reset itself is persisted when the file is enabled.
 
-** Jump reader: ~bookmark-gt-jump~
+** Jump to a bookmark: ~bookmark-gt-jump~
 
 Recommended replacement for the built-in ~bookmark-jump~.
 The same command binds naturally to ~C-x r b~ (see Install)
