@@ -908,15 +908,30 @@ with BOOKMARK.  Otherwise delegate to ORIG-FN with ARGS."
 
 ;;;; Public: interactive entry point
 
+;; NAME's sentinel distinguishes an interactive call from a Lisp
+;; call passing nil.  `called-interactively-p' cannot do this
+;; reliably here: invoking `bookmark-gt-set' as a transient suffix
+;; (as in a `transient-define-prefix' menu) makes it return nil
+;; even though the user invoked the command interactively.
+;; `bookmark-gt-tags.el' hit the same issue with its tag reader
+;; and moved off `called-interactively-p'; this sentinel is the
+;; equivalent fix for the name prompt.
+(defconst bookmark-gt--prompt-name (make-symbol "bookmark-gt--prompt-name")
+  "Sentinel NAME value that requests the interactive name prompt.
+`bookmark-gt-set' produces this value from its `interactive'
+spec.  Lisp callers should pass a name string, or nil to accept
+the suggested name without prompting.")
+
 (defun bookmark-gt-set (&optional name no-overwrite)
   "Set a bookmark.
-NAME is the bookmark name (prompted for when nil interactively).
-NO-OVERWRITE (a prefix argument) forces disambiguation with a
-`<N>' suffix.  Otherwise the same-name policy in
-`bookmark-gt-same-name-overwrite' and
+NAME is the bookmark name; interactive calls prompt for it.
+Lisp callers may pass a name string, or nil to accept the
+suggested name without prompting.  NO-OVERWRITE (a prefix
+argument) forces disambiguation with a `<N>' suffix.  Otherwise
+the same-name policy in `bookmark-gt-same-name-overwrite' and
 `bookmark-gt-allow-duplicate-names' applies.  Returns the
 stored (NAME . DATA) pair."
-  (interactive "i\nP")
+  (interactive (list bookmark-gt--prompt-name current-prefix-arg))
   (bookmark-maybe-load-default-file)
   (let* ((region-active (and bookmark-gt-use-region (use-region-p)))
          (raw-record (if region-active
@@ -962,11 +977,11 @@ stored (NAME . DATA) pair."
                                                      record-data))
          (chosen-name
           (cond
-           (name name)
-           ((called-interactively-p 'any)
+           ((eq name bookmark-gt--prompt-name)
             (read-from-minibuffer
              (format-prompt "Set bookmark" refined-suggested)
              nil nil nil 'bookmark-history refined-suggested))
+           (name name)
            (t refined-suggested)))
          (unique-name (bookmark-gt--resolve-collision
                        chosen-name record-data no-overwrite))
