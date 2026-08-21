@@ -1,35 +1,11 @@
-# Top-level Makefile for bookmark-gt.
+# Makefile for bookmark-gt.
 #
-# Drives compile, lint, checkdoc, check-declare, and tests for the
-# elisp package.  Follows the melpa-submit skill's multi-version
-# pattern: named EMACS_30 / EMACS_31 binaries and per-version target
-# families so `make check-all' is the pre-push guard.
-#
-# Targets:
-#   make               — compile (default)
-#   make lint          — package-lint every bookmark-gt*.el file
-#   make checkdoc      — checkdoc every bookmark-gt*.el file (errors on any warning)
-#   make check-declare — verify declare-function file arguments (errors on any mismatch)
-#   make compile       — byte-compile every bookmark-gt*.el file (errors on warning)
-#   make test          — run ERT tests under test/
-#   make clean         — remove every *.elc file
-#   make check         — compile + lint + checkdoc + check-declare +
-#                        check-version + test
-#   make check-ci      — run `make check' under every Emacs in
-#                        $(CI_EMACS_LIST) (the floor and the latest
-#                        release, matching the CI matrix); errors out
-#                        when either binary is absent
-#   make check-all     — check-30 + check-31 (run before pushing)
-#   make help          — this help text
-#
-# Per-version targets (drop-in for check / checkdoc / lint / compile / test):
-#   make check-30      — run `make check' under $(EMACS_30)
-#   make check-31      — run `make check' under $(EMACS_31)
-#   make checkdoc-30 / -31 — same shape for checkdoc alone
-#
-# Override the Emacs binary by passing EMACS=path/to/emacs.
+# Package-specific settings only; every shared rule lives in
+# Makefile.common, which is an identical copy across the dmg packages.
+# Run `make help' for the target list, and see the header of
+# Makefile.common for what each variable below controls.
 
-EMACS ?= emacs
+PACKAGE = bookmark-gt
 
 # Foundational files first so follow-on files can (require 'bookmark-gt)
 # without erroring when compiled in isolation.  Order:
@@ -53,221 +29,33 @@ EL_FILES = bookmark-gt.el \
            bookmark-gt-browser-tabs.el \
            bookmark-gt-migrate.el
 
-# Project-local ELPA so the user's personal package directory is not
-# touched and CI starts from a clean slate every run.
-ELPA_DIR = .elpa
-
-# Dependencies installed into the project-local ELPA before lint/compile.
-# bookmark-gt has NO hard runtime dependencies beyond Emacs itself
-# (per Package-Requires); marginalia, consult, orderless, and browser-gt
-# are all optional soft-deps loaded with `(require 'foo nil t)'.
-# Install them here so byte-compile / package-lint can resolve the
-# feature symbols without warnings.  `package-lint' is the lint tool
-# itself.
+# bookmark-gt has NO hard runtime dependencies beyond Emacs itself (per
+# Package-Requires); marginalia, consult, and orderless are optional
+# soft-deps loaded with `(require 'foo nil t)'.  They are installed here
+# so byte-compile and package-lint can resolve the feature symbols
+# without warnings.  `package-lint' is the lint tool itself.
 DEPS = package-lint marginalia consult orderless
 
-# Common Emacs invocation header: project-local package-user-dir, MELPA
-# and NonGNU ELPA in package-archives, package-initialize so installed
-# packages are on load-path.
-EMACS_BATCH = $(EMACS) -Q --batch \
-  --eval "(setq package-user-dir (expand-file-name \"$(ELPA_DIR)\"))" \
-  --eval "(require 'package)" \
-  --eval "(add-to-list 'package-archives '(\"melpa\" . \"https://melpa.org/packages/\"))" \
-  --eval "(add-to-list 'package-archives '(\"nongnu\" . \"https://elpa.nongnu.org/nongnu/\"))" \
-  --eval "(package-initialize)"
+INFO_SRC = readme.org
 
-.PHONY: default lint checkdoc check-declare compile test clean check help \
-        check-ci check-all check-30 check-31 \
-        checkdoc-30 checkdoc-31 checkdoc-all \
-        lint-30 lint-31 lint-all \
-        compile-30 compile-31 compile-all \
-        test-30 test-31 test-all \
-        version set-version check-version \
-        info
+# Version drift across the sources is a release-blocking error, so the
+# check runs as part of `make check'.
+CHECK_EXTRA = check-version
 
-# Default target: byte-compile.  Lint is not included here so the
-# common edit-then-`make' loop stays fast; run `make check' or
-# `make check-all' before committing.
-default: compile
+HELP_EXTRA = "  make version        print the current package version" \
+             "  make set-version VERSION=X.Y.Z   set it everywhere" \
+             "  make check-version  verify every source agrees on it"
 
-help:
-	@echo "bookmark-gt Makefile targets:"
-	@echo "  make               compile (default)"
-	@echo "  make lint          package-lint every .el file"
-	@echo "  make checkdoc      checkdoc every .el file"
-	@echo "  make check-declare verify declare-function references"
-	@echo "  make compile       byte-compile with -Werror"
-	@echo "  make test          run ERT tests"
-	@echo "  make check         compile + lint + checkdoc + check-declare + check-version + test"
-	@echo "  make check-ci      run check under every Emacs in CI_EMACS_LIST"
-	@echo "  make check-all     check-30 + check-31 (pre-push guard)"
-	@echo "  make clean         remove *.elc"
-	@echo "  make version       print the current package version"
-	@echo "  make set-version VERSION=X.Y.Z"
-	@echo "                     update every source's version to X.Y.Z"
-	@echo "  make check-version verify every source agrees on the version"
-	@echo "  make info          build bookmark-gt.info and dir from readme.org"
+include Makefile.common
 
-# assert-emacs: verify a named Emacs binary exists before delegating.
-define assert-emacs
-	@if [ ! -x "$($(1))" ]; then \
-	  echo "$(1) not executable: $($(1))"; \
-	  echo "Install with: brew install emacs-plus@$$(echo $(1) | sed -E 's/[^0-9]//g')"; \
-	  echo "Or override: make <target> $(1)=/path/to/emacs"; \
-	  exit 1; \
-	fi
-endef
+# Version management.  The single source of truth is bookmark-gt.el's
+# `;; Version:' header, mirrored into the `bookmark-gt-version'
+# defconst in that same file.  Every other bookmark-gt*.el repeats the
+# header so package-lint is satisfied.  `scripts/update-version.sh'
+# rewrites all three surfaces atomically; `check-version' fails on any
+# drift and is wired into `check' so CI catches it on every PR.
+.PHONY: version set-version check-version
 
-$(ELPA_DIR):
-	@mkdir -p $@
-
-$(ELPA_DIR)/.installed: | $(ELPA_DIR)
-	$(EMACS_BATCH) \
-	  --eval "(unless package-archive-contents (package-refresh-contents))" \
-	  $(foreach pkg,$(DEPS),--eval "(unless (package-installed-p '$(pkg)) (package-install '$(pkg)))")
-	@touch $@
-
-lint: $(ELPA_DIR)/.installed
-	$(EMACS_BATCH) \
-	  --eval "(require 'package-lint)" \
-	  -f package-lint-batch-and-exit $(EL_FILES)
-
-# checkdoc runs in batch via `checkdoc-file', which writes warnings to
-# stderr (via `display-warning') but never exits non-zero on its own.
-# After each file, peek at the `*Warnings*' buffer to detect whether
-# any warning was emitted and exit 1 on the first one so CI fails on
-# regressions.  Stderr already carries the human-readable diagnostic;
-# no need to re-print it.  `-L .' lets each file `require' its
-# siblings during checkdoc's own load.
-checkdoc:
-	@$(EMACS_BATCH) \
-	  -L . \
-	  --eval "(require 'checkdoc)" \
-	  --eval "(let ((had-issue nil)) \
-	            (dolist (f command-line-args-left) \
-	              (with-current-buffer (get-buffer-create \"*Warnings*\") (erase-buffer)) \
-	              (checkdoc-file f) \
-	              (when (> (buffer-size (get-buffer-create \"*Warnings*\")) 0) \
-	                (setq had-issue t))) \
-	            (when had-issue (kill-emacs 1)))" \
-	  $(EL_FILES)
-
-# check-declare verifies the file argument of every `declare-function'
-# form by loading the named file and checking that the function is
-# defined there.
-check-declare:
-	@$(EMACS_BATCH) \
-	  -L . \
-	  --eval "(require 'check-declare)" \
-	  --eval "(let ((had-issue nil)) \
-	            (dolist (f command-line-args-left) \
-	              (when (check-declare-file f) \
-	                (setq had-issue t))) \
-	            (when had-issue \
-	              (with-current-buffer (get-buffer-create check-declare-warning-buffer) \
-	                (princ (buffer-string))) \
-	              (kill-emacs 1)))" \
-	  $(EL_FILES)
-
-# Compile each file in a fresh subprocess so a definition leaked by
-# one file cannot mask a missing `require' in another.  Treats every
-# byte-compile warning as a hard error so CI catches them before
-# commit.
-compile: $(ELPA_DIR)/.installed
-	@set -e; \
-	for f in $(EL_FILES); do \
-	  echo "==> compiling $$f"; \
-	  $(EMACS_BATCH) \
-	    --eval "(setq byte-compile-error-on-warn t)" \
-	    -L . \
-	    -f batch-byte-compile $$f; \
-	done
-
-# ERT test runner.  Loads every test/*.el file and runs all tests
-# batch-mode with a non-zero exit on any failure.
-test: $(ELPA_DIR)/.installed
-	@if [ -d test ]; then \
-	  $(EMACS_BATCH) \
-	    -L . -L test \
-	    $(foreach f,$(wildcard test/*.el),-l $(f)) \
-	    -f ert-run-tests-batch-and-exit; \
-	else \
-	  echo "no test/ directory; skipping"; \
-	fi
-
-clean:
-	rm -f *.elc test/*.elc
-
-# ---------------------------------------------------------------------------
-# Documentation targets
-#
-# readme.org is the single source of truth.  Info output requires
-# `makeinfo' (bundled with Emacs / Homebrew) and `install-info'.
-# `bookmark-gt.info' and `dir' live at the repo root and are
-# committed as source-of-truth artifacts consumed by ELPA
-# activation; `make clean' does NOT remove them.  Regenerate
-# after editing readme.org.
-
-INFO_FILE = bookmark-gt.info
-INFO_DIR  = dir
-
-info: $(INFO_FILE) $(INFO_DIR)
-
-# Stage readme.org as bookmark-gt.org so Org's basename-derived
-# output filename matches `#+texinfo_filename'.  Without this,
-# Org would produce readme.texi -> bookmark-gt.info (from
-# @setfilename) and then its post-processing would look for
-# readme.info and fail.
-$(INFO_FILE): readme.org
-	cp readme.org bookmark-gt.org
-	$(EMACS) -Q --batch \
-	  --eval "(setq load-prefer-newer t)" \
-	  --eval "(require 'ox-texinfo)" \
-	  bookmark-gt.org \
-	  -f org-texinfo-export-to-info
-	@rm -f bookmark-gt.org bookmark-gt.texi
-
-$(INFO_DIR): $(INFO_FILE)
-	install-info --info-file=$(INFO_FILE) --dir-file=$(INFO_DIR)
-
-check: compile lint checkdoc check-declare check-version test
-
-# CI-mirror check.  EMACS_30 / EMACS_31 are the Package-Requires floor
-# and the latest release, matching the GitHub Actions matrix in
-# .github/workflows/package-lint.yml.  Both are mandatory: a skipped
-# version reports a pass that CI does not agree with, so `check-ci'
-# refuses to run until both are installed.  The default `make check'
-# runs under whatever `emacs' resolves to on PATH and cannot prove
-# multi-version compatibility.
-EMACS_30 ?= /opt/homebrew/opt/emacs-plus@30/bin/emacs
-EMACS_31 ?= /opt/homebrew/opt/emacs-plus@31/bin/emacs
-CI_EMACS_LIST ?= $(EMACS_30) $(EMACS_31)
-
-# Every binary is verified before the first one runs, so a missing
-# install is reported up front rather than after a full pass.
-check-ci:
-	@missing=""; \
-	for e in $(CI_EMACS_LIST); do \
-	  [ -x "$$e" ] || missing="$$missing $$e"; \
-	done; \
-	if [ -n "$$missing" ]; then \
-	  echo "check-ci: required Emacs not executable:$$missing"; \
-	  echo "Install both:  brew install emacs-plus@30 emacs-plus@31"; \
-	  echo "Or override:   make check-ci CI_EMACS_LIST=\"/path/to/emacs ...\""; \
-	  exit 1; \
-	fi
-	@for e in $(CI_EMACS_LIST); do \
-	  echo "==> check-ci under $$e ($$($$e --version | head -1))"; \
-	  $(MAKE) EMACS=$$e check || exit 1; \
-	done
-
-# Version management.  Single source of truth is bookmark-gt.el's
-# `;; Version:' header, which is also mirrored into the
-# `bookmark-gt-version' defconst inside that file.  Every other
-# bookmark-gt*.el mirrors the same `;; Version:' header so
-# package-lint is happy.  `scripts/update-version.sh' rewrites all
-# three surfaces atomically; `check-version' fails if any drift
-# and is wired into `make check' so CI catches drift on every PR.
 version:
 	@sed -n 's/^;; Version: //p' bookmark-gt.el
 
@@ -278,9 +66,8 @@ set-version:
 	fi
 	@scripts/update-version.sh "$(VERSION)"
 
-# Extract the version from every source (header + defconst) and
-# fail loudly on any mismatch.  Each `sort -u' over the collected
-# versions should yield exactly one line.
+# Extract the version from every source (header + defconst) and fail
+# loudly on any mismatch.
 check-version:
 	@primary=$$(sed -n 's/^;; Version: //p' bookmark-gt.el); \
 	if [ -z "$$primary" ]; then \
@@ -302,28 +89,3 @@ check-version:
 	fi; \
 	if [ $$drift -ne 0 ]; then exit 1; fi; \
 	echo "version $$primary consistent across $(words $(EL_FILES)) files + defconst"
-
-# Per-version target families.  Each delegates back into $(MAKE) with
-# EMACS pinned so the sub-invocation's EMACS_BATCH picks up the right
-# binary.  `check-30' and `check-31' are the primary use; the finer-
-# grained `lint-30' / `checkdoc-31' variants are handy when tracking
-# down a version-specific failure.
-check-30:      ; $(call assert-emacs,EMACS_30) ; $(MAKE) EMACS=$(EMACS_30) check
-check-31:      ; $(call assert-emacs,EMACS_31) ; $(MAKE) EMACS=$(EMACS_31) check
-check-all:     check-30 check-31
-
-checkdoc-30:   ; $(call assert-emacs,EMACS_30) ; $(MAKE) EMACS=$(EMACS_30) checkdoc
-checkdoc-31:   ; $(call assert-emacs,EMACS_31) ; $(MAKE) EMACS=$(EMACS_31) checkdoc
-checkdoc-all:  checkdoc-30 checkdoc-31
-
-lint-30:       ; $(call assert-emacs,EMACS_30) ; $(MAKE) EMACS=$(EMACS_30) lint
-lint-31:       ; $(call assert-emacs,EMACS_31) ; $(MAKE) EMACS=$(EMACS_31) lint
-lint-all:      lint-30 lint-31
-
-compile-30:    ; $(call assert-emacs,EMACS_30) ; $(MAKE) EMACS=$(EMACS_30) compile
-compile-31:    ; $(call assert-emacs,EMACS_31) ; $(MAKE) EMACS=$(EMACS_31) compile
-compile-all:   compile-30 compile-31
-
-test-30:       ; $(call assert-emacs,EMACS_30) ; $(MAKE) EMACS=$(EMACS_30) test
-test-31:       ; $(call assert-emacs,EMACS_31) ; $(MAKE) EMACS=$(EMACS_31) test
-test-all:      test-30 test-31
