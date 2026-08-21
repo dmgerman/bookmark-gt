@@ -13,8 +13,12 @@
 #   make compile       — byte-compile every bookmark-gt*.el file (errors on warning)
 #   make test          — run ERT tests under test/
 #   make clean         — remove every *.elc file
-#   make check         — compile + lint + checkdoc + check-declare
-#   make check-ci      — alias for check-30 (matches the CI matrix floor)
+#   make check         — compile + lint + checkdoc + check-declare +
+#                        check-version + test
+#   make check-ci      — run `make check' under every Emacs in
+#                        $(CI_EMACS_LIST) (the floor and the latest
+#                        release, matching the CI matrix); errors out
+#                        when either binary is absent
 #   make check-all     — check-30 + check-31 (run before pushing)
 #   make help          — this help text
 #
@@ -26,15 +30,6 @@
 # Override the Emacs binary by passing EMACS=path/to/emacs.
 
 EMACS ?= emacs
-
-# Per-version binaries.  Adjust to match your local install layout.
-EMACS_30 ?= /opt/homebrew/opt/emacs-plus@30/bin/emacs
-EMACS_31 ?= /opt/homebrew/opt/emacs-plus@31/bin/emacs
-
-# CI matches the Package-Requires floor (30.1).  Kept as an alias so
-# `.github/workflows/package-lint.yml' can call `make check-ci' without
-# hardcoding the version.
-CI_EMACS ?= $(EMACS_30)
 
 # Foundational files first so follow-on files can (require 'bookmark-gt)
 # without erroring when compiled in isolation.  Order:
@@ -103,8 +98,8 @@ help:
 	@echo "  make check-declare verify declare-function references"
 	@echo "  make compile       byte-compile with -Werror"
 	@echo "  make test          run ERT tests"
-	@echo "  make check         compile + lint + checkdoc + check-declare + check-version"
-	@echo "  make check-ci      alias for check-30 (matches CI matrix floor)"
+	@echo "  make check         compile + lint + checkdoc + check-declare + check-version + test"
+	@echo "  make check-ci      run check under every Emacs in CI_EMACS_LIST"
 	@echo "  make check-all     check-30 + check-31 (pre-push guard)"
 	@echo "  make clean         remove *.elc"
 	@echo "  make version       print the current package version"
@@ -225,7 +220,7 @@ info: $(INFO_FILE) $(INFO_DIR)
 # readme.info and fail.
 $(INFO_FILE): readme.org
 	cp readme.org bookmark-gt.org
-	$(CI_EMACS) -Q --batch \
+	$(EMACS) -Q --batch \
 	  --eval "(setq load-prefer-newer t)" \
 	  --eval "(require 'ox-texinfo)" \
 	  bookmark-gt.org \
@@ -235,7 +230,36 @@ $(INFO_FILE): readme.org
 $(INFO_DIR): $(INFO_FILE)
 	install-info --info-file=$(INFO_FILE) --dir-file=$(INFO_DIR)
 
-check: compile lint checkdoc check-declare check-version
+check: compile lint checkdoc check-declare check-version test
+
+# CI-mirror check.  EMACS_30 / EMACS_31 are the Package-Requires floor
+# and the latest release, matching the GitHub Actions matrix in
+# .github/workflows/package-lint.yml.  Both are mandatory: a skipped
+# version reports a pass that CI does not agree with, so `check-ci'
+# refuses to run until both are installed.  The default `make check'
+# runs under whatever `emacs' resolves to on PATH and cannot prove
+# multi-version compatibility.
+EMACS_30 ?= /opt/homebrew/opt/emacs-plus@30/bin/emacs
+EMACS_31 ?= /opt/homebrew/opt/emacs-plus@31/bin/emacs
+CI_EMACS_LIST ?= $(EMACS_30) $(EMACS_31)
+
+# Every binary is verified before the first one runs, so a missing
+# install is reported up front rather than after a full pass.
+check-ci:
+	@missing=""; \
+	for e in $(CI_EMACS_LIST); do \
+	  [ -x "$$e" ] || missing="$$missing $$e"; \
+	done; \
+	if [ -n "$$missing" ]; then \
+	  echo "check-ci: required Emacs not executable:$$missing"; \
+	  echo "Install both:  brew install emacs-plus@30 emacs-plus@31"; \
+	  echo "Or override:   make check-ci CI_EMACS_LIST=\"/path/to/emacs ...\""; \
+	  exit 1; \
+	fi
+	@for e in $(CI_EMACS_LIST); do \
+	  echo "==> check-ci under $$e ($$($$e --version | head -1))"; \
+	  $(MAKE) EMACS=$$e check || exit 1; \
+	done
 
 # Version management.  Single source of truth is bookmark-gt.el's
 # `;; Version:' header, which is also mirrored into the
@@ -287,7 +311,6 @@ check-version:
 check-30:      ; $(call assert-emacs,EMACS_30) ; $(MAKE) EMACS=$(EMACS_30) check
 check-31:      ; $(call assert-emacs,EMACS_31) ; $(MAKE) EMACS=$(EMACS_31) check
 check-all:     check-30 check-31
-check-ci:      check-30
 
 checkdoc-30:   ; $(call assert-emacs,EMACS_30) ; $(MAKE) EMACS=$(EMACS_30) checkdoc
 checkdoc-31:   ; $(call assert-emacs,EMACS_31) ; $(MAKE) EMACS=$(EMACS_31) checkdoc
