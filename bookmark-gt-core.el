@@ -348,10 +348,32 @@ round-trip between the two packages without data loss.")
   "Return non-nil when RECORD is marked as a temporary bookmark."
   (bookmark-prop-get record bookmark-gt-temp-key))
 
+;;;; Session-only record properties
+;;
+;; A module may attach data identifying a live object owned by
+;; another process — `bookmark-gt-browser-tabs.el' stores a browser
+;; tab's id and the client holding it.  Such a value is meaningful
+;; only to the session that produced it, so a record that stops
+;; being temporary, and is therefore on its way to the bookmark
+;; file, drops it.
+
+(defvar bookmark-gt-session-only-props nil
+  "Record keys that describe live session state.
+A list of alist keys.  `bookmark-gt-toggle-temp' removes them
+from a record when it clears the temp flag, so they do not
+reach the bookmark file.  Modules that attach such data
+register their keys at load time.")
+
+(defun bookmark-gt--session-only-key-p (cell)
+  "Return non-nil when alist CELL's key is registered as session-only."
+  (memq (car-safe cell) bookmark-gt-session-only-props))
+
 (defun bookmark-gt-toggle-temp (name)
   "Toggle the temp property on the bookmark called NAME.
-Fires `bookmark-gt-set-after-hook' so the list buffer and any
-other observers refresh."
+Clearing the flag makes the record eligible for the bookmark
+file, so any `bookmark-gt-session-only-props' key is removed at
+the same time.  Fires `bookmark-gt-set-after-hook' so the list
+buffer and any other observers refresh."
   (interactive
    (list (bookmark-completing-read "Toggle temporary"
                                    (or bookmark-current-bookmark ""))))
@@ -360,8 +382,14 @@ other observers refresh."
       (user-error "No bookmark called %S" name))
     (let ((current (bookmark-gt-temp-p record)))
       (if current
-          (setcdr record (assq-delete-all bookmark-gt-temp-key
-                                          (cdr record)))
+          ;; Mutated in place: `bookmark-alist' and the list
+          ;; buffer both hold this record by identity.
+          (setcdr record
+                  (seq-remove
+                   (lambda (cell)
+                     (or (eq (car-safe cell) bookmark-gt-temp-key)
+                         (bookmark-gt--session-only-key-p cell)))
+                   (cdr record)))
         (setcdr record (cons (cons bookmark-gt-temp-key t)
                              (cdr record))))
       (bookmark-gt--after-mutation record)

@@ -199,6 +199,11 @@ unmodified.
    • *Temp filter on save.*  Records carrying ‘bmkp-temp’ are excluded
      from ‘bookmark-save’ output; the live alist retains them for the
      session.
+   • *Session-only properties dropped on keep.*  Clearing a record's
+     temp flag removes every key listed in
+     ‘bookmark-gt-session-only-props’ — keys whose values identify an
+     object owned by another process; see
+     ‘bookmark-gt-browser-tabs-mode’.
 
    Disabling the mode removes every advice and hook that enabling
 installed.  The three opt-in modes described below (auto-update,
@@ -270,6 +275,13 @@ File: bookmark-gt.info,  Node: bookmark-gt-browser-tabs-mode,  Prev: bookmark-gt
 
 Exposes the browser's open tabs as bookmarks (temporary — not saved to
 disk).  Requires ‘browser-gt’ to be installed and connected.
+
+   A tab record carries ‘browser-gt-id’, ‘browser-gt-browser’, and the
+‘bookmark-gt-browser-tab’ marker, all registered in
+‘bookmark-gt-session-only-props’.  ‘T’ (‘bookmark-gt-toggle-temp’) on
+its row removes them, leaving a plain URL bookmark that saves like any
+other.  The tab is still open, so the next refresh re-adds it as a
+temporary record.
 
    Refresh triggers:
 
@@ -563,8 +575,11 @@ Interactive:
 
      (bookmark-gt-set-url "https://example.org" "Example" '("web" "reference"))
 
-   The URL bookmark's handler (‘bookmark-gt-handler-url-jump’) opens the
-URL via ‘browse-url’.
+   The URL bookmark's handler (‘bookmark-gt-handler-url-jump’) reads the
+‘url’ property off the record and opens it with ‘browse-url’, so URL
+bookmarks follow whatever ‘browse-url-browser-function’ and
+‘browse-url-handlers’ you have configured — the same routing as every
+other link you open in Emacs.
 
 
 File: bookmark-gt.info,  Node: Dired bookmarks — bookmark-gt-handler-dired-jump,  Next: Function bookmarks — bookmark-gt-set-function,  Prev: URL bookmarks — bookmark-gt-set-url,  Up: Non-file bookmark types
@@ -1322,48 +1337,48 @@ Node: Top205
 Node: Install2391
 Node: Getting started3942
 Node: Master switch bookmark-gt-mode4140
-Node: Opt-in modes6735
-Node: bookmark-gt-auto-update-mode7086
-Node: bookmark-gt-default-tags-mode7951
-Node: bookmark-gt-browser-tabs-mode8979
-Node: User interface12125
-Node: The *Bookmarks-gt List* buffer12382
-Node: Columns12915
-Node: Keys14153
-Node: Persisting view state15946
-Node: Jump to a bookmark bookmark-gt-jump16874
-Node: Elisp signatures18282
-Node: Non-file bookmark types21045
-Node: URL bookmarks — bookmark-gt-set-url21618
-Node: Dired bookmarks — bookmark-gt-handler-dired-jump22184
-Ref: Virtual dired23754
-Node: Function bookmarks — bookmark-gt-set-function24967
-Node: Keyboard-macro bookmarks — bookmark-gt-set-kmacro25780
-Node: Sequence bookmarks — bookmark-gt-set-sequence27438
-Node: File-type handlers — override the file-jump path per pattern28194
-Node: View bookmarks — save the list buffer's current view29567
-Node: Setting bookmarks30729
-Node: Tag reader30967
-Node: Same-name policy31972
-Node: Relocate change a bookmark's target33947
-Node: In-file behaviors35096
-Node: In-buffer cycling35325
-Node: Per-bookmark highlighting36325
-Node: Region bookmarks38282
-Node: Trackers39803
-Node: Visit tracker39979
-Node: File-rename tracker40723
-Node: Extension API41710
-Node: Handler registry41911
-Node: Group registry44108
-Node: Extension points45761
-Node: Compatibility48176
-Node: Data compat with bookmark+48377
-Node: Migrating from bookmark+49507
-Node: Reference51605
-Node: Selected customization51768
-Node: Acknowledgements56755
-Node: License58577
+Node: Opt-in modes7009
+Node: bookmark-gt-auto-update-mode7360
+Node: bookmark-gt-default-tags-mode8225
+Node: bookmark-gt-browser-tabs-mode9253
+Node: User interface12773
+Node: The *Bookmarks-gt List* buffer13030
+Node: Columns13563
+Node: Keys14801
+Node: Persisting view state16594
+Node: Jump to a bookmark bookmark-gt-jump17522
+Node: Elisp signatures18930
+Node: Non-file bookmark types21693
+Node: URL bookmarks — bookmark-gt-set-url22266
+Node: Dired bookmarks — bookmark-gt-handler-dired-jump23053
+Ref: Virtual dired24623
+Node: Function bookmarks — bookmark-gt-set-function25836
+Node: Keyboard-macro bookmarks — bookmark-gt-set-kmacro26649
+Node: Sequence bookmarks — bookmark-gt-set-sequence28307
+Node: File-type handlers — override the file-jump path per pattern29063
+Node: View bookmarks — save the list buffer's current view30436
+Node: Setting bookmarks31598
+Node: Tag reader31836
+Node: Same-name policy32841
+Node: Relocate change a bookmark's target34816
+Node: In-file behaviors35965
+Node: In-buffer cycling36194
+Node: Per-bookmark highlighting37194
+Node: Region bookmarks39151
+Node: Trackers40672
+Node: Visit tracker40848
+Node: File-rename tracker41592
+Node: Extension API42579
+Node: Handler registry42780
+Node: Group registry44977
+Node: Extension points46630
+Node: Compatibility49045
+Node: Data compat with bookmark+49246
+Node: Migrating from bookmark+50376
+Node: Reference52474
+Node: Selected customization52637
+Node: Acknowledgements57624
+Node: License59446
 
 End Tag Table
 

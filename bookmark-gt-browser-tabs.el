@@ -119,6 +119,15 @@ refresh."
   "Return non-nil when RECORD was stored by this module."
   (bookmark-prop-get record bookmark-gt-browser-tabs--marker-key))
 
+;; Keeping a tab removes these three, leaving a plain URL
+;; bookmark.  Losing the marker is also what makes the record
+;; survive: `--clear' no longer recognizes it as a live-tab copy.
+(dolist (key (list 'browser-gt-id
+                   'browser-gt-browser
+                   bookmark-gt-browser-tabs--marker-key))
+  (unless (memq key bookmark-gt-session-only-props)
+    (push key bookmark-gt-session-only-props)))
+
 ;;;; Fetch + filter
 
 (defun bookmark-gt-browser-tabs--fetch ()

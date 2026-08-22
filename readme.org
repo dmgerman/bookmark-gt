@@ -100,6 +100,11 @@ When enabled:
 - *Temp filter on save.*  Records carrying ~bmkp-temp~ are
   excluded from ~bookmark-save~ output; the live alist
   retains them for the session.
+- *Session-only properties dropped on keep.*  Clearing a
+  record's temp flag removes every key listed in
+  ~bookmark-gt-session-only-props~ — keys whose values
+  identify an object owned by another process; see
+  ~bookmark-gt-browser-tabs-mode~.
 
 Disabling the mode removes every advice and hook that
 enabling installed.  The three opt-in modes described below
@@ -154,6 +159,13 @@ clear them.
 
 Exposes the browser's open tabs as bookmarks (temporary — not
 saved to disk).  Requires ~browser-gt~ to be installed and connected.
+
+A tab record carries ~browser-gt-id~, ~browser-gt-browser~, and
+the ~bookmark-gt-browser-tab~ marker, all registered in
+~bookmark-gt-session-only-props~.  ~T~
+(~bookmark-gt-toggle-temp~) on its row removes them, leaving a
+plain URL bookmark that saves like any other.  The tab is still
+open, so the next refresh re-adds it as a temporary record.
 
 Refresh triggers:
 
@@ -404,8 +416,11 @@ Elisp:
 (bookmark-gt-set-url "https://example.org" "Example" '("web" "reference"))
 #+end_src
 
-The URL bookmark's handler (~bookmark-gt-handler-url-jump~) opens
-the URL via ~browse-url~.
+The URL bookmark's handler (~bookmark-gt-handler-url-jump~) reads
+the ~url~ property off the record and opens it with ~browse-url~,
+so URL bookmarks follow whatever ~browse-url-browser-function~ and
+~browse-url-handlers~ you have configured — the same routing as
+every other link you open in Emacs.
 
 *** Dired bookmarks — ~bookmark-gt-handler-dired-jump~
 
