@@ -136,21 +136,21 @@
     (should (= (length bookmark-alist) 1))
     (should (equal (caar bookmark-alist) "keep"))))
 
-;;;; browser-gt references never reach the bookmark file
+;;;; browser-gt keys are not written to the bookmark file
 ;;
-;; A tab record names a live browser session: the tab id, the
-;; client holding it, and the marker that makes the next refresh
-;; delete the record.  Those belong to the session only.
+;; A tab record carries three keys valid only for the session that
+;; produced it: the tab id, the name of its client, and the marker
+;; `--clear' uses to delete the record on the next refresh.
 
 (ert-deftest bookmark-gt-browser-gt-test-props-registered-session-only ()
   "Loading this module registers its keys as session-only."
   (dolist (key '(browser-gt-id browser-gt-browser bookmark-gt-browser-tab))
     (should (memq key bookmark-gt-session-only-props))))
 
-(ert-deftest bookmark-gt-browser-gt-test-promoted-tab-loses-browser-props ()
-  "Clearing temp on a tab record leaves a plain URL bookmark.
-The record must also lose the module's marker: `--clear' runs on
-every refresh and deletes whatever still carries it."
+(ert-deftest bookmark-gt-browser-gt-test-made-permanent-converts-to-url ()
+  "Making a tab bookmark permanent converts it into a URL bookmark.
+The module's marker must be removed too: `--clear' runs on every
+refresh and deletes every record that still carries it."
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-browser-tabs--store
      (list :url "https://example.org"
@@ -170,8 +170,8 @@ every refresh and deletes whatever still carries it."
     (bookmark-gt-browser-tabs--clear)
     (should (assoc "Example" bookmark-alist))))
 
-(ert-deftest bookmark-gt-browser-gt-test-promoted-tab-saves-as-url ()
-  "A kept tab is written to the bookmark file as a plain URL bookmark."
+(ert-deftest bookmark-gt-browser-gt-test-made-permanent-saves-as-url ()
+  "A tab bookmark made permanent is written to the file as a URL bookmark."
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-browser-tabs--store
      (list :url "https://example.org"

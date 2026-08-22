@@ -199,11 +199,6 @@ unmodified.
    • *Temp filter on save.*  Records carrying ‘bmkp-temp’ are excluded
      from ‘bookmark-save’ output; the live alist retains them for the
      session.
-   • *Session-only properties dropped on keep.*  Clearing a record's
-     temp flag removes every key listed in
-     ‘bookmark-gt-session-only-props’ — keys whose values identify an
-     object owned by another process; see
-     ‘bookmark-gt-browser-tabs-mode’.
 
    Disabling the mode removes every advice and hook that enabling
 installed.  The three opt-in modes described below (auto-update,
@@ -276,12 +271,9 @@ File: bookmark-gt.info,  Node: bookmark-gt-browser-tabs-mode,  Prev: bookmark-gt
 Exposes the browser's open tabs as bookmarks (temporary — not saved to
 disk).  Requires ‘browser-gt’ to be installed and connected.
 
-   A tab record carries ‘browser-gt-id’, ‘browser-gt-browser’, and the
-‘bookmark-gt-browser-tab’ marker, all registered in
-‘bookmark-gt-session-only-props’.  ‘T’ (‘bookmark-gt-toggle-temp’) on
-its row removes them, leaving a plain URL bookmark that saves like any
-other.  The tab is still open, so the next refresh re-adds it as a
-temporary record.
+   Making a tab bookmark permanent (‘T’ in the list buffer) converts it
+into a plain URL bookmark, saved like any other.  The tab is still open,
+so the next refresh adds it back to the list as a temporary bookmark.
 
    Refresh triggers:
 
@@ -1156,6 +1148,13 @@ Every non-trivial mechanism is expected to have an extension point:
      ‘bookmark-gt-browser-tabs-refresh’ here so live browser tabs are
      current at each read.  Register your own pool refreshers
      (auto-update sweep, remote-tab poll, ...) here.
+   • ‘bookmark-gt-session-only-props’ — list of record keys whose values
+     identify an object owned by another process (a browser tab id, a
+     client name).  ‘bookmark-gt-toggle-temp’ removes every registered
+     key from a record when it clears the temp flag, so the keys are
+     never written to the bookmark file.
+     ‘bookmark-gt-browser-tabs-mode’ registers the three keys its tab
+     records carry.  Register a key here at load time.
    • ‘bookmark-gt-filter-alist’ — filter registry for the list buffer's
      ‘/’ command.
    • ‘bookmark-gt-sort-alist’ — sort registry (includes name and type
@@ -1337,48 +1336,48 @@ Node: Top205
 Node: Install2391
 Node: Getting started3942
 Node: Master switch bookmark-gt-mode4140
-Node: Opt-in modes7009
-Node: bookmark-gt-auto-update-mode7360
-Node: bookmark-gt-default-tags-mode8225
-Node: bookmark-gt-browser-tabs-mode9253
-Node: User interface12773
-Node: The *Bookmarks-gt List* buffer13030
-Node: Columns13563
-Node: Keys14801
-Node: Persisting view state16594
-Node: Jump to a bookmark bookmark-gt-jump17522
-Node: Elisp signatures18930
-Node: Non-file bookmark types21693
-Node: URL bookmarks — bookmark-gt-set-url22266
-Node: Dired bookmarks — bookmark-gt-handler-dired-jump23053
-Ref: Virtual dired24623
-Node: Function bookmarks — bookmark-gt-set-function25836
-Node: Keyboard-macro bookmarks — bookmark-gt-set-kmacro26649
-Node: Sequence bookmarks — bookmark-gt-set-sequence28307
-Node: File-type handlers — override the file-jump path per pattern29063
-Node: View bookmarks — save the list buffer's current view30436
-Node: Setting bookmarks31598
-Node: Tag reader31836
-Node: Same-name policy32841
-Node: Relocate change a bookmark's target34816
-Node: In-file behaviors35965
-Node: In-buffer cycling36194
-Node: Per-bookmark highlighting37194
-Node: Region bookmarks39151
-Node: Trackers40672
-Node: Visit tracker40848
-Node: File-rename tracker41592
-Node: Extension API42579
-Node: Handler registry42780
-Node: Group registry44977
-Node: Extension points46630
-Node: Compatibility49045
-Node: Data compat with bookmark+49246
-Node: Migrating from bookmark+50376
-Node: Reference52474
-Node: Selected customization52637
-Node: Acknowledgements57624
-Node: License59446
+Node: Opt-in modes6735
+Node: bookmark-gt-auto-update-mode7086
+Node: bookmark-gt-default-tags-mode7951
+Node: bookmark-gt-browser-tabs-mode8979
+Node: User interface12345
+Node: The *Bookmarks-gt List* buffer12602
+Node: Columns13135
+Node: Keys14373
+Node: Persisting view state16166
+Node: Jump to a bookmark bookmark-gt-jump17094
+Node: Elisp signatures18502
+Node: Non-file bookmark types21265
+Node: URL bookmarks — bookmark-gt-set-url21838
+Node: Dired bookmarks — bookmark-gt-handler-dired-jump22625
+Ref: Virtual dired24195
+Node: Function bookmarks — bookmark-gt-set-function25408
+Node: Keyboard-macro bookmarks — bookmark-gt-set-kmacro26221
+Node: Sequence bookmarks — bookmark-gt-set-sequence27879
+Node: File-type handlers — override the file-jump path per pattern28635
+Node: View bookmarks — save the list buffer's current view30008
+Node: Setting bookmarks31170
+Node: Tag reader31408
+Node: Same-name policy32413
+Node: Relocate change a bookmark's target34388
+Node: In-file behaviors35537
+Node: In-buffer cycling35766
+Node: Per-bookmark highlighting36766
+Node: Region bookmarks38723
+Node: Trackers40244
+Node: Visit tracker40420
+Node: File-rename tracker41164
+Node: Extension API42151
+Node: Handler registry42352
+Node: Group registry44549
+Node: Extension points46202
+Node: Compatibility49082
+Node: Data compat with bookmark+49283
+Node: Migrating from bookmark+50413
+Node: Reference52511
+Node: Selected customization52674
+Node: Acknowledgements57661
+Node: License59483
 
 End Tag Table
 

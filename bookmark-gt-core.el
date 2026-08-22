@@ -352,16 +352,16 @@ round-trip between the two packages without data loss.")
 ;;
 ;; A module may attach data identifying a live object owned by
 ;; another process — `bookmark-gt-browser-tabs.el' stores a browser
-;; tab's id and the client holding it.  Such a value is meaningful
-;; only to the session that produced it, so a record that stops
-;; being temporary, and is therefore on its way to the bookmark
-;; file, drops it.
+;; tab's id and the name of its client.  Such a value is valid only
+;; for the session that produced it, so it is removed when a record
+;; stops being temporary and becomes eligible to be written to the
+;; bookmark file.
 
 (defvar bookmark-gt-session-only-props nil
   "Record keys that describe live session state.
 A list of alist keys.  `bookmark-gt-toggle-temp' removes them
-from a record when it clears the temp flag, so they do not
-reach the bookmark file.  Modules that attach such data
+from a record when it clears the temp flag, so they are never
+written to the bookmark file.  Modules that attach such data
 register their keys at load time.")
 
 (defun bookmark-gt--session-only-key-p (cell)

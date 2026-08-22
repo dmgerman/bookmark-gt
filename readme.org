@@ -100,11 +100,6 @@ When enabled:
 - *Temp filter on save.*  Records carrying ~bmkp-temp~ are
   excluded from ~bookmark-save~ output; the live alist
   retains them for the session.
-- *Session-only properties dropped on keep.*  Clearing a
-  record's temp flag removes every key listed in
-  ~bookmark-gt-session-only-props~ — keys whose values
-  identify an object owned by another process; see
-  ~bookmark-gt-browser-tabs-mode~.
 
 Disabling the mode removes every advice and hook that
 enabling installed.  The three opt-in modes described below
@@ -160,12 +155,10 @@ clear them.
 Exposes the browser's open tabs as bookmarks (temporary — not
 saved to disk).  Requires ~browser-gt~ to be installed and connected.
 
-A tab record carries ~browser-gt-id~, ~browser-gt-browser~, and
-the ~bookmark-gt-browser-tab~ marker, all registered in
-~bookmark-gt-session-only-props~.  ~T~
-(~bookmark-gt-toggle-temp~) on its row removes them, leaving a
-plain URL bookmark that saves like any other.  The tab is still
-open, so the next refresh re-adds it as a temporary record.
+Making a tab bookmark permanent (~T~ in the list buffer)
+converts it into a plain URL bookmark, saved like any other.  The
+tab is still open, so the next refresh adds it back to the list
+as a temporary bookmark.
 
 Refresh triggers:
 
@@ -934,6 +927,13 @@ Every non-trivial mechanism is expected to have an extension point:
   ~bookmark-gt-browser-tabs-refresh~ here so live browser tabs
   are current at each read.  Register your own pool refreshers
   (auto-update sweep, remote-tab poll, ...) here.
+- ~bookmark-gt-session-only-props~ — list of record keys whose
+  values identify an object owned by another process (a browser
+  tab id, a client name).  ~bookmark-gt-toggle-temp~ removes
+  every registered key from a record when it clears the temp
+  flag, so the keys are never written to the bookmark file.
+  ~bookmark-gt-browser-tabs-mode~ registers the three keys its
+  tab records carry.  Register a key here at load time.
 - ~bookmark-gt-filter-alist~ — filter registry for the list
   buffer's ~/~ command.
 - ~bookmark-gt-sort-alist~ — sort registry (includes name and

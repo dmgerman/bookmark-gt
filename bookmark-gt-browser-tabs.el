@@ -119,9 +119,10 @@ refresh."
   "Return non-nil when RECORD was stored by this module."
   (bookmark-prop-get record bookmark-gt-browser-tabs--marker-key))
 
-;; Keeping a tab removes these three, leaving a plain URL
-;; bookmark.  Losing the marker is also what makes the record
-;; survive: `--clear' no longer recognizes it as a live-tab copy.
+;; Clearing a tab record's temp flag removes these three, which
+;; converts it into a plain URL bookmark.  Removing the marker is
+;; also what preserves the record: `--clear' deletes only records
+;; that still carry it.
 (dolist (key (list 'browser-gt-id
                    'browser-gt-browser
                    bookmark-gt-browser-tabs--marker-key))
