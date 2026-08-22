@@ -600,7 +600,7 @@ Minibuffer keys:
                                                group))
          (name (or bookmark
                    (bookmark-gt-jump--with-read-state pool sort-by preselect
-                     (bookmark-gt-jump--read "Jump to bookmark")))))
+                     (bookmark-gt-jump--read "Jump to bookmark: ")))))
     (if display-function
         (bookmark-jump name display-function)
       (bookmark-jump name))))

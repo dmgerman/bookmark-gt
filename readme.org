@@ -68,7 +68,11 @@ When enabled:
 
 - *Set operations.*  ~bookmark-gt-set~ reads tags, applies
   the same-name policy, and assigns bookmark-gt's Dired
-  handler when the current buffer is Dired.  Names matching
+  handler when the current buffer is Dired.  Its name prompt
+  starts out holding the suggested name — derived from the
+  location being bookmarked, not from the last bookmark
+  jumped to — as editable text: ~RET~ accepts it, point is at
+  its end for a small edit, and ~C-a C-k~ replaces it.  Names matching
   ~bookmark-gt-auto-temp-names~ (e.g.
   ~org-capture-last-stored~) are marked temporary at store
   time, which excludes them from ~bookmark-save~ output.

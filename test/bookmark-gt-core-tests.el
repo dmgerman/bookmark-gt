@@ -424,5 +424,62 @@ buffer was never displayed because the throw jumped out of
           (when (buffer-live-p buf) (kill-buffer buf)))
         (unless was-enabled (bookmark-gt-mode -1))))))
 
+;;;; Suggested name is independent of `bookmark-current-bookmark'
+
+(ert-deftest bookmark-gt-test-set-ignores-current-bookmark-for-name ()
+  "The suggested name comes from the location, not the last bookmark.
+`bookmark-make-record' falls back to `bookmark-current-bookmark'
+for the record name, which is buffer-local and holds whatever
+was jumped to or stored in this buffer last."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((tmp (make-temp-file "bookmark-gt-name-" nil ".txt" "hello\n")))
+      (unwind-protect
+          (with-current-buffer (find-file-noselect tmp)
+            (setq-local bookmark-current-bookmark "Some Browser Tab Title")
+            (let ((stored (bookmark-gt-set nil)))
+              (should (equal (bookmark-gt-display-name (car stored))
+                             (file-name-nondirectory tmp))))
+            (kill-buffer))
+        (delete-file tmp)))))
+
+(ert-deftest bookmark-gt-test-set-still-updates-current-bookmark ()
+  "Storing the record sets `bookmark-current-bookmark' to the new name."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((tmp (make-temp-file "bookmark-gt-name-" nil ".txt" "hello\n")))
+      (unwind-protect
+          (with-current-buffer (find-file-noselect tmp)
+            (setq-local bookmark-current-bookmark "stale")
+            (bookmark-gt-set "fresh")
+            (should (equal bookmark-current-bookmark "fresh"))
+            (kill-buffer))
+        (delete-file tmp)))))
+
+(ert-deftest bookmark-gt-test-set-non-file-no-current-leaves-it-alone ()
+  "NO-CURRENT keeps `bookmark-current-bookmark' unchanged."
+  (bookmark-gt-test-with-clean-bookmarks
+    (with-temp-buffer
+      (setq-local bookmark-current-bookmark "untouched")
+      (bookmark-gt-set-non-file "batch" 'ignore nil t t)
+      (should (equal bookmark-current-bookmark "untouched"))
+      (bookmark-gt-set-non-file "single" 'ignore nil)
+      (should (equal bookmark-current-bookmark "single")))))
+
+(ert-deftest bookmark-gt-test-set-prompt-offers-editable-name ()
+  "The interactive prompt inserts the suggestion as initial input."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((tmp (make-temp-file "bookmark-gt-name-" nil ".txt" "hello\n"))
+          (initial nil))
+      (unwind-protect
+          (with-current-buffer (find-file-noselect tmp)
+            (cl-letf (((symbol-function 'read-from-minibuffer)
+                       (lambda (_prompt &optional init &rest _)
+                         (setq initial init)
+                         "typed")))
+              (bookmark-gt-set bookmark-gt--prompt-name))
+            (should (equal initial (file-name-nondirectory tmp)))
+            (should (assoc "typed" bookmark-alist))
+            (kill-buffer))
+        (delete-file tmp)))))
+
 (provide 'bookmark-gt-core-tests)
 ;;; bookmark-gt-core-tests.el ends here

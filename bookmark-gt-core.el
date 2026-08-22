@@ -272,12 +272,19 @@ ai/design/tag-storage.org)."
 ;; Callers that batch many stores should let-bind
 ;; `bookmark-save-flag' to nil to prevent mid-batch saves.
 
-(defun bookmark-gt--push-record (name alist)
+(defun bookmark-gt--push-record (name alist &optional no-current)
   "Push (NAME . ALIST) onto `bookmark-alist' compatibly with `bookmark-store'.
 NAME's text properties are stripped, matching what the built-in
 `bookmark-store' does.  Adds `created' and `last-modified'
 timestamps unless ALIST already carries them (callers that
 preserve historical timestamps, e.g. migration, pass their own).
+
+With NO-CURRENT non-nil, leave `bookmark-current-bookmark'
+alone.  That variable is buffer-local, and its value is the
+default offered by several name prompts, so a caller that
+stores records unrelated to the current buffer (a browser-tab
+refresh running from a timer) must not write it.
+
 Returns the stripped name."
   (let ((stripped (copy-sequence name))
         (now (current-time)))
@@ -287,7 +294,8 @@ Returns the stripped name."
     (unless (assq 'last-modified alist)
       (setq alist (cons (cons 'last-modified now) alist)))
     (push (cons stripped alist) bookmark-alist)
-    (setq bookmark-current-bookmark stripped)
+    (unless no-current
+      (setq bookmark-current-bookmark stripped))
     (setq bookmark-alist-modification-count
           (1+ bookmark-alist-modification-count))
     (when (bookmark-time-to-save-p)
@@ -296,20 +304,24 @@ Returns the stripped name."
 
 ;;;; Public: elisp API
 
-(defun bookmark-gt-set-non-file (name handler props &optional no-notify)
+(defun bookmark-gt-set-non-file (name handler props &optional no-notify
+                                      no-current)
   "Store a non-file bookmark called NAME using HANDLER.
 PROPS is an alist of additional record entries (URL, page
 title, etc.).  When NO-NOTIFY is non-nil, skip UI refresh and
 the external `bookmark-gt-set-after-hook' — the caller is
-expected to notify once at end of a batch.  Returns the
-stored `(NAME . DATA)' pair."
+expected to notify once at end of a batch.  When NO-CURRENT is
+non-nil, leave `bookmark-current-bookmark' alone; see
+`bookmark-gt--push-record'.  Returns the stored `(NAME . DATA)'
+pair."
   (let* ((initial-data (cons (cons 'handler handler) props))
          (refined-name (bookmark-gt--refine-name name initial-data))
          (unique-name (bookmark-gt--resolve-collision
                        refined-name initial-data nil))
          (tags (bookmark-gt--collect-tags initial-data nil))
          (final-data (bookmark-gt--with-tags initial-data tags))
-         (final-name (bookmark-gt--push-record unique-name final-data))
+         (final-name (bookmark-gt--push-record unique-name final-data
+                                              no-current))
          (stored (cons final-name final-data)))
     (unless no-notify
       (bookmark-gt--after-mutation stored))
@@ -924,9 +936,10 @@ the suggested name without prompting.")
 
 (defun bookmark-gt-set (&optional name no-overwrite)
   "Set a bookmark.
-NAME is the bookmark name; interactive calls prompt for it.
-Lisp callers may pass a name string, or nil to accept the
-suggested name without prompting.  NO-OVERWRITE (a prefix
+NAME is the bookmark name; interactive calls prompt for it with
+the suggested name as editable initial input.  Lisp callers may
+pass a name string, or nil to accept the suggested name without
+prompting.  NO-OVERWRITE (a prefix
 argument) forces disambiguation with a `<N>' suffix.  Otherwise
 the same-name policy in `bookmark-gt-same-name-overwrite' and
 `bookmark-gt-allow-duplicate-names' applies.  Returns the
@@ -934,15 +947,27 @@ stored (NAME . DATA) pair."
   (interactive (list bookmark-gt--prompt-name current-prefix-arg))
   (bookmark-maybe-load-default-file)
   (let* ((region-active (and bookmark-gt-use-region (use-region-p)))
-         (raw-record (if region-active
-                         ;; Capture context around region-start (not
-                         ;; wherever point happens to be within the
-                         ;; region) so the built-in front/rear context
-                         ;; strings anchor to the region's beginning.
-                         (save-excursion
-                           (goto-char (region-beginning))
-                           (bookmark-make-record))
-                       (bookmark-make-record)))
+         ;; `bookmark-make-record' names the record after
+         ;; `bookmark-current-bookmark' when the buffer's
+         ;; `bookmark-make-record-function' supplies no name, and
+         ;; lists it first under `defaults'.  That variable holds
+         ;; the last bookmark jumped to or stored in this buffer,
+         ;; which has nothing to do with the location being
+         ;; bookmarked now, so it is bound to nil here — over the
+         ;; record construction only, not over the
+         ;; `bookmark-gt--push-record' call below, which is meant
+         ;; to update it.
+         (raw-record (let ((bookmark-current-bookmark nil))
+                       (if region-active
+                           ;; Capture context around region-start (not
+                           ;; wherever point happens to be within the
+                           ;; region) so the built-in front/rear
+                           ;; context strings anchor to the region's
+                           ;; beginning.
+                           (save-excursion
+                             (goto-char (region-beginning))
+                             (bookmark-make-record))
+                         (bookmark-make-record))))
          (record-data (if (stringp (car raw-record))
                           (cdr raw-record)
                         raw-record))
@@ -978,9 +1003,15 @@ stored (NAME . DATA) pair."
          (chosen-name
           (cond
            ((eq name bookmark-gt--prompt-name)
+            ;; The suggested name is inserted as editable initial
+            ;; input rather than offered as a minibuffer default:
+            ;; RET accepts it, point sits at its end for a small
+            ;; edit, and `C-a C-k' rewrites it from scratch.  It is
+            ;; passed as the default as well, so an emptied
+            ;; minibuffer still yields it.
             (read-from-minibuffer
-             (format-prompt "Set bookmark" refined-suggested)
-             nil nil nil 'bookmark-history refined-suggested))
+             "Set bookmark: " refined-suggested nil nil
+             'bookmark-history refined-suggested))
            (name name)
            (t refined-suggested)))
          (unique-name (bookmark-gt--resolve-collision

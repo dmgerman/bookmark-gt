@@ -152,6 +152,12 @@ The name is the tab title, falling back to the URL.  The
 owning browser's client name becomes a tag so it shows up in the
 list buffer's Tags column and in the `;tag' particle filter.
 
+Stores with NO-NOTIFY and NO-CURRENT set: a refresh writes many
+records from a timer, so the list buffer is refreshed once by
+the caller, and `bookmark-current-bookmark' — buffer-local, and
+the default for several name prompts — is left alone in
+whatever buffer the timer happened to run in.
+
 Seeds `last-visited' from the tab's `:lastAccessed' field (JS
 milliseconds since epoch) when present, so MRU sort in the jump
 reader reflects the browser's own last-focused ordering.  Each
@@ -177,7 +183,7 @@ tracks browser activity rather than bookmark-gt jump history."
     (bookmark-gt-set-non-file base
                               'bookmark-gt-handler-url-jump
                               props
-                              t)))
+                              t t)))
 
 (defun bookmark-gt-browser-tabs--clear ()
   "Remove every browser-gt-owned record from `bookmark-alist'.
