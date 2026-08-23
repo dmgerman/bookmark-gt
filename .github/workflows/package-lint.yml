@@ -23,8 +23,14 @@ jobs:
       matrix:
         emacs_version:
           - '30.1'  # Package-Requires floor
-          - '31.1'  # latest release
+          - '30.2'  # latest release
         include:
+          # nix-emacs-ci carries released tarballs plus two snapshots;
+          # 31.1 is still an RC, so the emacs-31 branch is reachable
+          # only as release-snapshot.  Move it into the blocking list
+          # above once 31.1 is released.
+          - emacs_version: 'release-snapshot'
+            allow-failure: true
           - emacs_version: 'snapshot'
             allow-failure: true
     steps:
