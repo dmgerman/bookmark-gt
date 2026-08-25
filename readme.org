@@ -125,8 +125,10 @@ switches without waiting for the next idle tick.  Pressing ~g~
 in the list buffer also triggers a refresh before the buffer
 redraws.
 
-Toggle the property on the row at point with =^= in the list
-buffer, or ~M-x bookmark-gt-auto-update-toggle NAME~.
+Toggle the property with =^= in the list buffer — on the marked
+rows, or on the row at point when none are marked — or with
+~M-x bookmark-gt-auto-update-toggle NAME~.  Set it
+programmatically with ~bookmark-gt-auto-update-set~.
 
 *** ~bookmark-gt-default-tags-mode~
 
@@ -258,14 +260,14 @@ local only.
 | ~x~   | Delete every flagged row (prompts for confirmation)          |
 | ~u~   | Unmark row                                                   |
 | ~U~   | Unmark every row                                             |
-| ~^~   | Toggle ~auto-update~ on row                                  |
-| ~T~   | Toggle temp on row                                           |
+| ~^~   | Toggle ~auto-update~ (selection-scoped)                      |
+| ~T~   | Toggle temp (selection-scoped)                               |
 | ~H~   | Toggle display of temporary bookmarks in this buffer         |
 | ~r~   | Rename bookmark                                              |
 | ~R~   | Relocate (change filename or URL)                            |
-| ~t e~ | Edit tags (editable comma-separated list; add and remove in one prompt) |
-| ~t a~ | Add tags (sequential reader with completion; empty RET / M-RET ends)    |
-| ~t r~ | Remove tags (sequential reader; completion restricted to the row's tags)|
+| ~t e~ | Edit tags, selection-scoped (editable comma-separated list; add and remove in one prompt) |
+| ~t a~ | Add tags, selection-scoped (sequential reader with completion; empty RET / M-RET ends)    |
+| ~t r~ | Remove tags, selection-scoped (sequential reader; completion restricted to the tags present) |
 | ~a~   | Edit annotation                                              |
 | ~/~   | Filter (choose by-type / by-tag / by-name-regexp / unfilter) |
 | ~s~   | Cycle sort column                                            |
@@ -278,6 +280,80 @@ local only.
 Selection marks are stored in a buffer-local hash keyed by
 record cons identity — they survive sort, revert, and
 after-hook re-renders.
+
+*** Acting on several bookmarks at once
+
+The commands labelled /selection-scoped/ above act on every row
+marked with ~m~.  With no row marked they act on the bookmark
+at point, so the single-bookmark case needs no marking.
+
+Mark a few rows with ~m~, then ~t a~ adds the tags you type to
+all of them, ~t r~ removes from all of them, and ~t e~ replaces
+the tag list on all of them.  The prompts report how many
+bookmarks are involved.  For ~t e~ and ~t r~ the tags offered
+are the union across the marked rows: a tag on any one of them
+is available, and removing a tag that a given record does not
+carry leaves that record unchanged.
+
+The two toggles set the whole selection to a single value
+rather than flipping each row independently: ~T~ and ~^~ turn
+the property *on* for every marked row unless all of them
+already have it, in which case they turn it *off* for every
+marked row.  A selection with the property on some rows and
+off on others therefore becomes uniform on the first press,
+and both target states remain reachable by pressing again.
+This does not depend on where point sits — point need not be
+on a marked row at all.
+
+Completing one of these commands clears the selection, so the
+next command starts from a clean slate rather than inheriting a
+set of marks you have stopped thinking about.  Ending a tag
+reader without entering anything changes nothing and leaves the
+marks in place, so an accidental ~RET~ does not cost you the
+selection.
+
+The deletion flag ~D~ (set with ~d~) is a separate mark, and
+~x~ remains the only command that acts on it.  Flagging rows
+with ~d~ does not make them a selection for ~t a~, ~T~, or the
+other selection-scoped commands, and deselecting after a
+completed command leaves the ~D~ flags untouched.
+
+~x~ obeys the same view bounding: it deletes the flagged rows
+the buffer currently shows, counts only those in its
+confirmation prompt, and leaves hidden flagged rows — and their
+flags — alone.  With every flagged row hidden it refuses, the
+same way the selection-scoped commands do.  Narrow the view,
+and what ~x~ can delete is exactly what you can see.
+
+A selection is bounded by what the buffer displays.  Rows
+hidden by an active filter or by ~H~ are never acted on, even
+if they were marked before being hidden, and their marks are
+left alone: lift the filter and they are still marked, ready
+for a second command.  So narrowing with ~/~ after marking is a
+way to apply a command to part of a selection and keep the rest
+for later.
+
+This bounding covers everything a command derives from the
+selection, not just which records it writes to — the union of
+tags offered by ~t e~ and ~t r~, and the on/off value a toggle
+settles on, are computed from the visible rows alone.
+
+When the filter hides every marked row, the command fails
+immediately with =No selected bookmarks in this view=, before
+prompting for anything.  It does not fall back to the bookmark
+at point: you asked for the selection, and acting on the row at
+point instead would modify a bookmark you did not select, while
+reporting success over an empty selection would suggest the
+marked bookmarks had been dealt with.  The marks are left
+intact — widen the filter and run the command again.
+
+The fallback to the bookmark at point applies only when nothing
+is marked at all.
+
+~r~ (rename), ~R~ (relocate), ~a~ (annotate), ~i~ (inspect),
+and the jump commands remain row-scoped: each acts on the
+bookmark at point and ignores marks, since each needs a value
+that is specific to one record.
 
 *** Persisting view state
 
@@ -929,9 +1005,10 @@ Every non-trivial mechanism is expected to have an extension point:
   (auto-update sweep, remote-tab poll, ...) here.
 - ~bookmark-gt-session-only-props~ — list of record keys whose
   values identify an object owned by another process (a browser
-  tab id, a client name).  ~bookmark-gt-toggle-temp~ removes
-  every registered key from a record when it clears the temp
-  flag, so the keys are never written to the bookmark file.
+  tab id, a client name).  Clearing the temp flag (with
+  ~bookmark-gt-toggle-temp~ or ~bookmark-gt-set-temp~) removes
+  every registered key from the record, so the keys are never
+  written to the bookmark file.
   ~bookmark-gt-browser-tabs-mode~ registers the three keys its
   tab records carry.  Register a key here at load time.
 - ~bookmark-gt-filter-alist~ — filter registry for the list

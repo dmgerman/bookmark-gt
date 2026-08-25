@@ -368,6 +368,35 @@ register their keys at load time.")
   "Return non-nil when alist CELL's key is registered as session-only."
   (memq (car-safe cell) bookmark-gt-session-only-props))
 
+(defun bookmark-gt-set-temp (record flag &optional no-notify)
+  "Set the temp property on RECORD according to FLAG.
+RECORD is a `(NAME . DATA)' pair or a bookmark name.  FLAG
+non-nil sets the flag; nil clears it.  Clearing makes the record
+eligible for the bookmark file, so any
+`bookmark-gt-session-only-props' key is removed at the same
+time.  When NO-NOTIFY is non-nil, skip UI refresh and the
+external `bookmark-gt-set-after-hook' — the caller is expected
+to notify once at end of a batch.  Returns the mutated record."
+  (let ((entry (bookmark-get-bookmark record)))
+    (unless entry
+      (user-error "No bookmark called %S" record))
+    ;; Mutated in place: `bookmark-alist' and the list buffer
+    ;; both hold this record by identity.
+    (if flag
+        (unless (bookmark-gt-temp-p entry)
+          (setcdr entry (cons (cons bookmark-gt-temp-key t)
+                              (cdr entry))))
+      (setcdr entry
+              (seq-remove
+               (lambda (cell)
+                 (or (eq (car-safe cell) bookmark-gt-temp-key)
+                     (bookmark-gt--session-only-key-p cell)))
+               (cdr entry))))
+    (if no-notify
+        (bookmark-gt--stamp-modified entry)
+      (bookmark-gt--after-mutation entry))
+    entry))
+
 (defun bookmark-gt-toggle-temp (name)
   "Toggle the temp property on the bookmark called NAME.
 Clearing the flag makes the record eligible for the bookmark
@@ -381,18 +410,7 @@ buffer and any other observers refresh."
     (unless record
       (user-error "No bookmark called %S" name))
     (let ((current (bookmark-gt-temp-p record)))
-      (if current
-          ;; Mutated in place: `bookmark-alist' and the list
-          ;; buffer both hold this record by identity.
-          (setcdr record
-                  (seq-remove
-                   (lambda (cell)
-                     (or (eq (car-safe cell) bookmark-gt-temp-key)
-                         (bookmark-gt--session-only-key-p cell)))
-                   (cdr record)))
-        (setcdr record (cons (cons bookmark-gt-temp-key t)
-                             (cdr record))))
-      (bookmark-gt--after-mutation record)
+      (bookmark-gt-set-temp record (not current))
       (message "%s temp on %S"
                (if current "Cleared" "Set") name))))
 
@@ -616,13 +634,19 @@ bookmarks) still get an overlay at their landed position."
 ;; buffers and highlight overlays, then runs the public
 ;; `bookmark-gt-set-after-hook' for third-party observers.
 
+(defun bookmark-gt--stamp-modified (entry)
+  "Stamp `last-modified' on ENTRY when it names a specific record.
+Split out of `bookmark-gt--after-mutation' so a batch mutator
+can stamp every record it touches while notifying only once."
+  (when (and (consp entry) (stringp (car entry)))
+    (bookmark-prop-set entry 'last-modified (current-time))))
+
 (defun bookmark-gt--after-mutation (entry)
   "Notify UI observers that ENTRY was created or mutated.
 Stamps `last-modified' on ENTRY when it names a specific
 record, refreshes list buffers and highlight overlays, then
 runs the public `bookmark-gt-set-after-hook'."
-  (when (and (consp entry) (stringp (car entry)))
-    (bookmark-prop-set entry 'last-modified (current-time)))
+  (bookmark-gt--stamp-modified entry)
   (bookmark-gt-list-refresh)
   (bookmark-gt-highlight-refresh entry)
   (run-hook-with-args 'bookmark-gt-set-after-hook entry))

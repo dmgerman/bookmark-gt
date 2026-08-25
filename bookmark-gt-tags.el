@@ -112,23 +112,33 @@ cons)."
           (setcdr entry (cons (cons 'tags tags) data)))))
     entry))
 
-(defun bookmark-gt-tags-set (record tags)
-  "Replace RECORD's tag list with TAGS (normalized)."
+(defun bookmark-gt-tags-set (record tags &optional no-notify)
+  "Replace RECORD's tag list with TAGS (normalized).
+When NO-NOTIFY is non-nil, skip UI refresh and the external
+`bookmark-gt-set-after-hook' — the caller is expected to notify
+once at end of a batch.  The record is stamped `last-modified'
+either way."
   (let* ((normalized (bookmark-gt--normalize-tags tags))
          (entry (bookmark-gt--set-tags-property record normalized)))
-    (bookmark-gt--after-mutation entry)
+    (if no-notify
+        (bookmark-gt--stamp-modified entry)
+      (bookmark-gt--after-mutation entry))
     entry))
 
-(defun bookmark-gt-tags-add (record tags)
-  "Add TAGS to RECORD's existing tag list (set union)."
+(defun bookmark-gt-tags-add (record tags &optional no-notify)
+  "Add TAGS to RECORD's existing tag list (set union).
+NO-NOTIFY is passed to `bookmark-gt-tags-set'."
   (bookmark-gt-tags-set record
-                        (append (bookmark-gt-tags-of record) tags)))
+                        (append (bookmark-gt-tags-of record) tags)
+                        no-notify))
 
-(defun bookmark-gt-tags-remove (record tags)
-  "Remove TAGS from RECORD's existing tag list (set difference)."
+(defun bookmark-gt-tags-remove (record tags &optional no-notify)
+  "Remove TAGS from RECORD's existing tag list (set difference).
+NO-NOTIFY is passed to `bookmark-gt-tags-set'."
   (bookmark-gt-tags-set record
                         (seq-difference (bookmark-gt-tags-of record)
-                                        tags)))
+                                        tags)
+                        no-notify))
 
 ;;;; Interactive reader
 

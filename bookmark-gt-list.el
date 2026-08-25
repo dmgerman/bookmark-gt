@@ -52,6 +52,10 @@
                   "bookmark-gt-browser-tabs")
 (declare-function bookmark-gt-auto-update-tick
                   "bookmark-gt-auto-update")
+;; Bulk setter behind `bookmark-gt-list-toggle-auto-update', which
+;; checks `fboundp' before calling.
+(declare-function bookmark-gt-auto-update-set
+                  "bookmark-gt-auto-update" (record flag &optional no-notify))
 
 ;;;; Customization
 
@@ -430,8 +434,16 @@ narrowed by any active filter and by the show-temp toggle.
 Commands are grouped by scope:
 
   Row-scoped commands act on the record on the current line.
+  Selection-scoped commands act on every row marked with
+  `bookmark-gt-list-selection-mark', falling back to the record
+  on the current line when no row is marked.
   Buffer-scoped commands act on the whole list or on the set
-  of marked rows.
+  of rows flagged for deletion.
+
+Marks are bounded by what the buffer displays.  No command
+reaches a row hidden by a filter or by
+`\\[bookmark-gt-list-show-temp]', and hidden rows keep their
+marks for when the view widens.
 
 Marker columns (three single-character indicators before Name):
 
@@ -454,19 +466,37 @@ Row-scoped commands (act on the bookmark at point):
   \\[bookmark-gt-list-preview] preview in another window
   \\[bookmark-gt-list-rename] rename
   \\[bookmark-gt-list-relocate] relocate (change filename or URL)
-  \\[bookmark-gt-list-edit-tags] edit tags (editable CSV; add and remove)
-  \\[bookmark-gt-list-add-tags] add tags (sequential reader; append only)
-  \\[bookmark-gt-list-remove-tags] remove tags (sequential reader; completion over row's tags)
   \\[bookmark-gt-list-edit-annotation] edit annotation
-  \\[bookmark-gt-list-toggle-auto-update] toggle `auto-update'
-  \\[bookmark-gt-list-toggle-temp] toggle temp
   \\[bookmark-gt-list-mark] mark for a bulk action
   \\[bookmark-gt-list-unmark] clear the mark
   \\[bookmark-gt-list-flag-for-deletion] flag for deletion
   \\[bookmark-gt-list-describe-record] describe (pretty-print raw record)
 
+Selection-scoped commands (act on every marked row, or on the
+bookmark at point when no row is marked):
+  \\[bookmark-gt-list-edit-tags] edit tags (editable CSV; add and remove)
+  \\[bookmark-gt-list-add-tags] add tags (sequential reader; append only)
+  \\[bookmark-gt-list-remove-tags] remove tags (completion over the tags present)
+  \\[bookmark-gt-list-toggle-auto-update] toggle `auto-update'
+  \\[bookmark-gt-list-toggle-temp] toggle temp
+
+A toggle over several marked rows sets all of them to the same
+value: on unless every marked row is already on, in which case
+all are turned off.
+
+A selection is bounded by what the buffer displays: rows hidden
+by a filter or by `\\[bookmark-gt-list-show-temp]' are not acted
+on and keep their marks.  When the filter hides the whole
+selection the command fails rather than falling back to the
+bookmark at point.
+
+Completing any of these commands deselects the rows it acted
+on, so the next one starts from a clean slate.  Ending a tag
+reader without entering anything changes nothing and leaves the
+selection in place.
+
 Buffer-scoped commands:
-  \\[bookmark-gt-list-execute-deletions] delete every flagged row
+  \\[bookmark-gt-list-execute-deletions] delete the flagged rows the view shows
   \\[bookmark-gt-list-unmark-all] clear every mark
   \\[bookmark-gt-list-filter-by] filter (by-type / by-tag / by-name-regexp / unfilter)
   \\[bookmark-gt-list-show-temp] toggle display of temporary bookmarks
@@ -598,6 +628,92 @@ positions) that are currently enabled, then redraws."
   (or (bookmark-gt-list--record-at-point)
       (user-error "No bookmark on this line")))
 
+(defun bookmark-gt-list--visible-marked (char)
+  "Return the displayed records whose mark is CHAR.
+Walks the rendered rows, so the result is ordered as the rows
+appear and covers only what the buffer currently displays: a
+marked record hidden by an active filter or by the `show-temp'
+toggle is not returned, and neither is one deleted since the
+mark was set.  Its mark is left in the hash, so lifting the
+filter brings the record back still marked.
+
+`bookmark-gt-list--collect-marked' can provide neither
+property — it walks `bookmark-gt-list--marks', whose hash order
+is arbitrary and which knows nothing about what is displayed.
+It remains the right call when the question is what carries a
+mark at all, rather than what the user can currently see."
+  (save-excursion
+    (goto-char (point-min))
+    (let (records)
+      (while (not (eobp))
+        (let ((id (tabulated-list-get-id)))
+          (when (and id
+                     (eq (gethash id bookmark-gt-list--marks) char))
+            (push id records)))
+        (forward-line 1))
+      (nreverse records))))
+
+(defun bookmark-gt-list--hidden-marked-count (char)
+  "Return how many records marked CHAR the current view hides."
+  (- (length (bookmark-gt-list--collect-marked char))
+     (length (bookmark-gt-list--visible-marked char))))
+
+(defun bookmark-gt-list--marked-records ()
+  "Return the displayed records carrying the selection mark."
+  (bookmark-gt-list--visible-marked bookmark-gt-list-selection-mark))
+
+(defun bookmark-gt-list--records-to-act-on ()
+  "Return the records a selection-scoped command should act on.
+The marked rows when any displayed row carries
+`bookmark-gt-list-selection-mark', otherwise a one-element list
+holding the record at point.
+
+Bounded by what the buffer displays: a command acts on the
+visible marked rows and never reaches a record the current
+filter hides.
+
+Signals when a selection exists but the current filter hides
+all of it.  Acting on the record at point there would apply the
+command to a bookmark the user did not select, and reporting
+success over an empty selection would suggest the marked
+bookmarks had been dealt with; both are worse than refusing.
+Also signals when nothing is marked and no row is at point."
+  (or (bookmark-gt-list--marked-records)
+      (let ((hidden (bookmark-gt-list--hidden-marked-count
+                     bookmark-gt-list-selection-mark)))
+        (when (> hidden 0)
+          (user-error
+           "No selected bookmarks in this view (%d hidden by the filter)"
+           hidden))
+        (list (bookmark-gt-list--require-record)))))
+
+(defun bookmark-gt-list--clear-selection (records)
+  "Remove the selection mark from RECORDS in this buffer.
+Only RECORDS are deselected, never the whole hash: a record
+marked while the list was unfiltered but hidden by the filter
+in force now was not acted on, so its mark stays for when the
+filter is lifted.  Deletion flags are kept too — they are
+consumed by `bookmark-gt-list-execute-deletions', not by the
+selection-scoped commands.
+
+Does not redraw; the caller's `bookmark-gt--after-mutation'
+repaints the mark column from the hash."
+  (dolist (record records)
+    (when (eq (gethash record bookmark-gt-list--marks)
+              bookmark-gt-list-selection-mark)
+      (remhash record bookmark-gt-list--marks))))
+
+(defun bookmark-gt-list--finish (records &optional message)
+  "Complete a selection-scoped command over RECORDS.
+Deselects RECORDS so the next command does not silently inherit
+them, notifies observers once for the whole batch, and reports
+MESSAGE when several records were acted on — for a single
+record the underlying mutator already reports."
+  (bookmark-gt-list--clear-selection records)
+  (bookmark-gt--after-mutation (car records))
+  (when (and message (cdr records))
+    (message "%s" message)))
+
 ;;;; Marks
 ;;
 ;; Selection marks live in `bookmark-gt-list--marks' (buffer-local
@@ -675,11 +791,26 @@ Skips hash entries whose id is no longer in `bookmark-alist'
     records))
 
 (defun bookmark-gt-list-execute-deletions ()
-  "Delete every bookmark flagged with `bookmark-gt-list-deletion-mark'."
+  "Delete the displayed bookmarks flagged for deletion.
+Bounded by what the buffer shows, like the selection-scoped
+commands: a row flagged with `bookmark-gt-list-deletion-mark'
+and then hidden by a filter or by `show-temp' is not deleted and
+keeps its flag.  Deleting a record the user cannot see, from a
+count they cannot check against the rows in front of them, is
+not recoverable.
+
+Signals when flags exist but the view hides all of them, rather
+than reporting that there is nothing to delete."
   (interactive nil bookmark-gt-list-mode)
-  (let ((flagged (bookmark-gt-list--collect-marked
+  (let ((flagged (bookmark-gt-list--visible-marked
                   bookmark-gt-list-deletion-mark)))
     (unless flagged
+      (let ((hidden (bookmark-gt-list--hidden-marked-count
+                     bookmark-gt-list-deletion-mark)))
+        (when (> hidden 0)
+          (user-error
+           "No flagged bookmarks in this view (%d hidden by the filter)"
+           hidden)))
       (user-error "No bookmarks flagged for deletion"))
     (unless (yes-or-no-p (format "Delete %d bookmark(s)? "
                                  (length flagged)))
@@ -746,46 +877,80 @@ bookmarks and a plain string prompt for URL bookmarks."
     (bookmark-gt-relocate (car record))))
 
 (defun bookmark-gt-list-edit-tags ()
-  "Edit the tag list on the bookmark at point.
+  "Edit the tag list on the marked bookmarks, or the one at point.
 Prompts with the current tags as an editable comma-separated
-string; the resulting list replaces the record's tags.  Add
-tags by typing them after a comma; remove tags by deleting
-them from the string."
+string; the resulting list replaces the tags on every record
+acted on.  Add tags by typing them after a comma; remove tags by
+deleting them from the string.
+
+With rows marked, the prompt is seeded with the union of their
+tags, and the edited list replaces the tags on all of them."
   (interactive nil bookmark-gt-list-mode)
-  (let* ((record  (bookmark-gt-list--require-record))
-         (current (bookmark-gt-tags-of record))
+  (let* ((records (bookmark-gt-list--records-to-act-on))
+         (current (bookmark-gt--normalize-tags
+                   (seq-mapcat #'bookmark-gt-tags-of records)))
          (initial (mapconcat #'identity current ", "))
          (input   (read-from-minibuffer
-                   (format-prompt "Tags" initial)
-                   initial)))
-    (bookmark-gt-tags-set
-     record
-     (bookmark-gt--normalize-tags
-      (split-string input "[,\n]" t "\\s-+")))))
+                   (format-prompt (if (cdr records)
+                                      (format "Tags for %d bookmarks"
+                                              (length records))
+                                    "Tags")
+                                  initial)
+                   initial))
+         (tags    (bookmark-gt--normalize-tags
+                   (split-string input "[,\n]" t "\\s-+"))))
+    (dolist (record records)
+      (bookmark-gt-tags-set record tags t))
+    (bookmark-gt-list--finish
+     records (format "Set tags on %d bookmarks" (length records)))))
 
 (defun bookmark-gt-list-add-tags ()
-  "Add tag(s) to the bookmark at point via the sequential reader.
-The record's existing tags are kept; the new tag(s) are unioned
-in via `bookmark-gt-tags-add'.  Empty input ends the reader
-without adding anything."
+  "Add tag(s) to the marked bookmarks, or the one at point.
+Existing tags are kept; the new tag(s) are unioned in via
+`bookmark-gt-tags-add'.  Empty input ends the reader without
+adding anything."
   (interactive nil bookmark-gt-list-mode)
-  (let* ((record (bookmark-gt-list--require-record))
-         (new    (bookmark-gt-tags-read "Add tags")))
+  (let* ((records (bookmark-gt-list--records-to-act-on))
+         (new     (bookmark-gt-tags-read
+                   (if (cdr records)
+                       (format "Add tags to %d bookmarks"
+                               (length records))
+                     "Add tags"))))
+    ;; Empty input leaves the selection in place: nothing was
+    ;; changed, so there is nothing to deselect.
     (when new
-      (bookmark-gt-tags-add record new))))
+      (dolist (record records)
+        (bookmark-gt-tags-add record new t))
+      (bookmark-gt-list--finish
+       records (format "Added tags to %d bookmarks" (length records))))))
 
 (defun bookmark-gt-list-remove-tags ()
-  "Remove tag(s) from the bookmark at point via the sequential reader.
-Completion is restricted to the record's own tags.  Empty
-input ends the reader without removing anything."
+  "Remove tag(s) from the marked bookmarks, or the one at point.
+Completion is restricted to the tags actually present on the
+records acted on — the union of their tags when several rows are
+marked, so a tag needs to be on only one of them to be offered.
+A tag absent from a given record leaves that record unchanged.
+Empty input ends the reader without removing anything."
   (interactive nil bookmark-gt-list-mode)
-  (let* ((record  (bookmark-gt-list--require-record))
-         (current (bookmark-gt-tags-of record)))
+  (let* ((records (bookmark-gt-list--records-to-act-on))
+         (current (bookmark-gt--normalize-tags
+                   (seq-mapcat #'bookmark-gt-tags-of records))))
     (unless current
-      (user-error "Bookmark has no tags"))
-    (let ((doomed (bookmark-gt-tags-read "Remove tags" nil current)))
+      (user-error (if (cdr records)
+                      "None of the marked bookmarks has tags"
+                    "Bookmark has no tags")))
+    (let ((doomed (bookmark-gt-tags-read
+                   (if (cdr records)
+                       (format "Remove tags from %d bookmarks"
+                               (length records))
+                     "Remove tags")
+                   nil current)))
       (when doomed
-        (bookmark-gt-tags-remove record doomed)))))
+        (dolist (record records)
+          (bookmark-gt-tags-remove record doomed t))
+        (bookmark-gt-list--finish
+         records
+         (format "Removed tags from %d bookmarks" (length records)))))))
 
 (defun bookmark-gt-list-edit-annotation ()
   "Edit the annotation of the bookmark on the current line."
@@ -793,21 +958,60 @@ input ends the reader without removing anything."
   (let ((record (bookmark-gt-list--require-record)))
     (bookmark-edit-annotation (car record))))
 
+(defun bookmark-gt-list--toggle-target (records predicate)
+  "Return the value a bulk toggle of PREDICATE should set on RECORDS.
+Nil when every record already satisfies PREDICATE, t otherwise.
+A mixed selection is made uniformly on by the first invocation
+and uniformly off by the next, so both target states stay
+reachable without depending on where point sits — point need
+not be inside the marked set at all.  With one record this is
+plain negation."
+  (not (seq-every-p predicate records)))
+
 (defun bookmark-gt-list-toggle-auto-update ()
-  "Toggle the `auto-update' property on the bookmark at point."
+  "Toggle `auto-update' on the marked bookmarks, or the one at point.
+With several rows marked, all of them are set to the same
+value: on unless every one of them already has the property, in
+which case all are turned off."
   (interactive nil bookmark-gt-list-mode)
-  (let ((record (bookmark-gt-list--require-record)))
-    (if (fboundp 'bookmark-gt-auto-update-toggle)
-        (bookmark-gt-auto-update-toggle (car record))
-      (user-error "The bookmark-gt-auto-update module is not loaded"))))
+  (unless (fboundp 'bookmark-gt-auto-update-set)
+    (user-error "The bookmark-gt-auto-update module is not loaded"))
+  (let* ((records (bookmark-gt-list--records-to-act-on))
+         ;; Read the property directly rather than through
+         ;; `bookmark-gt-auto-update-p', matching
+         ;; `bookmark-gt-list--auto-update-glyph': the list buffer
+         ;; renders the column without requiring that module.
+         (flag (bookmark-gt-list--toggle-target
+                records (lambda (r) (bookmark-prop-get r 'auto-update)))))
+    (dolist (record records)
+      (bookmark-gt-auto-update-set record flag t))
+    (bookmark-gt-list--finish records)
+    (message "%s auto-update on %s"
+             (if flag "Enabled" "Disabled")
+             (if (cdr records)
+                 (format "%d bookmarks" (length records))
+               (format "%S" (car (car records)))))))
 
 (defun bookmark-gt-list-toggle-temp ()
-  "Toggle the temp property on the bookmark at point.
+  "Toggle the temp property on the marked bookmarks, or the one at point.
 A temp bookmark is excluded from `bookmark-save' output while
-`bookmark-gt-mode' is on."
+`bookmark-gt-mode' is on.
+
+With several rows marked, all of them are set to the same
+value: temp unless every one of them is already temp, in which
+case all are made permanent."
   (interactive nil bookmark-gt-list-mode)
-  (let ((record (bookmark-gt-list--require-record)))
-    (bookmark-gt-toggle-temp (car record))))
+  (let* ((records (bookmark-gt-list--records-to-act-on))
+         (flag (bookmark-gt-list--toggle-target
+                records #'bookmark-gt-temp-p)))
+    (dolist (record records)
+      (bookmark-gt-set-temp record flag t))
+    (bookmark-gt-list--finish records)
+    (message "%s temp on %s"
+             (if flag "Set" "Cleared")
+             (if (cdr records)
+                 (format "%d bookmarks" (length records))
+               (format "%S" (car (car records)))))))
 
 (defun bookmark-gt-list-show-temp ()
   "Toggle display of temporary bookmarks in this list buffer.

@@ -86,12 +86,29 @@ the list buffer and any other observers refresh."
     (unless record
       (user-error "No bookmark called %S" name))
     (let ((current (bookmark-gt-auto-update-p record)))
-      (if current
-          (setcdr record (assq-delete-all 'auto-update (cdr record)))
-        (setcdr record (cons (cons 'auto-update t) (cdr record))))
-      (bookmark-gt--after-mutation record)
+      (bookmark-gt-auto-update-set record (not current))
       (message "%s auto-update on %S"
                (if current "Disabled" "Enabled") name))))
+
+;;;###autoload
+(defun bookmark-gt-auto-update-set (record flag &optional no-notify)
+  "Set the `auto-update' property on RECORD according to FLAG.
+RECORD is a `(NAME . DATA)' pair or a bookmark name.  FLAG
+non-nil sets the property; nil removes it.  When NO-NOTIFY is
+non-nil, skip UI refresh and the external
+`bookmark-gt-set-after-hook' — the caller is expected to notify
+once at end of a batch.  Returns the mutated record."
+  (let ((entry (bookmark-get-bookmark record)))
+    (unless entry
+      (user-error "No bookmark called %S" record))
+    (if flag
+        (unless (bookmark-gt-auto-update-p entry)
+          (setcdr entry (cons (cons 'auto-update t) (cdr entry))))
+      (setcdr entry (assq-delete-all 'auto-update (cdr entry))))
+    (if no-notify
+        (bookmark-gt--stamp-modified entry)
+      (bookmark-gt--after-mutation entry))
+    entry))
 
 ;;;; Refresh
 
