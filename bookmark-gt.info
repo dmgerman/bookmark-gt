@@ -41,6 +41,10 @@ created by either of those.
 
 -- The Detailed Node Listing --
 
+Install
+
+* Which version is installed::
+
 Getting started
 
 * Master switch bookmark-gt-mode::
@@ -146,6 +150,23 @@ sort, and an active-tag filter chip directly in the prompt.
 Non-interactive callers should use ‘bookmark-gt-jump’ (or its
 ‘-other-window’ / ‘-tagged’ variants) so those features are always
 available.
+
+* Menu:
+
+* Which version is installed::
+
+
+File: bookmark-gt.info,  Node: Which version is installed,  Up: Install
+
+1.1 Which version is installed
+==============================
+
+‘M-x bookmark-gt-version’ displays the installed version followed by the
+Emacs version in parentheses — the line to include in a bug report.
+With a prefix argument (‘C-u M-x bookmark-gt-version’) the same text is
+inserted at point, so it can be pasted into an issue without retyping.
+From Lisp the function returns the bare version string, the value of the
+‘bookmark-gt-version’ variable.
 
 
 File: bookmark-gt.info,  Node: Getting started,  Next: User interface,  Prev: Install,  Up: Top
@@ -1417,52 +1438,53 @@ GPL-3.0-or-later.  See ‘LICENSE’.
 
 Tag Table:
 Node: Top205
-Node: Install2431
-Node: Getting started3982
-Node: Master switch bookmark-gt-mode4180
-Node: Opt-in modes7199
-Node: bookmark-gt-auto-update-mode7550
-Node: bookmark-gt-default-tags-mode8536
-Node: bookmark-gt-browser-tabs-mode9564
-Node: User interface12975
-Node: The *Bookmarks-gt List* buffer13232
-Node: Columns13805
-Node: Keys15043
-Node: Acting on several bookmarks at once16931
-Node: Persisting view state20787
-Node: Jump to a bookmark bookmark-gt-jump21746
-Node: Elisp signatures23154
-Node: Non-file bookmark types25917
-Node: URL bookmarks — bookmark-gt-set-url26490
-Node: Dired bookmarks — bookmark-gt-handler-dired-jump27277
-Ref: Virtual dired28847
-Node: Function bookmarks — bookmark-gt-set-function30060
-Node: Keyboard-macro bookmarks — bookmark-gt-set-kmacro30873
-Node: Sequence bookmarks — bookmark-gt-set-sequence32531
-Node: File-type handlers — override the file-jump path per pattern33287
-Node: View bookmarks — save the list buffer's current view34660
-Node: Setting bookmarks35822
-Node: Tag reader36060
-Node: Same-name policy37065
-Node: Relocate change a bookmark's target39040
-Node: In-file behaviors40189
-Node: In-buffer cycling40418
-Node: Per-bookmark highlighting41418
-Node: Region bookmarks43375
-Node: Trackers44896
-Node: Visit tracker45072
-Node: File-rename tracker45816
-Node: Extension API46803
-Node: Handler registry47004
-Node: Group registry49201
-Node: Extension points50854
-Node: Compatibility53773
-Node: Data compat with bookmark+53974
-Node: Migrating from bookmark+55104
-Node: Reference57202
-Node: Selected customization57365
-Node: Acknowledgements62636
-Node: License64458
+Node: Install2472
+Node: Which version is installed4064
+Node: Getting started4606
+Node: Master switch bookmark-gt-mode4804
+Node: Opt-in modes7823
+Node: bookmark-gt-auto-update-mode8174
+Node: bookmark-gt-default-tags-mode9160
+Node: bookmark-gt-browser-tabs-mode10188
+Node: User interface13599
+Node: The *Bookmarks-gt List* buffer13856
+Node: Columns14429
+Node: Keys15667
+Node: Acting on several bookmarks at once17555
+Node: Persisting view state21411
+Node: Jump to a bookmark bookmark-gt-jump22370
+Node: Elisp signatures23778
+Node: Non-file bookmark types26541
+Node: URL bookmarks — bookmark-gt-set-url27114
+Node: Dired bookmarks — bookmark-gt-handler-dired-jump27901
+Ref: Virtual dired29471
+Node: Function bookmarks — bookmark-gt-set-function30684
+Node: Keyboard-macro bookmarks — bookmark-gt-set-kmacro31497
+Node: Sequence bookmarks — bookmark-gt-set-sequence33155
+Node: File-type handlers — override the file-jump path per pattern33911
+Node: View bookmarks — save the list buffer's current view35284
+Node: Setting bookmarks36446
+Node: Tag reader36684
+Node: Same-name policy37689
+Node: Relocate change a bookmark's target39664
+Node: In-file behaviors40813
+Node: In-buffer cycling41042
+Node: Per-bookmark highlighting42042
+Node: Region bookmarks43999
+Node: Trackers45520
+Node: Visit tracker45696
+Node: File-rename tracker46440
+Node: Extension API47427
+Node: Handler registry47628
+Node: Group registry49825
+Node: Extension points51478
+Node: Compatibility54397
+Node: Data compat with bookmark+54598
+Node: Migrating from bookmark+55728
+Node: Reference57826
+Node: Selected customization57989
+Node: Acknowledgements63260
+Node: License65082
 
 End Tag Table
 

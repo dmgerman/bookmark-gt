@@ -56,6 +56,16 @@ directly in the prompt.  Non-interactive callers should use
 ~bookmark-gt-jump~ (or its ~-other-window~ / ~-tagged~
 variants) so those features are always available.
 
+** Which version is installed
+
+~M-x bookmark-gt-version~ displays the installed version
+followed by the Emacs version in parentheses — the line to
+include in a bug report.  With a prefix argument (~C-u M-x
+bookmark-gt-version~) the same text is inserted at point, so it
+can be pasted into an issue without retyping.  From Lisp the
+function returns the bare version string, the value of the
+~bookmark-gt-version~ variable.
+
 * Getting started
 
 ** Master switch: ~bookmark-gt-mode~

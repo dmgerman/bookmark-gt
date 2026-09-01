@@ -38,54 +38,44 @@ DEPS = package-lint marginalia consult orderless
 
 INFO_SRC = readme.org
 
-# Version drift across the sources is a release-blocking error, so the
-# check runs as part of `make check'.
+# The version lives in exactly one place, so there is nothing to keep
+# in sync; `check-version' only confirms that the one place is
+# readable and that no second one has appeared.
 CHECK_EXTRA = check-version
 
 HELP_EXTRA = "  make version        print the current package version" \
-             "  make set-version VERSION=X.Y.Z   set it everywhere" \
-             "  make check-version  verify every source agrees on it"
+             "  make check-version  verify the version has one source"
 
 include Makefile.common
 
-# Version management.  The single source of truth is bookmark-gt.el's
-# `;; Version:' header, mirrored into the `bookmark-gt-version'
-# defconst in that same file.  Every other bookmark-gt*.el repeats the
-# header so package-lint is satisfied.  `scripts/update-version.sh'
-# rewrites all three surfaces atomically; `check-version' fails on any
-# drift and is wired into `check' so CI catches it on every PR.
-.PHONY: version set-version check-version
+# Version management.  Editing the `;; Version:' header of
+# bookmark-gt.el releases a new version — that header is the only
+# place the number is written.  The `bookmark-gt-version' defconst
+# reads it from the header at compile (or load) time, and the other
+# bookmark-gt*.el files carry no version header at all: package-lint
+# treats them as secondary files of a multi-file package because each
+# sets `package-lint-main-file' in its file-local variables.
+.PHONY: version check-version
 
 version:
 	@sed -n 's/^;; Version: //p' bookmark-gt.el
 
-set-version:
-	@if [ -z "$(VERSION)" ]; then \
-	  echo "usage: make set-version VERSION=X.Y.Z"; \
-	  exit 2; \
-	fi
-	@scripts/update-version.sh "$(VERSION)"
-
-# Extract the version from every source (header + defconst) and fail
-# loudly on any mismatch.
+# Two failure modes are possible now that there is a single source:
+# the header goes missing (the defconst would silently become
+# "unknown"), or a second version header reappears in another file
+# and starts to drift.
 check-version:
 	@primary=$$(sed -n 's/^;; Version: //p' bookmark-gt.el); \
 	if [ -z "$$primary" ]; then \
 	  echo "check-version: bookmark-gt.el has no Version header"; \
 	  exit 1; \
 	fi; \
-	drift=0; \
-	for f in $(EL_FILES); do \
-	  v=$$(sed -n 's/^;; Version: //p' $$f); \
-	  if [ "$$v" != "$$primary" ]; then \
-	    echo "check-version: $$f has Version '$$v', expected '$$primary'"; \
-	    drift=1; \
+	extra=0; \
+	for f in $(filter-out bookmark-gt.el,$(EL_FILES)); do \
+	  if sed -n 's/^;; Version: //p' $$f | grep -q .; then \
+	    echo "check-version: $$f has a Version header; only bookmark-gt.el may"; \
+	    extra=1; \
 	  fi; \
 	done; \
-	dc=$$(sed -nE 's/^\(defconst bookmark-gt-version "([^"]+)".*/\1/p' bookmark-gt.el); \
-	if [ "$$dc" != "$$primary" ]; then \
-	  echo "check-version: bookmark-gt-version defconst is '$$dc', expected '$$primary'"; \
-	  drift=1; \
-	fi; \
-	if [ $$drift -ne 0 ]; then exit 1; fi; \
-	echo "version $$primary consistent across $(words $(EL_FILES)) files + defconst"
+	if [ $$extra -ne 0 ]; then exit 1; fi; \
+	echo "version $$primary, single source (bookmark-gt.el header)"

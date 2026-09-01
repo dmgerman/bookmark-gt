@@ -7,7 +7,6 @@
 ;; Assisted-by: Claude:claude-opus-4-7
 ;; Keywords: convenience, matching, hypermedia
 ;; URL: https://github.com/dmgerman/bookmark-gt
-;; Version: 0.1.0
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 ;;

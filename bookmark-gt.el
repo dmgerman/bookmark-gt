@@ -7,7 +7,7 @@
 ;; Assisted-by: Claude:claude-opus-4-7
 ;; Keywords: convenience, matching, hypermedia
 ;; URL: https://github.com/dmgerman/bookmark-gt
-;; Version: 0.1.0
+;; Version: 0.2.0
 ;; Package-Requires: ((emacs "30.1"))
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
@@ -52,11 +52,39 @@
 
 ;;; Code:
 
-(defconst bookmark-gt-version "0.1.0"
-  "Version string for the bookmark-gt package.
-Kept in sync with the `;; Version:' header in every
-bookmark-gt*.el file by scripts/update-version.sh; the CI target
-`make check-version' fails on drift.")
+(defconst bookmark-gt-version
+  (eval-when-compile
+    (require 'lisp-mnt)
+    (or (lm-with-file (or (bound-and-true-p byte-compile-current-file)
+                          load-file-name
+                          buffer-file-name)
+          (lm-header "version"))
+        "unknown"))
+  "Version of bookmark-gt, as a string.
+Read from the `;; Version:' header of this file, which is the
+only place the version is written.  The value is resolved when
+this file is compiled, or when it is loaded as source.  The
+other bookmark-gt files carry no version header: they are
+secondary files of one multi-file package, declared as such by
+the `package-lint-main-file' file-local variable each one sets.")
+
+;;;###autoload
+(defun bookmark-gt-version (&optional here)
+  "Return the bookmark-gt version as a string.
+Interactively, display it in the echo area together with the
+Emacs version, which is the form to paste into a bug report.
+With a prefix argument HERE, insert that same text at point
+instead.
+
+Named after the `bookmark-gt-version' variable it reports,
+which is the relation the command `emacs-version' has to its
+own variable."
+  (interactive "P")
+  (let ((text (format "bookmark-gt %s (GNU Emacs %s)"
+                      bookmark-gt-version emacs-version)))
+    (cond (here    (insert text))
+          ((called-interactively-p 'interactive) (message "%s" text))
+          (t       bookmark-gt-version))))
 
 (defgroup bookmark-gt nil
   "Records-only bookmark manager built on `bookmark.el'."
