@@ -37,9 +37,13 @@
 ;;     (`bmkp-gt-load-index', `buffer-name', Dired-state fields,
 ;;     empty `annotation' / `tags', region-context strings on
 ;;     non-region records).
-;;   - Standard fields are preserved: `filename', `position',
-;;     `front-context-string', `rear-context-string', `visits',
-;;     `last-visited', `created', `last-modified'.
+;;   - The `filename' placeholder bookmark+ writes on non-file
+;;     records is removed, so migrated records carry no
+;;     `filename' key at all, as bookmark-gt's own do.
+;;   - Standard fields are preserved: `filename' (when it names a
+;;     real file), `position', `front-context-string',
+;;     `rear-context-string', `visits', `last-visited',
+;;     `created', `last-modified'.
 ;;
 ;; Not autoloaded.  This module is a one-time tool; load it
 ;; explicitly when needed:
@@ -103,6 +107,16 @@ consumes them just like bookmark+ did.")
       (when (assq key (cdr record))
         (setcdr record (assq-delete-all key (cdr record)))
         (setq changed t)))
+    ;; Non-file records: bookmark+ fills `filename' with a
+    ;; placeholder string, bookmark-gt omits the key.  Removing it
+    ;; here is what makes a migrated record match the shape
+    ;; bookmark-gt writes; `bookmark-gt-filename-of' still reads
+    ;; the placeholder as absent for files that were never
+    ;; migrated.
+    (when (equal (bookmark-prop-get record 'filename)
+                 bookmark-gt-non-file-placeholder)
+      (setcdr record (assq-delete-all 'filename (cdr record)))
+      (setq changed t))
     ;; Strip empty annotation / tags.
     (when (and (assq 'annotation (cdr record))
                (null (bookmark-prop-get record 'annotation)))

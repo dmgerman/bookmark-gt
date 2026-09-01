@@ -111,6 +111,42 @@ consumes them the same way bookmark+ did."
       (should-not (memq 'annotation keys))
       (should-not (memq 'tags keys)))))
 
+;;;; Non-file placeholder
+
+(ert-deftest bookmark-gt-migrate-test-removes-filename-placeholder ()
+  "A non-file record loses the bookmark+ `filename' placeholder."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-migrate-test--push
+     "u" `((handler . bmkp-jump-url-browse)
+           (filename . ,bookmark-gt-non-file-placeholder)
+           (location . "https://example.org")))
+    (bookmark-gt-migrate-from-bookmark-plus)
+    (let ((rec (assoc "u" bookmark-alist)))
+      (should-not (memq 'filename (mapcar #'car (cdr rec))))
+      (should (equal (bookmark-gt-filename-of rec) nil))
+      (should (equal (bookmark-prop-get rec 'url) "https://example.org")))))
+
+(ert-deftest bookmark-gt-migrate-test-keeps-real-filename ()
+  "A `filename' naming an actual file is untouched."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-migrate-test--push
+     "d" '((handler . bmkp-jump-dired)
+           (filename . "/tmp/dir/")))
+    (bookmark-gt-migrate-from-bookmark-plus)
+    (should (equal (bookmark-prop-get (assoc "d" bookmark-alist) 'filename)
+                   "/tmp/dir/"))))
+
+(ert-deftest bookmark-gt-migrate-test-placeholder-alone-is-a-change ()
+  "Removing the placeholder counts as a migrated record on its own."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-migrate-test--push
+     "p" `((handler . bookmark-gt-handler-url-jump)
+           (filename . ,bookmark-gt-non-file-placeholder)
+           (url . "https://example.org")))
+    (should (= (bookmark-gt-migrate-from-bookmark-plus) 1))
+    (should-not (memq 'filename
+                      (mapcar #'car (cdr (assoc "p" bookmark-alist)))))))
+
 ;;;; Preservation
 
 (ert-deftest bookmark-gt-migrate-test-preserves-tracking-fields ()

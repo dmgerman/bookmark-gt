@@ -1337,9 +1337,12 @@ fails when the function is not defined.
      meaning: ‘bmkp-gt-load-index’, ‘buffer-name’,
      ‘front-context-region-string’, ‘rear-context-region-string’, empty
      ‘annotation’, empty ‘tags’.
-   • Preserves ‘filename’, ‘position’, ‘front-context-string’,
-     ‘rear-context-string’, ‘visits’, ‘last-visited’, ‘created’,
-     ‘last-modified’.
+   • Removes ‘filename’ when it holds bookmark+'s non-file placeholder
+     ‘" - no file -"’, so the migrated record has no ‘filename’ key,
+     which is how bookmark-gt writes non-file records.
+   • Preserves ‘filename’ when it names a real file, along with
+     ‘position’, ‘front-context-string’, ‘rear-context-string’,
+     ‘visits’, ‘last-visited’, ‘created’, ‘last-modified’.
    • Preserves the Dired state keys ‘dired-directory’, ‘dired-marked’,
      ‘dired-subdirs’, ‘dired-hidden-dirs’, ‘dired-switches’ —
      bookmark-gt's Dired handler consumes them the same way bookmark+
@@ -1415,11 +1418,20 @@ filtering — were first introduced in bookmark+.
      registry.
    • *Record schema.*  The on-disk alist keys — ‘tags’, ‘bmkp-temp’,
      ‘auto-update’, ‘visits’, ‘last-visited’, ‘location’ (URL alias),
-     ‘front-context-region-string’ / ‘rear-context-region-string’
-     (region bookmarks), and the ‘" - no file -"’ filename placeholder
-     for non-file records — are all adopted from bookmark+'s format
-     verbatim so bookmark files round-trip in either direction without
-     data loss.
+     and ‘front-context-region-string’ / ‘rear-context-region-string’
+     (region bookmarks) — are adopted from bookmark+'s format verbatim:
+     bookmark-gt reads and writes them under the same names, so a
+     bookmark file moves between the two packages without losing these
+     fields.
+
+     One item of that format is read but not written: the ‘" - no file
+     -"’ string bookmark+ stores in ‘filename’ on a non-file record.
+     Bookmark-gt omits ‘filename’ on such records instead, and
+     ‘bookmark-gt-filename-of’ reads the placeholder as absent (see
+     *note Data compat with bookmark+::).  Whether bookmark+ in turn
+     accepts a record with no ‘filename’ key has not been tested —
+     bookmark-gt has no dependency on it and the test suite does not
+     install it.
 
    ‘bookmark-gt’ is a rewrite with different architectural choices (no
 advice on other packages, a single registry per axis,
@@ -1481,10 +1493,10 @@ Node: Extension points51478
 Node: Compatibility54397
 Node: Data compat with bookmark+54598
 Node: Migrating from bookmark+55728
-Node: Reference57826
-Node: Selected customization57989
-Node: Acknowledgements63260
-Node: License65082
+Node: Reference58072
+Node: Selected customization58235
+Node: Acknowledgements63506
+Node: License65840
 
 End Tag Table
 
