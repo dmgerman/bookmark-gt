@@ -89,6 +89,12 @@ Setting bookmarks
 * Same-name policy::
 * Relocate change a bookmark's target::
 
+Same-name policy
+
+* Worked scenario the same name in two projects::
+* If you expected two records and see one::
+* Name-based lookup::
+
 In-file behaviors
 
 * In-buffer cycling::
@@ -893,9 +899,22 @@ File: bookmark-gt.info,  Node: Same-name policy,  Next: Relocate change a bookma
 4.2 Same-name policy
 ====================
 
-Setting a bookmark whose name is already in use is not an error.  The
-name the new record ends up stored under is determined by these rules,
-in order:
+Setting a bookmark whose name is already in use is not an error.  Two
+defcustoms determine the result, and each applies to a different kind of
+collision — for any single ‘bookmark-gt-set’ call at most one of them is
+consulted:
+
+   • ‘bookmark-gt-same-name-overwrite’ applies to a *full collision*:
+     the existing record has the same name AND the same handler AND the
+     same filename.  The new record is then the same bookmark at a new
+     position.
+   • ‘bookmark-gt-allow-duplicate-names’ applies to a *partial
+     collision*: the existing record has the same name but a different
+     filename or a different handler.  The new record is then a
+     different bookmark that reuses an existing name.
+
+   The name the new record ends up stored under is determined by these
+rules, in order:
 
   1. *Prefix-argument override.*  When ‘M-x bookmark-gt-set’ is called
      with a prefix argument (‘NO-OVERWRITE’ non-nil from Lisp), a ‘<N>’
@@ -916,7 +935,81 @@ in order:
   4. *Fallback.*  With both flags off, any collision that isn't handled
      by rule 2 receives a ‘<N>’ suffix.
 
-   *Caveat on rule 3.*  Emacs's ‘bookmark-jump NAME’ and
+* Menu:
+
+* Worked scenario the same name in two projects::
+* If you expected two records and see one::
+* Name-based lookup::
+
+
+File: bookmark-gt.info,  Node: Worked scenario the same name in two projects,  Next: If you expected two records and see one,  Up: Same-name policy
+
+4.2.1 Worked scenario: the same name in two projects
+----------------------------------------------------
+
+Set a bookmark named ‘todo’ in ‘~/src/projA/notes.org’, then set another
+named ‘todo’ in ‘~/src/projB/notes.org’.  The two records have the same
+handler but different filenames, so this is a partial collision: rule 2
+does not apply whatever the value of ‘bookmark-gt-same-name-overwrite’,
+and rule 3 determines the result.
+
+‘same-name-overwrite’   ‘allow-duplicate-names’   Result
+-----------------------------------------------------------------------------------
+‘t’ (default)           ‘t’ (default)             two records, both named ‘todo’
+‘nil’                   ‘t’                       two records, both named ‘todo’
+‘t’                     ‘nil’                     ‘todo’ and ‘todo<2>’
+‘nil’                   ‘nil’                     ‘todo’ and ‘todo<2>’
+
+   The left column has no effect here.  It would matter only if the
+second ‘bookmark-gt-set’ ran in ‘projA/notes.org’ again — the
+full-collision case, where ‘t’ moves the existing record's position to
+point and ‘nil’ produces ‘todo<2>’.
+
+
+File: bookmark-gt.info,  Node: If you expected two records and see one,  Next: Name-based lookup,  Prev: Worked scenario the same name in two projects,  Up: Same-name policy
+
+4.2.2 If you expected two records and see one
+---------------------------------------------
+
+The rules above describe what is stored.  A record can be stored and
+still be absent from the list buffer, so there are two possible causes.
+Count the stored records to determine which one applies:
+
+     (seq-filter (lambda (r)
+                   (equal (substring-no-properties (car r)) "todo"))
+                 bookmark-alist)
+
+   *Two records.*  Both were stored; the list buffer is not displaying
+one of them.  Either:
+
+   • *A filter is active.*  Filters on tags, group, or type restrict
+     which records ‘bookmark-gt-list’ prints; ‘bookmark-alist’ is
+     unmodified.  Filters persist across sessions via
+     ‘bookmark-gt-list-state-file’, so a filter set in an earlier
+     session is still in effect.  ‘V’ resets the view to the defaults;
+     ‘/’ sets a filter.
+   • *One record is temporary and temporary records are hidden.*
+     Temporary records are omitted from the display, not from
+     ‘bookmark-alist’, and they remain reachable by ‘bookmark-gt-jump’.
+     ‘H’ toggles their visibility.  (‘T’ changes whether the record at
+     point is temporary, which modifies the record — it is not a display
+     toggle.)
+
+   *One record.*  Only one was stored under that name.  Check whether a
+‘todo<2>’ record exists: if it does, rule 1 or rule 4 applied and the
+second bookmark was stored under the disambiguated name.  If it does
+not, rule 2 applied and the second ‘bookmark-gt-set’ replaced the first,
+which means the two filenames refer to the same file.  Rule 2 compares
+them with ‘string=’ and, when both files exist, with ‘file-equal-p’ — so
+two paths that differ only by a symlink are a full collision.
+
+
+File: bookmark-gt.info,  Node: Name-based lookup,  Prev: If you expected two records and see one,  Up: Same-name policy
+
+4.2.3 Name-based lookup
+-----------------------
+
+Rule 3 has one consequence.  Emacs's ‘bookmark-jump NAME’ and
 ‘bookmark-get-bookmark NAME’ return the first alist match.  When two
 records share a name, only one is reachable that way; the others still
 appear in ‘bookmark-gt-list’ and ‘bookmark-gt-jump’ (both iterate the
@@ -1385,8 +1478,8 @@ Variable                               Default                               Wha
 ‘bookmark-gt-track-renames’            ‘t’                                   When non-nil, ‘rename-file’ rewrites any bookmark whose ‘filename’ matched the source path to the destination.
 ‘bookmark-gt-default-tags’             ‘nil’                                 Under ‘bookmark-gt-default-tags-mode’, seeds the tag reader.  Value can be a string, a list of strings, or a function of the record; see the mode's section.
 ‘bookmark-gt-prompt-for-tags-flag’     ‘t’                                   Whether the tag reader prompts on ‘bookmark-gt-set’.  Off suppresses the prompt globally; batch callers can let-bind ‘nil’.
-‘bookmark-gt-same-name-overwrite’      ‘t’                                   When a new bookmark's name matches an existing record with the same handler AND same filename, replace the record in place.
-‘bookmark-gt-allow-duplicate-names’    ‘t’                                   Allow two records to share the same literal name (typically distinguished by file).  Off falls back to ‘<N>’ suffix disambiguation.
+‘bookmark-gt-same-name-overwrite’      ‘t’                                   *Full collision only* (same name AND handler AND filename): replace the existing record in place rather than appending ‘<N>’.  Has no effect when the filenames differ; see Same-name policy.
+‘bookmark-gt-allow-duplicate-names’    ‘t’                                   *Partial collision only* (same name, different filename or handler): store the literal name, letting two records share it.  Off appends ‘<N>’ instead; see Same-name policy.
 ‘bookmark-gt-highlight-enable’         ‘t’                                   Per-bookmark line overlays in file-visiting buffers.  Off suppresses the overlays even while ‘bookmark-gt-mode’ is on.
 ‘bookmark-gt-auto-temp-names’          ‘("\\`org-capture-last-stored\\'")’   Names (regexps) auto-marked temporary on 'bookmark-store' — third-party transient bookmarks that should not persist.
 ‘bookmark-gt-file-type-handlers’       ‘nil’                                 Alist mapping filename regexp to a handler function; when a file bookmark's ‘filename’ matches, the function is called with the record instead of the built-in ‘find-file’ path.
@@ -1450,53 +1543,56 @@ GPL-3.0-or-later.  See ‘LICENSE’.
 
 Tag Table:
 Node: Top205
-Node: Install2472
-Node: Which version is installed4064
-Node: Getting started4606
-Node: Master switch bookmark-gt-mode4804
-Node: Opt-in modes7823
-Node: bookmark-gt-auto-update-mode8174
-Node: bookmark-gt-default-tags-mode9160
-Node: bookmark-gt-browser-tabs-mode10188
-Node: User interface13599
-Node: The *Bookmarks-gt List* buffer13856
-Node: Columns14429
-Node: Keys15667
-Node: Acting on several bookmarks at once17555
-Node: Persisting view state21411
-Node: Jump to a bookmark bookmark-gt-jump22370
-Node: Elisp signatures23778
-Node: Non-file bookmark types26541
-Node: URL bookmarks — bookmark-gt-set-url27114
-Node: Dired bookmarks — bookmark-gt-handler-dired-jump27901
-Ref: Virtual dired29471
-Node: Function bookmarks — bookmark-gt-set-function30684
-Node: Keyboard-macro bookmarks — bookmark-gt-set-kmacro31497
-Node: Sequence bookmarks — bookmark-gt-set-sequence33155
-Node: File-type handlers — override the file-jump path per pattern33911
-Node: View bookmarks — save the list buffer's current view35284
-Node: Setting bookmarks36446
-Node: Tag reader36684
-Node: Same-name policy37689
-Node: Relocate change a bookmark's target39664
-Node: In-file behaviors40813
-Node: In-buffer cycling41042
-Node: Per-bookmark highlighting42042
-Node: Region bookmarks43999
-Node: Trackers45520
-Node: Visit tracker45696
-Node: File-rename tracker46440
-Node: Extension API47427
-Node: Handler registry47628
-Node: Group registry49825
-Node: Extension points51478
-Node: Compatibility54397
-Node: Data compat with bookmark+54598
-Node: Migrating from bookmark+55728
-Node: Reference58072
-Node: Selected customization58235
-Node: Acknowledgements63506
-Node: License65840
+Node: Install2607
+Node: Which version is installed4199
+Node: Getting started4741
+Node: Master switch bookmark-gt-mode4939
+Node: Opt-in modes7958
+Node: bookmark-gt-auto-update-mode8309
+Node: bookmark-gt-default-tags-mode9295
+Node: bookmark-gt-browser-tabs-mode10323
+Node: User interface13734
+Node: The *Bookmarks-gt List* buffer13991
+Node: Columns14564
+Node: Keys15802
+Node: Acting on several bookmarks at once17690
+Node: Persisting view state21546
+Node: Jump to a bookmark bookmark-gt-jump22505
+Node: Elisp signatures23913
+Node: Non-file bookmark types26676
+Node: URL bookmarks — bookmark-gt-set-url27249
+Node: Dired bookmarks — bookmark-gt-handler-dired-jump28036
+Ref: Virtual dired29606
+Node: Function bookmarks — bookmark-gt-set-function30819
+Node: Keyboard-macro bookmarks — bookmark-gt-set-kmacro31632
+Node: Sequence bookmarks — bookmark-gt-set-sequence33290
+Node: File-type handlers — override the file-jump path per pattern34046
+Node: View bookmarks — save the list buffer's current view35419
+Node: Setting bookmarks36581
+Node: Tag reader36819
+Node: Same-name policy37824
+Node: Worked scenario the same name in two projects40129
+Node: If you expected two records and see one41501
+Node: Name-based lookup43455
+Node: Relocate change a bookmark's target44092
+Node: In-file behaviors45241
+Node: In-buffer cycling45470
+Node: Per-bookmark highlighting46470
+Node: Region bookmarks48427
+Node: Trackers49948
+Node: Visit tracker50124
+Node: File-rename tracker50868
+Node: Extension API51855
+Node: Handler registry52056
+Node: Group registry54253
+Node: Extension points55906
+Node: Compatibility58825
+Node: Data compat with bookmark+59026
+Node: Migrating from bookmark+60156
+Node: Reference62500
+Node: Selected customization62663
+Node: Acknowledgements68045
+Node: License70379
 
 End Tag Table
 

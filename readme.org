@@ -706,8 +706,21 @@ seeds itself with any tags provided by
 ** Same-name policy
 
 Setting a bookmark whose name is already in use is not an
-error.  The name the new record ends up stored under is
-determined by these rules, in order:
+error.  Two defcustoms determine the result, and each applies
+to a different kind of collision — for any single
+~bookmark-gt-set~ call at most one of them is consulted:
+
+- ~bookmark-gt-same-name-overwrite~ applies to a *full
+  collision*: the existing record has the same name AND the
+  same handler AND the same filename.  The new record is then
+  the same bookmark at a new position.
+- ~bookmark-gt-allow-duplicate-names~ applies to a *partial
+  collision*: the existing record has the same name but a
+  different filename or a different handler.  The new record is
+  then a different bookmark that reuses an existing name.
+
+The name the new record ends up stored under is determined by
+these rules, in order:
 
 1. *Prefix-argument override.*  When ~M-x bookmark-gt-set~ is
    called with a prefix argument (~NO-OVERWRITE~ non-nil from
@@ -730,7 +743,70 @@ determined by these rules, in order:
 4. *Fallback.*  With both flags off, any collision that isn't
    handled by rule 2 receives a ~<N>~ suffix.
 
-*Caveat on rule 3.*  Emacs's ~bookmark-jump NAME~ and
+*** Worked scenario: the same name in two projects
+
+Set a bookmark named ~todo~ in =~/src/projA/notes.org=, then
+set another named ~todo~ in =~/src/projB/notes.org=.  The two
+records have the same handler but different filenames, so this
+is a partial collision: rule 2 does not apply whatever the
+value of ~bookmark-gt-same-name-overwrite~, and rule 3
+determines the result.
+
+| ~same-name-overwrite~ | ~allow-duplicate-names~ | Result                       |
+|---------------------+-----------------------+------------------------------|
+| ~t~ (default)         | ~t~ (default)           | two records, both named ~todo~ |
+| ~nil~                 | ~t~                     | two records, both named ~todo~ |
+| ~t~                   | ~nil~                   | ~todo~ and ~todo<2>~             |
+| ~nil~                 | ~nil~                   | ~todo~ and ~todo<2>~             |
+
+The left column has no effect here.  It would matter only if
+the second ~bookmark-gt-set~ ran in =projA/notes.org= again —
+the full-collision case, where ~t~ moves the existing record's
+position to point and ~nil~ produces ~todo<2>~.
+
+*** If you expected two records and see one
+
+The rules above describe what is stored.  A record can be
+stored and still be absent from the list buffer, so there are
+two possible causes.  Count the stored records to determine
+which one applies:
+
+#+BEGIN_SRC emacs-lisp
+(seq-filter (lambda (r)
+              (equal (substring-no-properties (car r)) "todo"))
+            bookmark-alist)
+#+END_SRC
+
+*Two records.*  Both were stored; the list buffer is not
+displaying one of them.  Either:
+
+- *A filter is active.*  Filters on tags, group, or type
+  restrict which records ~bookmark-gt-list~ prints;
+  ~bookmark-alist~ is unmodified.  Filters persist across
+  sessions via ~bookmark-gt-list-state-file~, so a filter set
+  in an earlier session is still in effect.  ~V~ resets the
+  view to the defaults; ~/~ sets a filter.
+- *One record is temporary and temporary records are
+  hidden.*  Temporary records are omitted from the display,
+  not from ~bookmark-alist~, and they remain reachable by
+  ~bookmark-gt-jump~.  ~H~ toggles their visibility.  (~T~
+  changes whether the record at point is temporary, which
+  modifies the record — it is not a display toggle.)
+
+*One record.*  Only one was stored under that name.  Check
+whether a ~todo<2>~ record exists: if it does, rule 1 or rule 4
+applied and the second bookmark was stored under the
+disambiguated name.  If it does not, rule 2 applied and the
+second ~bookmark-gt-set~ replaced the first, which means the
+two filenames refer to the same file.  Rule 2 compares them
+with ~string=~ and, when both files exist, with
+~file-equal-p~ — so two paths that differ only by a symlink
+are a full collision.
+
+*** Name-based lookup
+
+Rule 3 has one consequence.  Emacs's
+~bookmark-jump NAME~ and
 ~bookmark-get-bookmark NAME~ return the first alist match.
 When two records share a name, only one is reachable that
 way; the others still appear in ~bookmark-gt-list~ and
@@ -1132,8 +1208,8 @@ bookmark file before running.
 | ~bookmark-gt-track-renames~           | ~t~       | When non-nil, ~rename-file~ rewrites any bookmark whose ~filename~ matched the source path to the destination.            |
 | ~bookmark-gt-default-tags~            | ~nil~     | Under ~bookmark-gt-default-tags-mode~, seeds the tag reader.  Value can be a string, a list of strings, or a function of the record; see the mode's section. |
 | ~bookmark-gt-prompt-for-tags-flag~    | ~t~       | Whether the tag reader prompts on ~bookmark-gt-set~.  Off suppresses the prompt globally; batch callers can let-bind ~nil~. |
-| ~bookmark-gt-same-name-overwrite~     | ~t~       | When a new bookmark's name matches an existing record with the same handler AND same filename, replace the record in place. |
-| ~bookmark-gt-allow-duplicate-names~   | ~t~       | Allow two records to share the same literal name (typically distinguished by file).  Off falls back to ~<N>~ suffix disambiguation. |
+| ~bookmark-gt-same-name-overwrite~     | ~t~       | *Full collision only* (same name AND handler AND filename): replace the existing record in place rather than appending ~<N>~.  Has no effect when the filenames differ; see Same-name policy. |
+| ~bookmark-gt-allow-duplicate-names~   | ~t~       | *Partial collision only* (same name, different filename or handler): store the literal name, letting two records share it.  Off appends ~<N>~ instead; see Same-name policy. |
 | ~bookmark-gt-highlight-enable~        | ~t~       | Per-bookmark line overlays in file-visiting buffers.  Off suppresses the overlays even while ~bookmark-gt-mode~ is on.    |
 | ~bookmark-gt-auto-temp-names~         | ~("\\`org-capture-last-stored\\'")~ | Names (regexps) auto-marked temporary on `bookmark-store' — third-party transient bookmarks that should not persist. |
 | ~bookmark-gt-file-type-handlers~      | ~nil~     | Alist mapping filename regexp to a handler function; when a file bookmark's ~filename~ matches, the function is called with the record instead of the built-in ~find-file~ path. |
