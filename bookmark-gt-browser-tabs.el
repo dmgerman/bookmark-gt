@@ -199,12 +199,14 @@ tracks browser activity rather than bookmark-gt jump history."
   "Remove every browser-gt-owned record from `bookmark-alist'.
 Matches only records carrying the
 `bookmark-gt-browser-tabs--marker-key' marker, so records
-owned by other browser-gt-related packages are left alone."
+owned by other browser-gt-related packages are left alone.
+
+Every record removed here is temporary, so
+`bookmark-alist-modification-count' is left alone: none of them
+would have been written to the bookmark file."
   (setq bookmark-alist
         (seq-remove #'bookmark-gt-browser-tabs--own-record-p
                     bookmark-alist))
-  (setq bookmark-alist-modification-count
-        (1+ bookmark-alist-modification-count))
   (bookmark-gt-list-refresh))
 
 ;;;; Refresh

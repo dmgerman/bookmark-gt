@@ -251,26 +251,92 @@ ai/design/tag-storage.org)."
       record
     (cons (cons 'tags tags) record)))
 
+;;;; Temporary bookmarks
+;;
+;; A record carrying the `bmkp-temp' alist key is a temp bookmark:
+;; visible in `bookmark-alist' for the life of the Emacs session,
+;; excluded from `bookmark-save' output.  Same key name as
+;; bookmark+'s `bmkp-temp' so bookmark files round-trip either way.
+;;
+;; The save filter is installed via advice on `bookmark-save' —
+;; `bookmark.el' has no extension hook there.  Install / uninstall is
+;; controlled by `bookmark-gt-mode' so a user who never enables it
+;; sees the built-in behavior unchanged.
+;;
+;; Defined here, ahead of the store and mutation code, because
+;; those decide whether a change is worth counting by asking
+;; `bookmark-gt-temp-p'.
+
+(defconst bookmark-gt-temp-key 'bmkp-temp
+  "Alist key used to mark a bookmark as temporary.
+Chosen to match bookmark+'s `bmkp-temp' so bookmark files
+round-trip between the two packages without data loss.")
+
+(defun bookmark-gt-temp-p (record)
+  "Return non-nil when RECORD is marked as a temporary bookmark."
+  (bookmark-prop-get record bookmark-gt-temp-key))
+
+;;;; Modification accounting
+;;
+;; `bookmark-alist-modification-count' means "changes not yet
+;; written to the bookmark file".  Built-in `bookmark.el' saves
+;; when it crosses `bookmark-save-flag', and saves again from
+;; `kill-emacs-hook' when it is above zero.
+;;
+;; A change confined to temporary records is never written: the
+;; `bookmark-save' advice removes those records before the file is
+;; produced.  Counting such a change schedules a write that cannot
+;; alter the file, so every mutator here counts only changes to
+;; records that are eligible for the file.
+
+(defun bookmark-gt--maybe-auto-save ()
+  "Write the bookmark file when the auto-save threshold is reached.
+The threshold is `bookmark-save-flag', evaluated by
+`bookmark-time-to-save-p'."
+  (when (bookmark-time-to-save-p)
+    (bookmark-save)))
+
+(defun bookmark-gt--note-modification (&optional no-save)
+  "Count one change that affects `bookmark-save' output.
+Bumps `bookmark-alist-modification-count' and, unless NO-SAVE is
+non-nil, calls `bookmark-gt--maybe-auto-save'.  A caller that
+mutates many records in a loop passes NO-SAVE and calls
+`bookmark-gt--maybe-auto-save' once at the end.
+
+Do not call this for a change confined to temporary records."
+  (setq bookmark-alist-modification-count
+        (1+ bookmark-alist-modification-count))
+  (unless no-save
+    (bookmark-gt--maybe-auto-save)))
+
 ;;;; Internal: fast push
 ;;
-;; We deliberately bypass `bookmark-store' because bookmark+ (which
-;; some users still have loaded during the migration) has REDEFINED
-;; `bookmark-store' — every call runs the bookmark+ bookkeeping
-;; including a `*Bookmark List*' rebuild.  That's 27ms/call in
-;; measured cases, which turns a browser-tab refresh of ~100 tabs
-;; into a multi-second stall.
+;; Stores go through this function rather than `bookmark-store'
+;; because each of the three things `bookmark-store' does
+;; unconditionally has to be conditional here:
 ;;
-;; The essential built-in `bookmark-store' contract is: push the
-;; record onto `bookmark-alist' (with text-properties stripped
-;; from the name), update `bookmark-current-bookmark', and bump
-;; `bookmark-alist-modification-count'.  The bmenu rebuild is
-;; skipped — bookmark-gt owns its own list buffer and refreshes it
-;; via `bookmark-gt-set-after-hook'.
+;;   - The modification count.  A temporary record must not raise
+;;     it (see "Modification accounting" above); `bookmark-store'
+;;     raises it for every record.
+;;   - `bookmark-current-bookmark'.  A caller storing records
+;;     unrelated to the current buffer — a browser-tab refresh
+;;     running from a timer — passes NO-CURRENT to leave it alone.
+;;   - The `*Bookmark List*' rebuild.  bookmark-gt has its own
+;;     list buffer and refreshes it from
+;;     `bookmark-gt--after-mutation'.
 ;;
-;; Auto-save is honored: if `bookmark-save-flag' is a number and
-;; the modification count has crossed it, we call `bookmark-save'.
-;; Callers that batch many stores should let-bind
+;; What is kept from the `bookmark-store' contract: push the
+;; record onto `bookmark-alist' with text properties stripped from
+;; the name, and honor auto-save, so a record stored here reaches
+;; the file on the same schedule as one stored by built-in
+;; commands.  Callers that store many records should let-bind
 ;; `bookmark-save-flag' to nil to prevent mid-batch saves.
+;;
+;; A side benefit during migration: bookmark+ redefines
+;; `bookmark-store', and its version rebuilds `*Bookmark List*' on
+;; every call — measured at 27ms, which turns a browser-tab
+;; refresh of ~100 tabs into a multi-second delay.  Going direct
+;; means a session with bookmark+ loaded pays none of that.
 
 (defun bookmark-gt--push-record (name alist &optional no-current)
   "Push (NAME . ALIST) onto `bookmark-alist' compatibly with `bookmark-store'.
@@ -285,9 +351,14 @@ default offered by several name prompts, so a caller that
 stores records unrelated to the current buffer (a browser-tab
 refresh running from a timer) must not write it.
 
+A temporary ALIST is not counted as a modification: it is
+excluded from `bookmark-save' output, so the store cannot change
+the file.
+
 Returns the stripped name."
   (let ((stripped (copy-sequence name))
-        (now (current-time)))
+        (now (current-time))
+        (temp (assq bookmark-gt-temp-key alist)))
     (set-text-properties 0 (length stripped) nil stripped)
     (unless (assq 'created alist)
       (setq alist (cons (cons 'created now) alist)))
@@ -296,10 +367,8 @@ Returns the stripped name."
     (push (cons stripped alist) bookmark-alist)
     (unless no-current
       (setq bookmark-current-bookmark stripped))
-    (setq bookmark-alist-modification-count
-          (1+ bookmark-alist-modification-count))
-    (when (bookmark-time-to-save-p)
-      (bookmark-save))
+    (unless temp
+      (bookmark-gt--note-modification))
     stripped))
 
 ;;;; Public: elisp API
@@ -327,27 +396,6 @@ pair."
       (bookmark-gt--after-mutation stored))
     stored))
 
-;;;; Temporary bookmarks
-;;
-;; A record carrying the `bmkp-temp' alist key is a temp bookmark:
-;; visible in `bookmark-alist' for the life of the Emacs session,
-;; excluded from `bookmark-save' output.  Same key name as
-;; bookmark+'s `bmkp-temp' so bookmark files round-trip either way.
-;;
-;; The save filter is installed via advice on `bookmark-save' —
-;; `bookmark.el' has no extension hook there.  Install / uninstall is
-;; controlled by `bookmark-gt-mode' so a user who never enables it
-;; sees the built-in behavior unchanged.
-
-(defconst bookmark-gt-temp-key 'bmkp-temp
-  "Alist key used to mark a bookmark as temporary.
-Chosen to match bookmark+'s `bmkp-temp' so bookmark files
-round-trip between the two packages without data loss.")
-
-(defun bookmark-gt-temp-p (record)
-  "Return non-nil when RECORD is marked as a temporary bookmark."
-  (bookmark-prop-get record bookmark-gt-temp-key))
-
 ;;;; Session-only record properties
 ;;
 ;; A module may attach data identifying a live object owned by
@@ -374,16 +422,18 @@ RECORD is a `(NAME . DATA)' pair or a bookmark name.  FLAG
 non-nil sets the flag; nil clears it.  Clearing makes the record
 eligible for the bookmark file, so any
 `bookmark-gt-session-only-props' key is removed at the same
-time.  When NO-NOTIFY is non-nil, skip UI refresh and the
-external `bookmark-gt-set-after-hook' — the caller is expected
-to notify once at end of a batch.  Returns the mutated record."
-  (let ((entry (bookmark-get-bookmark record)))
+time.  When NO-NOTIFY is non-nil, skip UI refresh, the external
+`bookmark-gt-set-after-hook', and the auto-save — the caller is
+expected to notify and to call `bookmark-gt--maybe-auto-save'
+once at end of a batch.  Returns the mutated record."
+  (let* ((entry (bookmark-get-bookmark record))
+         (was (and entry (bookmark-gt-temp-p entry))))
     (unless entry
       (user-error "No bookmark called %S" record))
     ;; Mutated in place: `bookmark-alist' and the list buffer
     ;; both hold this record by identity.
     (if flag
-        (unless (bookmark-gt-temp-p entry)
+        (unless was
           (setcdr entry (cons (cons bookmark-gt-temp-key t)
                               (cdr entry))))
       (setcdr entry
@@ -392,6 +442,11 @@ to notify once at end of a batch.  Returns the mutated record."
                  (or (eq (car-safe cell) bookmark-gt-temp-key)
                      (bookmark-gt--session-only-key-p cell)))
                (cdr entry))))
+    ;; A change of temp state changes what `bookmark-save' writes:
+    ;; the record either becomes eligible for the file or stops
+    ;; being eligible.  Either way the file is now out of date.
+    (unless (eq (and flag t) (and was t))
+      (bookmark-gt--note-modification no-notify))
     (if no-notify
         (bookmark-gt--stamp-modified entry)
       (bookmark-gt--after-mutation entry))
@@ -1112,10 +1167,8 @@ prompt for a new URL.  Records with neither signal a
       (user-error
        "bookmark-gt-relocate: `%s' has neither `filename' nor `url'"
        name)))
-    (setq bookmark-alist-modification-count
-          (1+ bookmark-alist-modification-count))
-    (when (bookmark-time-to-save-p)
-      (bookmark-save))
+    (unless (bookmark-gt-temp-p entry)
+      (bookmark-gt--note-modification))
     (bookmark-gt--after-mutation entry)
     entry))
 

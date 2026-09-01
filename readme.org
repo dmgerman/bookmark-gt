@@ -97,9 +97,16 @@ When enabled:
 - *File-rename tracking.*  ~rename-file~ (including from
   Dired's ~R~) rewrites every bookmark whose ~filename~
   equals the source path to the destination.
-- *Temp filter on save.*  Records carrying ~bmkp-temp~ are
-  excluded from ~bookmark-save~ output; the live alist
-  retains them for the session.
+- *Temporary bookmarks.*  A bookmark marked temporary exists
+  for the duration of the Emacs session.  It appears in the
+  list buffer and the jump reader like any other bookmark, but
+  it is never written to the bookmark file, and it never marks
+  the bookmark file as out of date: adding temporary
+  bookmarks, or refreshing the browser-tab list, causes
+  neither an auto-save nor a write when you quit Emacs.
+  Making a temporary bookmark permanent, or a permanent one
+  temporary, changes what a save would write and is recorded
+  as an edit like any other.
 
 Disabling the mode removes every advice and hook that
 enabling installed.  The three opt-in modes described below
@@ -197,9 +204,10 @@ deleting a bookmark never touches the resource it points to
 (no file is deleted, no buffer is killed, no URL is
 un-visited).
 
-The refresh loop let-binds ~bookmark-save-flag~ to nil and
-suppresses the per-record tag prompt, so a full refresh runs
-as a single batch without mid-batch auto-saves or user prompts.
+A full refresh runs as one batch: no tag prompt per tab, no
+auto-save while it runs, and no pending write when it
+finishes.  Tab records are temporary, so a refresh — however
+many tabs it stores — never writes the bookmark file.
 
 Each stored tab record's ~last-visited~ is seeded from the
 tab's ~:lastAccessed~ field (Chrome / Firefox report this as
@@ -1103,7 +1111,7 @@ bookmark file before running.
 | ~bookmark-gt-list-deletion-mark~      | ~?D~      | Character shown in the mark column for rows flagged with ~d~; ~x~ deletes every row bearing this mark.                    |
 | ~bookmark-gt-list-default-show-temp~  | ~t~       | Whether new list buffers show temporary bookmarks by default; toggle per-buffer with ~H~ (~bookmark-gt-list-show-temp~).  |
 | —                                     | —         | (View bookmarks: no defcustom; save via ~M-x bookmark-gt-set~ inside the list buffer.)                                    |
-| ~bookmark-gt-jump-name-max-width~     | ~40~      | Character width at which the jump reader truncates bookmark names in each candidate row.                                  |
+| ~bookmark-gt-jump-name-max-width~     | ~58~     | Width at which the jump reader truncates bookmark names, so a long name does not push the annotation columns off the window.  Avoid multiples of 10: marginalia rounds its alignment column up to a multiple of 10, so such a value leaves the widest rows no room for the aligning space. |
 | ~bookmark-gt-jump-default-sort~       | ~'mru~    | Sort order used by ~bookmark-gt-jump~ when no ~:sort-by~ is given.  Values: ~'mru~ (most recently used), ~'visits~, ~nil~ (pool order). |
 | ~bookmark-gt-dired-virtual-max-size~  | ~524288~  | Maximum bytes of a virtual-dired buffer to inline in a Dired bookmark.  Exceeding this on ~bookmark-gt-set~ signals ~user-error~.       |
 | ~bookmark-gt-auto-update-interval~    | ~60~      | Seconds of idle time between ticks of ~bookmark-gt-auto-update-mode~; each tick refreshes bookmarks carrying ~auto-update~. |

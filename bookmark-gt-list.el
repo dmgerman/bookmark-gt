@@ -1007,6 +1007,9 @@ case all are made permanent."
     (dolist (record records)
       (bookmark-gt-set-temp record flag t))
     (bookmark-gt-list--finish records)
+    ;; The loop counts each state change but suppresses the
+    ;; auto-save; one save covers the whole batch.
+    (bookmark-gt--maybe-auto-save)
     (message "%s temp on %s"
              (if flag "Set" "Cleared")
              (if (cdr records)

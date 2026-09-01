@@ -79,6 +79,39 @@ Batch callers that would otherwise notify per-record pass
 `bookmark-gt-list-refresh` once at end.  See
 `bookmark-gt-browsel-tabs-refresh` for the pattern.
 
+## Modification accounting is separate from notification
+
+`bookmark-gt--after-mutation` refreshes the UI; it does not
+touch `bookmark-alist-modification-count`.  Counting is a
+separate decision, made by `bookmark-gt--note-modification`,
+because the count means "changes not yet written to the bookmark
+file" and drives two writes in built-in `bookmark.el`: the
+threshold save at `bookmark-save-flag`, and the unconditional
+save from `kill-emacs-hook` whenever the count is above zero.
+
+The rule: count a change only when it alters what
+`bookmark-save` would write.
+
+- Storing, relocating, or removing a record carrying
+  `bookmark-gt-temp-key` does not count.  The save filter
+  removes temp records before the file is produced, so the write
+  such a change would schedule cannot alter the file.  Before
+  this rule existed, one browser-tab refresh set the count to
+  the number of tabs and Emacs rewrote the bookmark file at
+  exit with identical content.
+- A record entering or leaving the temp state does count, in
+  both directions: it becomes eligible for the file, or stops
+  being eligible.
+- Visit tracking does not count — see
+  `bookmark-gt-record-visit`.  That is a different reason:
+  the data does belong in the file, but a save per jump is too
+  expensive to be worth it.
+
+`bookmark-gt--note-modification` takes `NO-SAVE` for loops that
+change many records; the loop counts each one and the caller
+runs `bookmark-gt--maybe-auto-save` once at the end
+(`bookmark-gt-list-toggle-temp` is the reference example).
+
 ## Handler registry
 
 `bookmark-gt-handler-alist` maps handler symbols to display

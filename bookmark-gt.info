@@ -197,9 +197,15 @@ unmodified.
    • *File-rename tracking.*  ‘rename-file’ (including from Dired's ‘R’)
      rewrites every bookmark whose ‘filename’ equals the source path to
      the destination.
-   • *Temp filter on save.*  Records carrying ‘bmkp-temp’ are excluded
-     from ‘bookmark-save’ output; the live alist retains them for the
-     session.
+   • *Temporary bookmarks.*  A bookmark marked temporary exists for the
+     duration of the Emacs session.  It appears in the list buffer and
+     the jump reader like any other bookmark, but it is never written to
+     the bookmark file, and it never marks the bookmark file as out of
+     date: adding temporary bookmarks, or refreshing the browser-tab
+     list, causes neither an auto-save nor a write when you quit Emacs.
+     Making a temporary bookmark permanent, or a permanent one
+     temporary, changes what a save would write and is recorded as an
+     edit like any other.
 
    Disabling the mode removes every advice and hook that enabling
 installed.  The three opt-in modes described below (auto-update,
@@ -311,9 +317,10 @@ is a separate operation.  This matches the rest of bookmark-gt: deleting
 a bookmark never touches the resource it points to (no file is deleted,
 no buffer is killed, no URL is un-visited).
 
-   The refresh loop let-binds ‘bookmark-save-flag’ to nil and suppresses
-the per-record tag prompt, so a full refresh runs as a single batch
-without mid-batch auto-saves or user prompts.
+   A full refresh runs as one batch: no tag prompt per tab, no auto-save
+while it runs, and no pending write when it finishes.  Tab records are
+temporary, so a refresh — however many tabs it stores — never writes the
+bookmark file.
 
    Each stored tab record's ‘last-visited’ is seeded from the tab's
 ‘:lastAccessed’ field (Chrome / Firefox report this as the last time the
@@ -1338,7 +1345,7 @@ File: bookmark-gt.info,  Node: Selected customization,  Up: Reference
 ==========================
 
 Variable                               Default                               What it does
---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ‘bookmark-gt-list-name-width’          ‘32’                                  Character width of the Name column in ‘*Bookmarks-gt List*’.  Longer names are truncated with an ellipsis.
 ‘bookmark-gt-list-type-width’          ‘12’                                  Character width of the Type column.
 ‘bookmark-gt-list-tags-width’          ‘24’                                  Character width of the Tags column.
@@ -1347,7 +1354,7 @@ Variable                               Default                               Wha
 ‘bookmark-gt-list-deletion-mark’       ‘?D’                                  Character shown in the mark column for rows flagged with ‘d’; ‘x’ deletes every row bearing this mark.
 ‘bookmark-gt-list-default-show-temp’   ‘t’                                   Whether new list buffers show temporary bookmarks by default; toggle per-buffer with ‘H’ (‘bookmark-gt-list-show-temp’).
 —                                      —                                     (View bookmarks: no defcustom; save via ‘M-x bookmark-gt-set’ inside the list buffer.)
-‘bookmark-gt-jump-name-max-width’      ‘40’                                  Character width at which the jump reader truncates bookmark names in each candidate row.
+‘bookmark-gt-jump-name-max-width’      ‘58’                                  Width at which the jump reader truncates bookmark names, so a long name does not push the annotation columns off the window.  Avoid multiples of 10: marginalia rounds its alignment column up to a multiple of 10, so such a value leaves the widest rows no room for the aligning space.
 ‘bookmark-gt-jump-default-sort’        ‘'mru’                                Sort order used by ‘bookmark-gt-jump’ when no ‘:sort-by’ is given.  Values: ‘'mru’ (most recently used), ‘'visits’, ‘nil’ (pool order).
 ‘bookmark-gt-dired-virtual-max-size’   ‘524288’                              Maximum bytes of a virtual-dired buffer to inline in a Dired bookmark.  Exceeding this on ‘bookmark-gt-set’ signals ‘user-error’.
 ‘bookmark-gt-auto-update-interval’     ‘60’                                  Seconds of idle time between ticks of ‘bookmark-gt-auto-update-mode’; each tick refreshes bookmarks carrying ‘auto-update’.
@@ -1413,49 +1420,49 @@ Node: Top205
 Node: Install2431
 Node: Getting started3982
 Node: Master switch bookmark-gt-mode4180
-Node: Opt-in modes6775
-Node: bookmark-gt-auto-update-mode7126
-Node: bookmark-gt-default-tags-mode8112
-Node: bookmark-gt-browser-tabs-mode9140
-Node: User interface12506
-Node: The *Bookmarks-gt List* buffer12763
-Node: Columns13336
-Node: Keys14574
-Node: Acting on several bookmarks at once16462
-Node: Persisting view state20318
-Node: Jump to a bookmark bookmark-gt-jump21277
-Node: Elisp signatures22685
-Node: Non-file bookmark types25448
-Node: URL bookmarks — bookmark-gt-set-url26021
-Node: Dired bookmarks — bookmark-gt-handler-dired-jump26808
-Ref: Virtual dired28378
-Node: Function bookmarks — bookmark-gt-set-function29591
-Node: Keyboard-macro bookmarks — bookmark-gt-set-kmacro30404
-Node: Sequence bookmarks — bookmark-gt-set-sequence32062
-Node: File-type handlers — override the file-jump path per pattern32818
-Node: View bookmarks — save the list buffer's current view34191
-Node: Setting bookmarks35353
-Node: Tag reader35591
-Node: Same-name policy36596
-Node: Relocate change a bookmark's target38571
-Node: In-file behaviors39720
-Node: In-buffer cycling39949
-Node: Per-bookmark highlighting40949
-Node: Region bookmarks42906
-Node: Trackers44427
-Node: Visit tracker44603
-Node: File-rename tracker45347
-Node: Extension API46334
-Node: Handler registry46535
-Node: Group registry48732
-Node: Extension points50385
-Node: Compatibility53304
-Node: Data compat with bookmark+53505
-Node: Migrating from bookmark+54635
-Node: Reference56733
-Node: Selected customization56896
-Node: Acknowledgements61883
-Node: License63705
+Node: Opt-in modes7199
+Node: bookmark-gt-auto-update-mode7550
+Node: bookmark-gt-default-tags-mode8536
+Node: bookmark-gt-browser-tabs-mode9564
+Node: User interface12975
+Node: The *Bookmarks-gt List* buffer13232
+Node: Columns13805
+Node: Keys15043
+Node: Acting on several bookmarks at once16931
+Node: Persisting view state20787
+Node: Jump to a bookmark bookmark-gt-jump21746
+Node: Elisp signatures23154
+Node: Non-file bookmark types25917
+Node: URL bookmarks — bookmark-gt-set-url26490
+Node: Dired bookmarks — bookmark-gt-handler-dired-jump27277
+Ref: Virtual dired28847
+Node: Function bookmarks — bookmark-gt-set-function30060
+Node: Keyboard-macro bookmarks — bookmark-gt-set-kmacro30873
+Node: Sequence bookmarks — bookmark-gt-set-sequence32531
+Node: File-type handlers — override the file-jump path per pattern33287
+Node: View bookmarks — save the list buffer's current view34660
+Node: Setting bookmarks35822
+Node: Tag reader36060
+Node: Same-name policy37065
+Node: Relocate change a bookmark's target39040
+Node: In-file behaviors40189
+Node: In-buffer cycling40418
+Node: Per-bookmark highlighting41418
+Node: Region bookmarks43375
+Node: Trackers44896
+Node: Visit tracker45072
+Node: File-rename tracker45816
+Node: Extension API46803
+Node: Handler registry47004
+Node: Group registry49201
+Node: Extension points50854
+Node: Compatibility53773
+Node: Data compat with bookmark+53974
+Node: Migrating from bookmark+55104
+Node: Reference57202
+Node: Selected customization57365
+Node: Acknowledgements62636
+Node: License64458
 
 End Tag Table
 

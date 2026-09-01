@@ -25,6 +25,23 @@
     (let ((cand (bookmark-gt-jump-candidate-default (car bookmark-alist))))
       (should (equal (get-text-property 0 'bookmark-gt-name cand) "u")))))
 
+(ert-deftest bookmark-gt-jump-test-candidate-truncated-to-max-width ()
+  "A name wider than the cap is truncated; the property keeps it whole."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((long (make-string (* 2 bookmark-gt-jump-name-max-width) ?x)))
+      (bookmark-gt-set-non-file long 'bookmark-gt-handler-url-jump
+                                '((url . "https://x")))
+      (let ((cand (bookmark-gt-jump-candidate-default (car bookmark-alist))))
+        (should (<= (string-width cand) bookmark-gt-jump-name-max-width))
+        (should (equal (bookmark-gt-jump--candidate-name cand) long))))))
+
+(ert-deftest bookmark-gt-jump-test-name-max-width-leaves-align-slack ()
+  "The cap must not land on marginalia's alignment column.
+Marginalia rounds the alignment column up to a multiple of 10; a
+cap that is itself a multiple of 10 leaves the widest rows no room
+for the aligning space."
+  (should-not (zerop (% bookmark-gt-jump-name-max-width 10))))
+
 (ert-deftest bookmark-gt-jump-test-candidate-particles ()
   "The particle string carries both `@Type' and `;tag' tokens."
   (bookmark-gt-test-with-clean-bookmarks

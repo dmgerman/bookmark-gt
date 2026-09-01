@@ -78,8 +78,20 @@
 
 ;;;; Customization
 
-(defcustom bookmark-gt-jump-name-max-width 40
-  "Maximum width of the bookmark name in a jump candidate."
+(defcustom bookmark-gt-jump-name-max-width 58
+  "Width at which the jump reader truncates a bookmark name.
+Caps the candidate column so that a long name does not push the
+marginalia annotation columns off the right edge of the window.
+This matters most for names bookmark-gt does not choose itself —
+browser tabs stored by `bookmark-gt-browser-tabs-mode' carry the
+page title, which is often long enough to fill the window on its
+own.
+
+Marginalia places its annotation at the width of the widest
+candidate rounded up to a multiple of 10.  A value that is itself
+a multiple of 10 therefore leaves the widest rows no room for the
+aligning space, and those rows render one column right of the
+others.  Pick a value that is not a multiple of 10."
   :type 'integer
   :group 'bookmark-gt)
 

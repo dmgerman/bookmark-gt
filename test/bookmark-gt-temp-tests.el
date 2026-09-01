@@ -42,6 +42,47 @@
       (bookmark-gt-toggle-temp "b")
       (should (= (length seen) 1)))))
 
+;;;; Modification accounting
+;;
+;; A change confined to temp records never reaches the bookmark
+;; file, so it must not raise
+;; `bookmark-alist-modification-count' — that count is what makes
+;; `kill-emacs-hook' write the file on exit.
+
+(ert-deftest bookmark-gt-temp-test-store-does-not-count ()
+  "Storing a temp record leaves the modification count alone."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((before bookmark-alist-modification-count))
+      (bookmark-gt-set-non-file "temp" 'h
+                                (list (cons bookmark-gt-temp-key t)))
+      (should (= bookmark-alist-modification-count before)))))
+
+(ert-deftest bookmark-gt-temp-test-store-non-temp-counts ()
+  "Storing an ordinary record still raises the modification count."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((before bookmark-alist-modification-count))
+      (bookmark-gt-set-non-file "plain" 'h nil)
+      (should (= bookmark-alist-modification-count (1+ before))))))
+
+(ert-deftest bookmark-gt-temp-test-toggle-counts-both-directions ()
+  "Setting and clearing the temp flag each count as one change."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-set-non-file "b" 'h nil)
+    (let ((before bookmark-alist-modification-count))
+      (bookmark-gt-toggle-temp "b")
+      (should (= bookmark-alist-modification-count (1+ before)))
+      (bookmark-gt-toggle-temp "b")
+      (should (= bookmark-alist-modification-count (+ 2 before))))))
+
+(ert-deftest bookmark-gt-temp-test-set-temp-no-op-does-not-count ()
+  "Setting the flag on a record that already carries it is not a change."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-set-non-file "temp" 'h
+                              (list (cons bookmark-gt-temp-key t)))
+    (let ((before bookmark-alist-modification-count))
+      (bookmark-gt-set-temp (assoc "temp" bookmark-alist) t)
+      (should (= bookmark-alist-modification-count before)))))
+
 ;;;; Save filter
 
 (ert-deftest bookmark-gt-temp-test-save-filter-drops-temp ()
