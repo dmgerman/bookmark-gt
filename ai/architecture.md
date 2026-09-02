@@ -78,16 +78,26 @@ content again.
 
 ### Where identity is enforced
 
-`bookmark-gt-ensure-ids` runs at the three points that already
-read the whole alist: after `bookmark-load`, when the list buffer
-redraws, and once per jump. It drops records the same-name
-setting forbids, then assigns ids to what remains.
+Two passes, deliberately separate.
 
-Enforcing at those points rather than only at creation is what
-makes the setting mean what it says. `bookmark-gt-create` cannot
-produce a forbidden name, but a bookmark file can, and so can the
-built-in `bookmark-set`, which is deliberately left alone for
-Lisp callers.
+`bookmark-gt-ensure-ids` assigns ids and converts sequence
+members. It removes nothing, so it is safe to run while the list
+buffer is being drawn — which it is, from
+`bookmark-gt-list--entries`.
+
+`bookmark-gt-enforce-same-name-policy` removes records the
+same-name setting forbids and reports sequences whose members
+stopped resolving. It runs at *operations*: after
+`bookmark-load`, when the list buffer is opened or reverted, and
+once per jump reader. Never during a redraw — a redraw follows
+every change, so enforcing there would let a change to one
+bookmark delete another, and open a warning window while doing
+it.
+
+Enforcing beyond creation is what makes the setting mean what it
+says. `bookmark-gt-create` cannot produce a forbidden name, but a
+bookmark file can, and so can the built-in `bookmark-set`, which
+is deliberately left alone for Lisp callers.
 
 Assignment writes with `bookmark-prop-set`, never through the
 mutators: `bookmark-gt--after-mutation` would run the change hook
@@ -134,7 +144,7 @@ Internal cross-module coordination is direct calls.  Rationale
 and history:
 
 - The original design registered internal observers into
-  `bookmark-gt-set-after-hook` (the list refresh, the highlight
+  the after-set hook (the list refresh, the highlight
   refresh), then had ephemeral sources (browser-tabs,
   auto-update) fire a shared `bookmark-gt-ephemeral-refresh-hook`.
   This produced invisible control flow: reading a mutator, you
@@ -150,9 +160,10 @@ and history:
   with direct calls.  `bookmark-gt--after-mutation (entry)` in
   `bookmark-gt-core.el` is the single notifier — it refreshes
   the list, refreshes the highlight for records with a
-  filename, then runs the public `bookmark-gt-set-after-hook`.
-  Every mutator calls it.  Browsel-tabs refresh calls
-  `bookmark-gt-list-refresh` directly at end of batch.
+  filename, then runs the public
+  `bookmark-gt-record-changed-hook`.  Every mutator calls it.
+  The browser-tabs refresh calls `bookmark-gt-list-refresh`
+  directly at the end of its batch.
 - End result: 840 ms → 40 ms browser-tab refresh, ~330 fewer lines
   of code, and every internal action is visible at the call
   site.
@@ -164,17 +175,20 @@ whether a direct call would work.  It almost always does.
 ## Mutation notification path
 
 Every internal mutator ends with `(bookmark-gt--after-mutation
-entry)`.  The helper:
+entry OPERATION)`, where OPERATION names what happened —
+`create`, `update`, `relocate`, `rename`, `tags`, `temp`,
+`auto-update`, `delete`.  The helper:
 
 1. Calls `bookmark-gt-list-refresh` — redraws every live list
    buffer.  No-op when no list buffer exists.
 2. Calls `bookmark-gt-highlight-refresh entry` — no-op unless
    `entry` has a `filename` that matches a live buffer.
-3. Runs `bookmark-gt-set-after-hook` for third-party observers
-   (empty at distribution).
+3. Runs `bookmark-gt-record-changed-hook` for third-party
+   observers, with the record and the operation symbol (empty at
+   distribution).
 
 Batch callers that would otherwise notify per-record pass
-`NO-NOTIFY` non-nil to `bookmark-gt-set-non-file` and call
+`NO-NOTIFY` non-nil to `bookmark-gt-create-non-file` and call
 `bookmark-gt-list-refresh` once at end.  See
 `bookmark-gt-browser-tabs-refresh` for the pattern.
 
@@ -241,24 +255,26 @@ derive-fallback, which strips common suffixes
 
 ## Same-name policy
 
-Two customs, both default `t`:
+One custom, `bookmark-gt-allow-same-name-bookmarks`, deciding
+when `bookmark-gt-create` may reuse a name: `never`,
+`different-destination` (the default), `always`.  Nothing else
+consults it.
 
-- `bookmark-gt-same-name-overwrite` — same name + same handler +
-  same filename replaces the existing record in place.
-- `bookmark-gt-allow-duplicate-names` — otherwise, two records
-  may share a literal name (no `<N>` suffix appended).
+A forbidden name is refused with an error, never stored as
+`NAME<2>`: a stored suffix would make every name unique behind
+the user's back, which is what allowing shared names exists to
+avoid.  The `<N>` a user sees is computed for display — see
+"Display names are computed" above.
 
-Both flags on = the current default.  Either flag off falls
-back to `<N>` suffix disambiguation for the affected case.
-`C-u M-x bookmark-gt-set` forces `<N>` regardless of the
-flags.
-
-**Duplicate-name caveat**: Emacs's `bookmark-get-bookmark NAME`
-uses `assoc` — returns the first match.  When multiple records
-share a name, only one is reachable by name lookup.  The
-bookmark-gt list buffer and jump reader iterate the alist
-directly and show all records distinguished by the Location
-column.
+It replaced two booleans, `bookmark-gt-same-name-overwrite` and
+`bookmark-gt-allow-duplicate-names`, which together encoded a
+policy nobody could state.  The first was the worse of the two:
+its name said the trigger was a name match, but the trigger was
+a name match *at the same destination*, and what it selected was
+whether re-setting a bookmark updated it or created a second.
+That decision is now made by which command is invoked —
+`bookmark-gt-create` or `bookmark-gt-update` — which is
+something the user knows and a variable never did.
 
 ## Browser tabs are URL bookmarks
 
@@ -296,18 +312,18 @@ Built-in Dired's `bookmark-make-record-function` produces a
 record with no `handler` field — the directory is stored as a
 plain file bookmark, and jumping happens to work because
 `find-file` on a directory opens Dired.  This means a fresh
-`bookmark-gt-set` in a Dired buffer classifies as type "File"
+`bookmark-gt-create` in a Dired buffer classifies as type "File"
 in our registry (handler=nil maps to file), which is
 misleading.
 
-`bookmark-gt-set` therefore forces `handler =
+`bookmark-gt-create` therefore forces `handler =
 bookmark-gt-handler-dired-jump` whenever `derived-mode-p
 'dired-mode` is true, overriding whatever the built-in
 `bookmark-make-record-function` produced.  The record is
 unambiguous on disk (`handler` is explicit) and classifies as
 "Dired" via the registry.
 
-This is the only place `bookmark-gt-set` inspects
+This is the only place `bookmark-gt-create` inspects
 `major-mode`.  The pattern applies to any future case where
 bookmark-gt owns the canonical handler for a mode whose
 `bookmark-make-record-function` does not set one.  Modes with
@@ -337,26 +353,33 @@ otherwise run.
 
 ## Refresh policy
 
-Refresh of ephemeral sources (browser tabs, auto-update
-positions) happens at three points, and nowhere else:
+Ephemeral sources are rebuilt where they are about to be read,
+not kept in sync:
 
-- **`g` (revert) in the list buffer.**
-  `bookmark-gt-list--revert` calls
-  `bookmark-gt-browser-tabs-refresh` and
+- **Each `bookmark-gt-jump` call**, for browser tabs.
+  `bookmark-gt-browser-tabs-mode` adds its refresh to
+  `bookmark-gt-jump-before-read-hook`, which the reader runs
+  exactly once per outer call, so nested jump calls do not
+  re-refresh.
+- **`g` (revert) in the list buffer.** `bookmark-gt-list--revert`
+  calls `bookmark-gt-browser-tabs-refresh` and
   `bookmark-gt-auto-update-tick` directly, each gated by a
   `bound-and-true-p` check on its opt-in mode.
-- **Each `bookmark-gt-jump` call**, for browser tabs only.
-  `bookmark-gt-browser-tabs-mode` adds its refresh to
-  `bookmark-gt-jump-before-read-hook`
-  (`bookmark-gt-browser-tabs.el:335`), which the reader runs
-  exactly once per outer call (`bookmark-gt-jump.el:518`), so a
-  live tab list is current when the prompt displays and nested
-  jump calls do not re-refresh.
-- **`M-x bookmark-gt-browser-tabs-refresh`**, explicitly.
+- **On demand**, and once when the tabs mode is enabled with a
+  browser already connected.
 
-The initial list-buffer render does not refresh:
-`bookmark-gt-list` calls `tabulated-list-print`, not
-`revert-buffer`.
+The initial list render does not refresh: `bookmark-gt-list`
+calls `tabulated-list-print`, not `revert-buffer`.
+
+The browser-tabs module previously also subscribed to
+browser-gt's client connect and disconnect hooks, with a
+debounce timer to coalesce bursts. That was removed: tabs open,
+close and retitle without any client connecting, so the events
+were neither necessary nor sufficient for freshness, and the
+refreshes they caused rebuilt records nothing was about to
+display. `bookmark-gt-auto-update-mode`'s idle timer remains —
+it tracks a position in a buffer the user is editing, which has
+no read-time to attach to.
 
 ### The jump hook is a deliberate exception to "direct calls over hooks"
 

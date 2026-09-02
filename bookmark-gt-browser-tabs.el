@@ -35,14 +35,7 @@
 ;;
 ;;   `bookmark-gt-browser-tabs-refresh' — one-shot rebuild.
 ;;   `bookmark-gt-browser-tabs-mode'    — global minor mode; when
-;;                                        enabled, subscribes to
-;;                                        browser-gt's client
-;;                                        connect and disconnect
-;;                                        hooks and refreshes the
-;;                                        tab records on each event,
-;;                                        coalesced through a
-;;                                        `bookmark-gt-browser-tabs-debounce'
-;;                                        timer.  Also registers
+;;                                        enabled, registers
 ;;                                        `bookmark-gt-browser-tabs-refresh'
 ;;                                        on `bookmark-gt-jump-before-read-hook'
 ;;                                        so the jump reader sees
@@ -97,9 +90,6 @@
 (declare-function browser-gt-browser-tabs "ext:browser-gt")
 (declare-function browser-gt-connected-clients "ext:browser-gt")
 
-(defvar browser-gt-client-connected-functions)
-(defvar browser-gt-client-disconnected-functions)
-
 ;; Defined in `bookmark-gt-tags'; declared here so the byte-compiler
 ;; treats it as dynamic when the refresh loop let-binds it.
 (defvar bookmark-gt-prompt-for-tags-flag)
@@ -123,22 +113,6 @@ Value shape:
                  (regexp   :tag "URL regexp")
                  (function :tag "Predicate function"))
   :group 'bookmark-gt)
-
-(defcustom bookmark-gt-browser-tabs-debounce 0.3
-  "Seconds to coalesce browser connect/disconnect events before refreshing.
-A single connect or disconnect can arrive as several events in
-rapid succession (e.g. reload, multiple windows).  The connect
-and disconnect hooks schedule the refresh through a single timer;
-subsequent events during the debounce window fold into the same
-refresh."
-  :type 'number
-  :group 'bookmark-gt)
-
-;;;; Own-record predicate
-;;
-;; Records stored by this module carry a `bookmark-gt-browser-tab'
-;; marker; `--clear' filters on it so records owned by other
-;; browser-gt-related packages are not touched.
 
 (defconst bookmark-gt-browser-tabs--marker-key 'bookmark-gt-browser-tab
   "Alist key that marks a record as stored by this module.")
@@ -292,72 +266,40 @@ re-entrancy."
 
 ;;;; Mode
 ;;
-;; No idle timer.  The mode subscribes to browser-gt's
-;; `browser-gt-client-connected-functions' and
-;; `browser-gt-client-disconnected-functions' hooks and refreshes
-;; whenever a browser connects or disconnects.  Bursts of events
-;; (e.g. several tabs reloading at once) are coalesced through a
-;; single debounce timer.  Explicit `g' in the list buffer and
-;; `M-x bookmark-gt-browser-tabs-refresh' still work on demand.
+;; No timer, and no subscription to browser-gt's connect and
+;; disconnect hooks.  Tab records are rebuilt at the two moments
+;; they are about to be read — the jump reader, and a revert of
+;; the list buffer — plus on demand.
+;;
+;; Refreshing on client events as well was work done on behalf of
+;; nobody: it fetched and rebuilt records that nothing was going
+;; to display, needed a debounce timer to coalesce bursts, and
+;; still could not guarantee freshness, since tabs change without
+;; any client connecting or disconnecting.  Refreshing where the
+;; records are read is both simpler and more accurate.
 
 (defvar bookmark-gt-browser-tabs-mode)
 
-(defvar bookmark-gt-browser-tabs--debounce-timer nil
-  "Pending debounce timer for a coalesced refresh, or nil.")
-
-(defun bookmark-gt-browser-tabs--debounced-refresh ()
-  "Timer callback: run the coalesced refresh.
-Clears the debounce timer, then calls
-`bookmark-gt-browser-tabs-refresh' if the mode is still on."
-  (setq bookmark-gt-browser-tabs--debounce-timer nil)
-  (when bookmark-gt-browser-tabs-mode
-    (bookmark-gt-browser-tabs-refresh)))
-
-(defun bookmark-gt-browser-tabs--schedule-refresh (&rest _)
-  "Schedule a debounced refresh, coalescing bursts of client events.
-Attached to `browser-gt-client-connected-functions' and
-`browser-gt-client-disconnected-functions'; ignores its arguments,
-which carry the client name.  When a refresh is already pending,
-this call folds into it."
-  (unless bookmark-gt-browser-tabs--debounce-timer
-    (setq bookmark-gt-browser-tabs--debounce-timer
-          (run-at-time bookmark-gt-browser-tabs-debounce nil
-                       #'bookmark-gt-browser-tabs--debounced-refresh))))
-
-(defun bookmark-gt-browser-tabs--cancel-debounce-timer ()
-  "Cancel and forget any pending debounce timer."
-  (when bookmark-gt-browser-tabs--debounce-timer
-    (cancel-timer bookmark-gt-browser-tabs--debounce-timer)
-    (setq bookmark-gt-browser-tabs--debounce-timer nil)))
-
 ;;;###autoload
 (define-minor-mode bookmark-gt-browser-tabs-mode
-  "Global minor mode that keeps browser-tab bookmarks in sync.
+  "Global minor mode that exposes browser tabs as temporary bookmarks.
 
-When enabled, subscribes to browser-gt's
-`browser-gt-client-connected-functions' and
-`browser-gt-client-disconnected-functions' hooks and refreshes
-browser-tab bookmarks whenever a browser connects or disconnects.
-Bursts of events within `bookmark-gt-browser-tabs-debounce'
-seconds are coalesced into one refresh.  On mode-on, if any
-browser is already connected, one refresh runs immediately;
-otherwise the first refresh runs when a browser connects.
+When enabled, registers `bookmark-gt-browser-tabs-refresh' on
+`bookmark-gt-jump-before-read-hook', so the jump reader sees the
+current tabs at each read, and refreshes once immediately if a
+browser is already connected.  Reverting the
+`*Bookmarks-gt List*' buffer with `g\=' refreshes as well, as
+does `M-x bookmark-gt-browser-tabs-refresh'.
 
-Also registers `bookmark-gt-browser-tabs-refresh' on
-`bookmark-gt-jump-before-read-hook' so the jump reader sees
-current tabs at each read.  Tab state can change faster than
-connect/disconnect events fire, and each read pays only one
-fetch+store.
+Tab state changes faster than any event bookmark-gt could
+subscribe to, so the records are rebuilt where they are about to
+be read rather than kept continuously in sync.  Each read pays
+one fetch and store.
 
-Refreshes are also on-demand via `g' (revert) in the
-`*Bookmarks-gt List*' buffer and `M-x
-bookmark-gt-browser-tabs-refresh'.
-
-Turning the mode off removes the connect/disconnect hooks and the
-jump-before-read hook, cancels any pending debounced refresh,
-and clears any tab records added by this mode from the alist —
-only records with our own handler symbol; records from other
-browser-gt-related packages are untouched.
+Turning the mode off removes the jump-before-read hook and
+clears the tab records this mode added — only records carrying
+its own marker; records from other browser-gt-related packages
+are untouched.
 
 Requires browser-gt to be installed.  Enable is a `user-error'
 no-op when browser-gt is not loaded."
@@ -368,22 +310,13 @@ no-op when browser-gt is not loaded."
     (setq bookmark-gt-browser-tabs-mode nil)
     (user-error "Package `browser-gt' is not loaded"))
    (bookmark-gt-browser-tabs-mode
-    (add-hook 'browser-gt-client-connected-functions
-              #'bookmark-gt-browser-tabs--schedule-refresh)
-    (add-hook 'browser-gt-client-disconnected-functions
-              #'bookmark-gt-browser-tabs--schedule-refresh)
     (add-hook 'bookmark-gt-jump-before-read-hook
               #'bookmark-gt-browser-tabs-refresh)
     (when (browser-gt-connected-clients)
       (bookmark-gt-browser-tabs-refresh)))
    (t
-    (remove-hook 'browser-gt-client-connected-functions
-                 #'bookmark-gt-browser-tabs--schedule-refresh)
-    (remove-hook 'browser-gt-client-disconnected-functions
-                 #'bookmark-gt-browser-tabs--schedule-refresh)
     (remove-hook 'bookmark-gt-jump-before-read-hook
                  #'bookmark-gt-browser-tabs-refresh)
-    (bookmark-gt-browser-tabs--cancel-debounce-timer)
     (bookmark-gt-browser-tabs--clear))))
 
 (provide 'bookmark-gt-browser-tabs)

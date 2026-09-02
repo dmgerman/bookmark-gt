@@ -169,16 +169,17 @@ arriving from other packages are picked up at whichever of those
 comes first.  In the steady state every record has an id and this
 is a scan that changes nothing.
 
-Enforces `bookmark-gt-allow-same-name-bookmarks' first, via
-`bookmark-gt--drop-same-name-violations\=': a record the setting
-forbids should not be given an id and kept.
+Assigns ids and converts sequence members; it does not remove
+anything.  Enforcing the same-name setting is
+`bookmark-gt-enforce-same-name-policy\=', which is called at
+operations rather than here — this runs while the list buffer is
+being drawn, and drawing a buffer must not delete data.
 
 Assigning is a change to what `bookmark-save' would write, so it
 is counted once at the end rather than per record, and only when
 a record eligible for the file was given an id.  Temporary
 records are excluded from the file, so ids assigned to them do
 not count."
-  (bookmark-gt--drop-same-name-violations)
   (let ((taken (bookmark-gt--ids-in-use))
         (assigned 0)
         (persistent nil))
@@ -195,6 +196,49 @@ not count."
       ;; next save rather than provoking a write during a load.
       (bookmark-gt--note-modification 'no-save))
     assigned))
+
+(defun bookmark-gt-enforce-same-name-policy ()
+  "Remove records `bookmark-gt-allow-same-name-bookmarks' forbids, and report.
+Also reports sequence bookmarks whose members stopped resolving,
+which is usually a consequence of the same removal.
+
+Called at operations, not at renders: opening or reverting the
+list buffer, reading the jump reader, and after
+`bookmark-load'.  `bookmark-gt-list--entries' deliberately does
+not call it — it runs on every redraw, and a redraw is provoked
+by every change, so enforcing there would let a change to one
+bookmark delete another and open a warning window while doing
+it."
+  (bookmark-gt--drop-same-name-violations)
+  (bookmark-gt--report-broken-sequences))
+
+(defun bookmark-gt--report-broken-sequences ()
+  "Report sequence bookmarks whose members no longer resolve.
+
+A member stops resolving when the bookmark it names was deleted,
+or omitted because the same-name setting forbade it, or removed
+on another machine.  The reference is then broken, and finding
+that out at the next jump — partway through a traversal — is
+late.  Checked in the scan, which already reads the whole alist.
+
+Reports rather than repairs: which member was meant is not
+recoverable, and silently shortening a sequence would lose the
+user\='s ordering without telling them."
+  (dolist (record bookmark-alist)
+    (let ((members (bookmark-prop-get record 'sequence)))
+      (when (listp members)
+        (let ((broken (seq-remove
+                       (lambda (member)
+                         (condition-case nil
+                             (bookmark-gt--resolve member)
+                           (error nil)))
+                       members)))
+          (when broken
+            (message
+             "Sequence `%s\=' has %d member(s) that no longer resolve: %s"
+             (bookmark-name-from-full-record record)
+             (length broken)
+             (mapconcat (lambda (m) (format "%s" m)) broken ", "))))))))
 
 (defun bookmark-gt--convert-sequence-members ()
   "Rewrite sequence members from names to ids.
@@ -362,16 +406,17 @@ tested before the id branch.  So does t."
    ((symbolp bookmark) (bookmark-gt--record-with-id bookmark))
    (t (error "Not a bookmark reference: %S" bookmark))))
 
+(defvar bookmark-gt--in-timer nil
+  "Bound non-nil around work that runs from a timer.
+Resolution refuses to prompt while it is set.  Bound by
+`bookmark-gt-browser-tabs-refresh' and
+`bookmark-gt-auto-update-tick'.")
+
 (defun bookmark-gt--can-prompt-p ()
   "Return non-nil when it is safe to read from the minibuffer.
 Batch sessions cannot prompt, and a prompt from a timer would
 block on a minibuffer nobody is watching."
-  (not (or noninteractive
-           (bound-and-true-p bookmark-gt--in-timer))))
-
-(defvar bookmark-gt--in-timer nil
-  "Bound non-nil around work run from a timer.
-Resolution refuses to prompt while it is set.")
+  (not (or noninteractive bookmark-gt--in-timer)))
 
 (defun bookmark-gt--read-among (records name prompt)
   "Read one of RECORDS, all named NAME, under PROMPT.
@@ -1407,9 +1452,9 @@ packages call it from Lisp.  Enforcing the setting only at
 creation would leave `never' meaning \"no two same-named
 bookmarks, unless one arrived some other way\".
 
-Runs from `bookmark-gt-ensure-ids', so every place that reads the
-whole alist enforces it: after a load, when the list buffer
-redraws, and once per jump.
+Runs from `bookmark-gt-enforce-same-name-policy': after a load,
+when the list buffer is opened or reverted, and once per jump.
+Not while the list buffer draws — see that function.
 
 The first record of a name is kept.  Under
 `different-destination' a later one is kept when it points
@@ -1462,7 +1507,9 @@ would schedule the write that makes the omission permanent."
 `bookmark-load' rebuilds `bookmark-alist' from the file, so it
 can hold records another package wrote without an id, and names
 that repeat in ways the same-name setting forbids.
-`bookmark-gt-ensure-ids' deals with both."
+Enforces the same-name setting, then assigns ids to what
+remains."
+  (bookmark-gt-enforce-same-name-policy)
   (bookmark-gt-ensure-ids))
 
 (defun bookmark-gt--save-filter-advice (orig-fn &rest args)

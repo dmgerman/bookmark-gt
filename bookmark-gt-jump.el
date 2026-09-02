@@ -534,6 +534,7 @@ rather than per tag-filter restart.  Also re-runs
 that loaded after `bookmark-gt-mode' still gets our annotator —
 the mode-on install is a no-op in that case."
   (bookmark-gt-jump--install-marginalia)
+  (bookmark-gt-enforce-same-name-policy)
   (bookmark-gt-ensure-ids)
   (run-hooks 'bookmark-gt-jump-before-read-hook)
   (let (result)
@@ -629,10 +630,11 @@ Minibuffer keys:
   (let* ((pool (bookmark-gt-jump--resolve-pool bookmarks-list
                                                bookmarks-filter
                                                group))
-         (record (bookmark-get-bookmark
+         (record (bookmark-gt--resolve
                   (or bookmark
                       (bookmark-gt-jump--with-read-state pool sort-by preselect
-                        (bookmark-gt-jump--read "Jump to bookmark: "))))))
+                        (bookmark-gt-jump--read "Jump to bookmark: ")))
+                  "Jump to bookmark")))
     (bookmark-gt-jump-record record display-function)))
 
 ;;;###autoload
@@ -649,10 +651,11 @@ the display function is fixed to another window."
   (let* ((pool (bookmark-gt-jump--resolve-pool bookmarks-list
                                                bookmarks-filter
                                                group))
-         (record (bookmark-get-bookmark
+         (record (bookmark-gt--resolve
                   (or bookmark
                       (bookmark-gt-jump--with-read-state pool sort-by preselect
-                        (bookmark-gt-jump--read "Jump (other window)"))))))
+                        (bookmark-gt-jump--read "Jump (other window)")))
+                  "Jump (other window)")))
     (bookmark-gt-jump-record record #'switch-to-buffer-other-window)))
 
 ;;;###autoload
@@ -683,7 +686,7 @@ Interactively, :TAG is prompted for from the set of known tags."
                      (when (and (integerp preselect) (> preselect 0))
                        (bookmark-gt-jump--preselect-arm))
                      (bookmark-gt-jump--read (format "Jump [;%s]" tag))))))
-    (bookmark-gt-jump-record (bookmark-get-bookmark record))))
+    (bookmark-gt-jump-record (bookmark-gt--resolve record "Jump"))))
 
 (provide 'bookmark-gt-jump)
 

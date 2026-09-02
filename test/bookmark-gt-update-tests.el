@@ -164,7 +164,7 @@ the record wholesale."
   (let ((bookmark-alist nil)
         (bookmark-gt-allow-same-name-bookmarks policy))
     (bookmark-load bookmark-default-file t t nil)
-    (bookmark-gt--drop-same-name-violations)
+    (bookmark-gt-enforce-same-name-policy)
     bookmark-alist))
 
 (ert-deftest bookmark-gt-update-test-load-never-keeps-first ()
@@ -218,7 +218,7 @@ The id scan is where that is caught."
       ;; NO-OVERWRITE: the built-in pushes a second record.
       (bookmark-store "todo" (list (cons 'filename "/tmp/b")) t)
       (should (= 2 (length (bookmark-gt--records-named "todo"))))
-      (bookmark-gt-ensure-ids)
+      (bookmark-gt-enforce-same-name-policy)
       (should (= 1 (length (bookmark-gt--records-named "todo")))))))
 
 (ert-deftest bookmark-gt-update-test-scan-keeps-legitimate-namesakes ()
@@ -227,8 +227,56 @@ The id scan is where that is caught."
     (let ((bookmark-gt-allow-same-name-bookmarks 'different-destination))
       (bookmark-gt-create-non-file "todo" 'h (list (cons 'filename "/tmp/a")))
       (bookmark-gt-create-non-file "todo" 'h (list (cons 'filename "/tmp/b")))
-      (bookmark-gt-ensure-ids)
+      (bookmark-gt-enforce-same-name-policy)
       (should (= 2 (length (bookmark-gt--records-named "todo")))))))
+
+;;;; Broken sequence members
+
+(ert-deftest bookmark-gt-update-test-scan-reports-broken-sequence ()
+  "Deleting a member makes the scan report the sequence that used it."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-create-non-file "member" 'ignore nil)
+    (bookmark-gt-create-sequence "seq" (list "member"))
+    (bookmark-gt-ensure-ids)
+    (bookmark-gt-delete-record (bookmark-get-bookmark "member"))
+    (let (reported)
+      (cl-letf (((symbol-function 'message)
+                 (lambda (fmt &rest args)
+                   (push (apply #'format fmt args) reported))))
+        (bookmark-gt-enforce-same-name-policy))
+      (should (seq-find (lambda (m) (string-match-p "no longer resolve" m))
+                        reported)))))
+
+(ert-deftest bookmark-gt-update-test-scan-quiet-when-members-resolve ()
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-create-non-file "member" 'ignore nil)
+    (bookmark-gt-create-sequence "seq" (list "member"))
+    (bookmark-gt-ensure-ids)
+    (let (reported)
+      (cl-letf (((symbol-function 'message)
+                 (lambda (fmt &rest args)
+                   (push (apply #'format fmt args) reported))))
+        (bookmark-gt-enforce-same-name-policy))
+      (should-not (seq-find (lambda (m) (string-match-p "no longer resolve" m))
+                            reported)))))
+
+;;;; Drawing the list buffer must not delete anything
+
+(ert-deftest bookmark-gt-update-test-render-does-not-enforce ()
+  "The id scan assigns ids; it does not remove records.
+`bookmark-gt-list--entries' runs on every redraw, and a redraw
+follows every change, so enforcing there would let a change to
+one bookmark delete another."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((bookmark-gt-allow-same-name-bookmarks 'never))
+      (bookmark-gt-create-non-file "todo" 'h (list (cons 'filename "/tmp/a")))
+      (bookmark-store "todo" (list (cons 'filename "/tmp/b")) t)
+      (should (= 2 (length (bookmark-gt--records-named "todo"))))
+      (bookmark-gt-ensure-ids)
+      (should (= 2 (length (bookmark-gt--records-named "todo"))))
+      ;; Both have ids, so the scan did its own work.
+      (should (seq-every-p #'bookmark-gt-id-of
+                           (bookmark-gt--records-named "todo"))))))
 
 (provide 'bookmark-gt-update-tests)
 

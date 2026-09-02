@@ -134,7 +134,11 @@ record replaces the bookmark's value, except those listed in
   "Refresh every auto-update bookmark whose file is currently visited.
 When ONLY-BUFFER is non-nil, restrict to records whose file
 matches that buffer."
-  (let ((target-file (and only-buffer (buffer-file-name only-buffer))))
+  (let ((target-file (and only-buffer (buffer-file-name only-buffer)))
+        ;; Runs from an idle timer.  Resolution refuses to prompt
+        ;; while this is set, rather than opening a minibuffer
+        ;; nobody is waiting at.
+        (bookmark-gt--in-timer t))
     (dolist (record bookmark-alist)
       (when (bookmark-gt-auto-update-p record)
         (let ((buffer (if target-file

@@ -97,9 +97,9 @@ behavior somewhere else, later, with no diagnostic.
 ### Internal hooks — direct calls
 
 Do not use bookmark-gt's own hooks
-(`bookmark-gt-set-after-hook`,
-`bookmark-gt-set-tag-reader-hook`,
-`bookmark-gt-set-name-reader-hook`) for internal wiring —
+(`bookmark-gt-record-changed-hook`,
+`bookmark-gt-create-tag-reader-hook`,
+`bookmark-gt-create-name-reader-hook`) for internal wiring —
 those are external extension points and ship empty.  See
 `ai/architecture.md` for the rationale and the browser-tabs
 performance incident that prompted the rule.

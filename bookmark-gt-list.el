@@ -174,15 +174,25 @@ first should sort before the second.")
 filtered.  Toggled by `bookmark-gt-list-show-temp'.")
 
 (defvar-local bookmark-gt-list--marks nil
-  "Hash table id → mark character for the current buffer.
-Keys are record conses from `bookmark-alist' (compared with
-`eq').  Values are the mark char (`bookmark-gt-list-selection-mark'
-or `bookmark-gt-list-deletion-mark').  Missing key = unmarked.
+  "Hash table `bookmark-gt-id' → mark character for this buffer.
+Values are the mark char (`bookmark-gt-list-selection-mark' or
+`bookmark-gt-list-deletion-mark').  A missing key is unmarked.
 
-Persists across `tabulated-list-print' — the mark column is
-populated by reading this hash at render time.  Interactive
-mark commands mutate the hash and patch buffer character 0
-directly for speed.")
+Keyed by id rather than by record: this hash is the only piece
+of list state that outlives a render.  The `tabulated-list' ids
+are rebuilt from `bookmark-alist' every time, so they are never
+stale, but a record cons kept here would be replaced whenever
+the bookmark file is reloaded — which happens without asking
+when it changed on disk — and every mark would be lost.
+
+Interactive mark commands mutate the hash and patch buffer
+character 0 directly for speed.")
+
+(defun bookmark-gt-list--mark-key (record)
+  "Return the key RECORD is marked under, or nil when it has no id.
+Every record has an id by the time the buffer renders:
+`bookmark-gt-list--entries' runs `bookmark-gt-ensure-ids' first."
+  (bookmark-gt-id-of record))
 
 ;;;; Rendering
 
@@ -261,7 +271,7 @@ other tabulated-list buffers."
 Looks up the buffer-local hash `bookmark-gt-list--marks'; when
 no mark is stored, returns a single space."
   (let ((ch (and bookmark-gt-list--marks
-                 (gethash record bookmark-gt-list--marks))))
+                 (gethash (bookmark-gt-list--mark-key record) bookmark-gt-list--marks))))
     (if ch (char-to-string ch) " ")))
 
 (defun bookmark-gt-list--entry-vector (record)
@@ -603,6 +613,7 @@ comes from `bookmark-gt-list-state-file' when
 mode defaults."
   (interactive)
   (bookmark-maybe-load-default-file)
+  (bookmark-gt-enforce-same-name-policy)
   (let ((buf (get-buffer-create bookmark-gt-list-buffer-name)))
     (with-current-buffer buf
       (unless (derived-mode-p 'bookmark-gt-list-mode)
@@ -614,6 +625,7 @@ mode defaults."
   "Revert function for the bookmark-gt list buffer.
 Refreshes ephemeral sources (browser tabs, auto-update
 positions) that are currently enabled, then redraws."
+  (bookmark-gt-enforce-same-name-policy)
   (when (bound-and-true-p bookmark-gt-browser-tabs-mode)
     (bookmark-gt-browser-tabs-refresh))
   (when (bound-and-true-p bookmark-gt-auto-update-mode)
@@ -649,10 +661,12 @@ mark at all, rather than what the user can currently see."
     (goto-char (point-min))
     (let (records)
       (while (not (eobp))
-        (let ((id (tabulated-list-get-id)))
-          (when (and id
-                     (eq (gethash id bookmark-gt-list--marks) char))
-            (push id records)))
+        (let ((record (tabulated-list-get-id)))
+          (when (and record
+                     (eq (gethash (bookmark-gt-list--mark-key record)
+                                  bookmark-gt-list--marks)
+                         char))
+            (push record records)))
         (forward-line 1))
       (nreverse records))))
 
@@ -702,9 +716,9 @@ selection-scoped commands.
 Does not redraw; the caller's `bookmark-gt--after-mutation'
 repaints the mark column from the hash."
   (dolist (record records)
-    (when (eq (gethash record bookmark-gt-list--marks)
+    (when (eq (gethash (bookmark-gt-list--mark-key record) bookmark-gt-list--marks)
               bookmark-gt-list-selection-mark)
-      (remhash record bookmark-gt-list--marks))))
+      (remhash (bookmark-gt-list--mark-key record) bookmark-gt-list--marks))))
 
 (defun bookmark-gt-list--finish (records &optional message)
   "Complete a selection-scoped command over RECORDS.
@@ -735,7 +749,8 @@ The replacement preserves the `tabulated-list-id' and
 `tabulated-list-entry' text properties on char 0 — without
 this, `tabulated-list-get-id' on a marked row would return
 nil."
-  (let ((id (tabulated-list-get-id)))
+  (let* ((record (tabulated-list-get-id))
+         (id (and record (bookmark-gt-list--mark-key record))))
     (when id
       (if (eq char ?\s)
           (remhash id bookmark-gt-list--marks)
@@ -787,9 +802,12 @@ Skips hash entries whose id is no longer in `bookmark-alist'
 \(stale from a since-deleted record)."
   (let (records)
     (maphash (lambda (id mark)
-               (when (and (eq mark char)
-                          (memq id bookmark-alist))
-                 (push id records)))
+               (when (eq mark char)
+                 (when-let* ((record (seq-find
+                                      (lambda (r)
+                                        (eq (bookmark-gt-id-of r) id))
+                                      bookmark-alist)))
+                   (push record records))))
              bookmark-gt-list--marks)
     records))
 
@@ -820,7 +838,7 @@ than reporting that there is nothing to delete."
       (user-error "Aborted"))
     (dolist (record flagged)
       (bookmark-gt-delete-record record)
-      (remhash record bookmark-gt-list--marks))
+      (remhash (bookmark-gt-list--mark-key record) bookmark-gt-list--marks))
     (bookmark-gt--after-mutation (car flagged) 'delete)
     (message "Deleted %d bookmark(s)" (length flagged))))
 
@@ -1072,9 +1090,10 @@ reset to `bookmark-gt-list-state-file' when
 Reads `bookmark-gt-list--marks' — mark state lives in that
 hash, not in the record."
   (let* ((rank
-          (lambda (id)
+          (lambda (record)
             (let ((m (and bookmark-gt-list--marks
-                          (gethash id bookmark-gt-list--marks))))
+                          (gethash (bookmark-gt-list--mark-key record)
+                                   bookmark-gt-list--marks))))
               (cond
                ((eq m bookmark-gt-list-deletion-mark)  2)
                ((eq m bookmark-gt-list-selection-mark) 1)

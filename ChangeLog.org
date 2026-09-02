@@ -51,9 +51,29 @@
 
 ** Changed
 
+- Browser-tab records are refreshed only where they are about to
+  be read: the jump reader, a revert of the list buffer, on
+  demand, and once when the mode is enabled.  The subscription to
+  browser connect and disconnect events is removed, along with
+  ~bookmark-gt-browser-tabs-debounce~ and the timer that
+  coalesced those events.  Tabs change without any client
+  connecting, so refreshing on those events could not keep the
+  records current, and it rebuilt records nothing was going to
+  display.
+- Marks in the list buffer survive a reload of the bookmark
+  file.  They were keyed by record, and a reload replaces every
+  record, so any reload cleared them — including the silent one
+  Emacs performs when the file changed on disk.
+- A sequence bookmark whose members no longer resolve is
+  reported when the list buffer is opened or reverted, when the
+  jump reader is read, and after a load — rather than failing
+  partway through a traversal.
 - Loading a bookmark file whose names repeat in ways
   ~bookmark-gt-allow-same-name-bookmarks~ forbids omits those
-  records and warns, listing them.  The first record of a name is
+  records and warns, listing them in full.  The same check runs
+  when the list buffer is opened or reverted and when the jump
+  reader is read, so a record added by the built-in
+  ~bookmark-set~ is caught too.  The first record of a name is
   kept; under the default a later one is kept when it points
   somewhere no kept record does.  The omission is in memory only
   — the bookmarks are still in the file until it is next saved —
@@ -123,5 +143,4 @@
 
 ** Changed
 
-- The version becomes 0.3.0 and =readme.org= is rewritten around
-  create, update and relocate.
+- The version becomes 0.3.0.
