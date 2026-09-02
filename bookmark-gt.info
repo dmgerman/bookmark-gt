@@ -1651,6 +1651,7 @@ Variable                                  Default                               
 ‘bookmark-gt-highlight-enable’            ‘t’                                                                  Per-bookmark line overlays in file-visiting buffers.  Off suppresses the overlays even while ‘bookmark-gt-mode’ is on.
 ‘bookmark-gt-auto-temp-names’             ‘("\\`org-capture-last-stored\\'" "\\`org-refile-last-stored\\'")’   Names (regexps) marked temporary when stored, so they are never written to the bookmark file.  Covers the bookmarks ‘org-capture’ and ‘org-refile’ re-store on every capture and refile.
 ‘bookmark-gt-unique-names’                ‘("\\`org-capture-last-stored\\'" "\\`org-refile-last-stored\\'")’   Names (regexps) that may identify only one bookmark, whatever ‘bookmark-gt-allow-same-name-bookmarks’ says.  Independent of the option above: a name can be unique without being temporary.
+‘bookmark-gt-unique-name-handlers’        ‘(burly-bookmark-handler)’                                           Handlers whose bookmarks are one per name: re-storing one replaces the record of the same handler rather than adding another.  Applies only between records of that handler; a collision with a different kind of bookmark is decided by the same-name setting.
 ‘bookmark-gt-file-type-handlers’          ‘nil’                                                                Alist mapping filename regexp to a handler function; when a file bookmark's ‘filename’ matches, the function is called with the record instead of the built-in ‘find-file’ path.
 ‘bookmark-gt-browser-tabs-browsers’       ‘nil’                                                                List of browser-gt browser client names to query for tabs (e.g.  ‘'("chrome" "firefox")’), or ‘nil’ to query every browser browser-gt is connected to.
 ‘bookmark-gt-browser-tabs-filter’         ‘nil’                                                                Filter applied to each fetched tab before it is stored.  ‘nil’ = accept every tab; a regexp = keep tabs whose URL matches; a function = called with the tab plist, kept when it returns non-nil.
@@ -1766,8 +1767,8 @@ Node: Data compat with bookmark+66166
 Node: Migrating from bookmark+67509
 Node: Reference69853
 Node: Selected customization70016
-Node: Acknowledgements76380
-Node: License78714
+Node: Acknowledgements76755
+Node: License79089
 
 End Tag Table
 

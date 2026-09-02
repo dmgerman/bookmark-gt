@@ -278,6 +278,114 @@ one bookmark delete another."
       (should (seq-every-p #'bookmark-gt-id-of
                            (bookmark-gt--records-named "todo"))))))
 
+;;;; bookmark-store under the same-name policy
+;;
+;; burly asks the user for a name and stores with `bookmark-store',
+;; so without this a saved window layout replaces whatever bookmark
+;; already had that name.
+
+(defmacro bookmark-gt-update-test--with-mode (&rest body)
+  "Run BODY with `bookmark-gt-mode' on."
+  (declare (indent 0) (debug t))
+  `(progn
+     (bookmark-gt-mode 1)
+     (unwind-protect (progn ,@body) (bookmark-gt-mode -1))))
+
+(defun bookmark-gt-update-test--burly (url)
+  "Return a burly-shaped record alist for URL."
+  (list (cons 'url url) (cons 'handler 'burly-bookmark-handler)))
+
+(ert-deftest bookmark-gt-store-test-collision-keeps-both-when-permitted ()
+  "A burly save onto a file bookmark's name does not replace it."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-update-test--with-mode
+      (let ((bookmark-gt-allow-same-name-bookmarks 'always))
+        (bookmark-gt-create-non-file "notes" 'h
+                                     (list (cons 'filename "/tmp/important.org")))
+        (bookmark-store "notes" (bookmark-gt-update-test--burly "burly:a") nil)
+        (let ((records (bookmark-gt--records-named "notes")))
+          (should (= 2 (length records)))
+          (should (seq-find (lambda (r)
+                              (equal (bookmark-gt-filename-of r)
+                                     "/tmp/important.org"))
+                            records)))))))
+
+(ert-deftest bookmark-gt-store-test-collision-signals-when-refused ()
+  "With `never', the same save is refused rather than replacing."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-update-test--with-mode
+      (let ((bookmark-gt-allow-same-name-bookmarks 'never))
+        (bookmark-gt-create-non-file "notes" 'h
+                                     (list (cons 'filename "/tmp/important.org")))
+        (should-error
+         (bookmark-store "notes" (bookmark-gt-update-test--burly "burly:a") nil)
+         :type 'user-error)
+        (should (equal (bookmark-gt-filename-of (bookmark-get-bookmark "notes"))
+                       "/tmp/important.org"))))))
+
+(ert-deftest bookmark-gt-store-test-resave-replaces-its-own ()
+  "Re-saving a burly bookmark updates it instead of adding another.
+Its URL changes on every save, so the same-name policy alone
+would keep making new records."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-update-test--with-mode
+      (let ((bookmark-gt-allow-same-name-bookmarks 'always))
+        (bookmark-store "layout" (bookmark-gt-update-test--burly "burly:a") nil)
+        (bookmark-store "layout" (bookmark-gt-update-test--burly "burly:b") nil)
+        (let ((records (bookmark-gt--records-named "layout")))
+          (should (= 1 (length records)))
+          (should (equal (bookmark-gt-url-of (car records)) "burly:b")))))))
+
+(ert-deftest bookmark-gt-store-test-resave-keeps-properties ()
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-update-test--with-mode
+      (bookmark-store "layout" (bookmark-gt-update-test--burly "burly:a") nil)
+      (let* ((record (bookmark-get-bookmark "layout"))
+             (id (bookmark-gt-id-of record)))
+        (bookmark-gt-tags-set record '("kept"))
+        (bookmark-store "layout" (bookmark-gt-update-test--burly "burly:b") nil)
+        (let ((after (bookmark-get-bookmark "layout")))
+          (should (eq (bookmark-gt-id-of after) id))
+          (should (equal (bookmark-gt-tags-of after) '("kept"))))))))
+
+(ert-deftest bookmark-gt-store-test-same-type-not-listed-is-not-replaced ()
+  "Only handlers in `bookmark-gt-unique-name-handlers' replace on re-store.
+Two ordinary file bookmarks of one name are what `always' asks
+for, and must not be collapsed into one."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-update-test--with-mode
+      (let ((bookmark-gt-allow-same-name-bookmarks 'always))
+        (bookmark-store "notes" (list (cons 'filename "/tmp/a")) nil)
+        (bookmark-store "notes" (list (cons 'filename "/tmp/b")) nil)
+        (should (= 2 (length (bookmark-gt--records-named "notes"))))))))
+
+(ert-deftest bookmark-gt-store-test-resave-with-a-namesake-of-another-kind ()
+  "A re-save replaces its own record, not whichever comes first.
+Several bookmarks may share a name, so the record to replace is
+the one of the incoming kind — `bookmark-get-bookmark' would
+return the first, which may be someone else's."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-update-test--with-mode
+      (let ((bookmark-gt-allow-same-name-bookmarks 'always))
+        (bookmark-store "test" (bookmark-gt-update-test--burly "burly:v1") nil)
+        (bookmark-gt-create-non-file "test" 'h
+                                     (list (cons 'filename "/tmp/notes.org")))
+        (bookmark-store "test" (bookmark-gt-update-test--burly "burly:v2") nil)
+        (let ((records (bookmark-gt--records-named "test")))
+          (should (= 2 (length records)))
+          ;; The file bookmark is untouched.
+          (should (seq-find (lambda (r)
+                              (equal (bookmark-gt-filename-of r) "/tmp/notes.org"))
+                            records))
+          ;; One burly record, updated in place.
+          (let ((burly (seq-filter
+                        (lambda (r)
+                          (eq (bookmark-prop-get r 'handler)
+                              'burly-bookmark-handler))
+                        records)))
+            (should (= 1 (length burly)))
+            (should (equal (bookmark-gt-url-of (car burly)) "burly:v2"))))))))
+
 (provide 'bookmark-gt-update-tests)
 
 ;;; bookmark-gt-update-tests.el ends here

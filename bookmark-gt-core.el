@@ -1425,27 +1425,84 @@ further built-in arguments.  Rewrites bookmarks whose
           ;; carrying it rather than the one just tested.
           (bookmark-prop-set rec 'filename to-abs))))))
 
-(defun bookmark-gt--store-preserve-advice (orig-fn name alist no-overwrite)
-  "Keep bookmark-gt properties across a `bookmark-store' overwrite.
+(defun bookmark-gt--store-replaceable-record (name alist)
+  "Return the record a store of ALIST under NAME should replace, or nil.
+
+Replacing is right in two cases: NAME is one a package owns,
+listed in `bookmark-gt-unique-names\='; or the incoming record is
+the same kind as an existing one and that kind is one per name,
+listed in `bookmark-gt-unique-name-handlers\='.  The second is what
+re-saving means for a type like burly, whose serialized URL
+differs on every save.
+
+Searches every record of that name, not just the first.  Several
+bookmarks may share a name — that is the point of
+`bookmark-gt-allow-same-name-bookmarks\=' — so the one to replace
+is the one of the incoming record\='s own kind, which need not be
+the one `bookmark-get-bookmark\=' would return."
+  (let ((records (bookmark-gt--records-named name))
+        (handler (alist-get 'handler alist)))
+    (cond
+     ((null records) nil)
+     ((bookmark-gt-unique-name-p name) (car records))
+     ((and handler (bookmark-gt-unique-name-handler-p handler))
+      (seq-find (lambda (record)
+                  (eq (bookmark-prop-get record 'handler) handler))
+                records))
+     (t nil))))
+
+(defun bookmark-gt--store-replace (record name alist)
+  "Replace RECORD\='s data with ALIST, as an overwrite of NAME would.
+
+Does the replacement here rather than through `bookmark-store\=',
+which overwrites whichever record of NAME comes first — not
+necessarily RECORD.  Mirrors what the built-in does to the
+record it picks, and carries across the properties bookmark-gt
+keeps (see `bookmark-gt-preserved-props\=')."
+  (let ((saved (bookmark-gt--preserved-props record)))
+    (when bookmark-fringe-mark
+      (bookmark--remove-fringe-mark record))
+    (setcdr record alist)
+    (bookmark-gt--restore-preserved record saved)
+    (setq bookmark-current-bookmark name)
+    (unless (bookmark-gt-temp-p record)
+      (bookmark-gt--note-modification))
+    record))
+
+(defun bookmark-gt--store-advice (orig-fn name alist no-overwrite)
+  "Apply bookmark-gt\='s policies to `bookmark-store'.
 ORIG-FN is `bookmark-store'; NAME, ALIST and NO-OVERWRITE are its
 arguments.
 
-The built-in replaces an existing record wholesale —
-`(setcdr bm alist)\=' — which discards the id, tags, annotation,
-creation time and visit counts bookmark-gt keeps there.  That
-path runs whenever another package stores onto a name it already
-used: `org-capture\=' and `org-refile\=' do it on every capture.
+The built-in replaces any record of the same name.  That is
+right when a package re-stores its own bookmark, and wrong when
+the name came from the user: burly asks for a name, so storing a
+window layout under one an existing bookmark uses would replace
+that bookmark, whatever
+`bookmark-gt-allow-same-name-bookmarks\=' says.
 
-Overwrite-by-name is left exactly as it was; only the properties
-the caller does not know about are carried across.  See
-`bookmark-gt-preserved-props'."
-  (let* ((existing (and (not no-overwrite)
-                        (bookmark-get-bookmark name 'noerror)))
-         (saved (and existing (bookmark-gt--preserved-props existing))))
-    (prog1 (funcall orig-fn name alist no-overwrite)
-      (when saved
-        (when-let* ((record (bookmark-get-bookmark name 'noerror)))
-          (bookmark-gt--restore-preserved record saved))))))
+A store onto a name already in use therefore either replaces the
+record of its own kind (`bookmark-gt--store-replaceable-record\='),
+adds a second record when the setting permits one, or signals
+when it does not.  Storing under an unused name is untouched, as
+is a caller that already passed NO-OVERWRITE."
+  (let ((records (and (not no-overwrite)
+                      (stringp name)
+                      (bookmark-gt--records-named name))))
+    (cond
+     ((null records) (funcall orig-fn name alist no-overwrite))
+     ((bookmark-gt--store-replaceable-record name alist)
+      (bookmark-gt--store-replace
+       (bookmark-gt--store-replaceable-record name alist) name alist))
+     ((bookmark-gt-name-available-p name alist)
+      ;; The setting permits another bookmark of this name, so the
+      ;; existing ones are left alone.
+      (funcall orig-fn name alist 'no-overwrite))
+     (t
+      (user-error
+       "A %s bookmark named `%s' exists; storing a %s bookmark under that name would replace it"
+       (bookmark-gt-handler-name (car records)) name
+       (bookmark-gt-handler-name (cons name alist)))))))
 
 (defun bookmark-gt--record-for-display (record)
   "Return RECORD pretty-printed, for a message a user has to read.
@@ -1586,6 +1643,35 @@ This is the place to name any other bookmark whose name must
 resolve to exactly one record, whether or not it is temporary."
   :type '(repeat regexp)
   :group 'bookmark-gt)
+
+(defcustom bookmark-gt-unique-name-handlers
+  '(burly-bookmark-handler)
+  "Handlers whose bookmarks are one per name.
+Each element is a handler symbol.  When a record with such a
+handler is stored under a name an existing record of the *same*
+handler already uses, it replaces that record instead of adding
+a second — which is what re-saving means for these types.
+
+`burly-bookmark-handler\=' is the default entry.  A burly bookmark
+holds a serialized window layout, so re-saving it produces a
+different URL every time anything moved; without this, each save
+would leave another bookmark under the same name.
+
+This governs only records of the same handler.  A burly record
+stored under a name a *file* bookmark uses is a collision, not a
+re-save, and `bookmark-gt-allow-same-name-bookmarks\=' decides it —
+so under `always\=' both are kept, and the file bookmark is not
+replaced.
+
+Compare `bookmark-gt-unique-names\=', which exempts particular
+names whatever their handler."
+  :type '(repeat symbol)
+  :group 'bookmark-gt)
+
+(defun bookmark-gt-unique-name-handler-p (handler)
+  "Return non-nil when HANDLER\='s bookmarks are one per name.
+True for handlers listed in `bookmark-gt-unique-name-handlers\='."
+  (and handler (memq handler bookmark-gt-unique-name-handlers) t))
 
 (defun bookmark-gt-unique-name-p (name)
   "Return non-nil when NAME may identify only one bookmark.

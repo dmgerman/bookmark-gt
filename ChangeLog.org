@@ -34,6 +34,15 @@
 
 ** Added
 
+- ~bookmark-gt-unique-name-handlers~ — handlers whose bookmarks are one
+  per name.  Re-storing a record of such a handler under a name
+  another record of the *same* handler uses replaces it, which is
+  what re-saving means for these types: a burly bookmark holds a
+  serialized window layout, so its URL differs on every save and
+  the same-name policy alone would leave a new bookmark behind
+  each time.  Defaults to ~burly-bookmark-handler~.  It governs
+  only records of the same handler, so a burly save onto a file
+  bookmark\='s name is still a collision the policy decides.
 - ~bookmark-gt-unique-names~ — names (regexps) that may identify
   only one bookmark, whatever
   ~bookmark-gt-allow-same-name-bookmarks~ says.  Creating a
@@ -98,6 +107,15 @@
 
 ** Fixed
 
+- A package storing a bookmark under a name you chose no longer
+  replaces whatever already had that name.  ~burly~ asks for a
+  name and stores with ~bookmark-store~, so saving a window
+  layout as ~notes~ used to turn an existing ~notes~ file
+  bookmark into a window layout, silently.
+  ~bookmark-gt-allow-same-name-bookmarks~ now decides such a
+  collision, as it does for ~bookmark-gt-create~: under ~always~
+  both are kept, under ~never~ the store is refused, and the
+  existing bookmark is left alone either way.
 - The TAGS argument of ~bookmark-gt-create-url~ and the other
   typed creators reaches the tag reader as its seed.  It was
   passed as a record property and the reader was seeded with
