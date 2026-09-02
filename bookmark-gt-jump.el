@@ -71,6 +71,9 @@
 
 (defvar orderless-style-dispatchers)
 (defvar marginalia-annotators)
+(defvar marginalia-separator)
+(defvar marginalia-field-width)
+(defvar marginalia--cand-width-step)
 
 ;;;; Customization
 
@@ -90,6 +93,32 @@ aligning space, and those rows render one column right of the
 others.  Pick a value that is not a multiple of 10."
   :type 'integer
   :group 'bookmark-gt)
+
+(defcustom bookmark-gt-jump-location-max-width 100
+  "Maximum width of the location field in the jump annotation.
+
+The location field takes the horizontal space the candidate, tag
+and type columns leave free, so it widens on a wide frame and
+narrows on a small one.  This value bounds that width.
+
+A bound is useful because a wide location is not always an
+informative one: a bookmark whose location holds machine state
+rather than a destination — a window configuration serialized
+into a URL, for instance — runs to hundreds of characters and
+would otherwise occupy every free column.
+
+An integer is a column count.  A float is a fraction of
+`marginalia-field-width'.  nil applies no bound beyond the space
+that is free."
+  :type '(choice (const :tag "All free space" nil)
+                 (integer :tag "Columns")
+                 (float :tag "Fraction of `marginalia-field-width'"))
+  :group 'bookmark-gt)
+
+(defconst bookmark-gt-jump--location-min-width 20
+  "Width the location field keeps when no space is free.
+Below this the field carries too little of a path or URL to
+identify it, so the annotation runs past the window edge instead.")
 
 (defcustom bookmark-gt-jump-default-sort 'mru
   "Default sort order for `bookmark-gt-jump' and its variants.
@@ -287,10 +316,82 @@ Uses the bookmark+-compat helpers so a placeholder filename or a
       (bookmark-gt-url-of record)
       ""))
 
+;;;; Location field width
+;;
+;; Marginalia sizes annotation fields against `marginalia-field-width',
+;; which it rebinds per annotation pass to (min (/ window-width 2) 80).
+;; That budget is chosen without knowing how wide the candidates are —
+;; marginalia computes the alignment column in `marginalia--align',
+;; after the annotators have run — so on a wide frame the annotation
+;; stops well short of the right edge and the remaining columns go
+;; unused.
+;;
+;; The candidate width is not a mystery here: every visible name is
+;; capped by `bookmark-gt-jump--truncate-name', and the reader holds
+;; the whole candidate list before the read opens.  So the location
+;; field is sized from the space that is actually free rather than
+;; from a fraction of a budget.  The widths are absolute integers,
+;; which `marginalia--truncate' uses as column counts directly; only
+;; floats are multiplied by `marginalia-field-width'.
+
+(defvar bookmark-gt-jump--name-column nil
+  "Column where marginalia aligns this read's annotations, or nil.
+Bound by `bookmark-gt-jump--read-once' for the duration of one
+read, so every row of a pass computes the same layout and a
+cached annotation cannot disagree with a freshly computed one.
+Nil outside a bookmark-gt read — the annotator is registered for
+the whole `bookmark' completion category, so `bookmark-jump' and
+other packages reach it too.")
+
+(defun bookmark-gt-jump--window-width ()
+  "Return the width of the narrowest window displaying the minibuffer.
+Matches how `marginalia--affixate' measures, so a minibuffer shown
+in its own window (`vertico-buffer') is sized by that window
+rather than by the frame."
+  (let* ((win (active-minibuffer-window))
+         (windows (and win (get-buffer-window-list (window-buffer win) nil t))))
+    (if windows
+        (apply #'min (mapcar #'window-width windows))
+      (frame-width))))
+
+(defun bookmark-gt-jump--align-column ()
+  "Return the column marginalia aligns the annotation to.
+Marginalia rounds the widest candidate up to a multiple of
+`marginalia--cand-width-step'.  Outside a read, where the
+candidates are unknown, assume a name of the full
+`bookmark-gt-jump-name-max-width'."
+  (or bookmark-gt-jump--name-column
+      (bookmark-gt-jump--column-for bookmark-gt-jump-name-max-width)))
+
+(defun bookmark-gt-jump--column-for (width)
+  "Return WIDTH rounded up to marginalia's candidate width step."
+  (let ((step (if (boundp 'marginalia--cand-width-step)
+                  marginalia--cand-width-step
+                10)))
+    (* (ceiling width step) step)))
+
+(defun bookmark-gt-jump--location-width (used)
+  "Return the column budget for the location field.
+USED is the width the tag and type fields occupy in this row.
+The result is at least `bookmark-gt-jump--location-min-width' and
+at most `bookmark-gt-jump-location-max-width'."
+  (let* ((separators (* 3 (string-width marginalia-separator)))
+         (free (- (bookmark-gt-jump--window-width)
+                  (bookmark-gt-jump--align-column)
+                  used separators 1))
+         (width (max bookmark-gt-jump--location-min-width free))
+         (bound bookmark-gt-jump-location-max-width))
+    (cond
+     ((null bound) width)
+     ((floatp bound) (min width (round (* bound marginalia-field-width))))
+     (t (min width bound)))))
+
 (defun bookmark-gt-jump-annotate (candidate)
   "Marginalia annotator for a bookmark CANDIDATE.
-Returns a three-field annotation: tags, type, path.  Fields use
-`marginalia--fields' so widths auto-align across candidates."
+Returns a three-field annotation: tags, type, location.  The tag
+and type fields are truncated to the widest value each can hold;
+the location field takes the space those leave free, bounded by
+`bookmark-gt-jump-location-max-width'."
   (when (featurep 'marginalia)
     ;; Annotate from the record the candidate carries, not from a
     ;; lookup by name: the visible string may differ from the
@@ -306,11 +407,21 @@ Returns a three-field annotation: tags, type, path.  Fields use
              (type-w (bookmark-gt-jump--type-column-width))
              (filename (bookmark-gt-filename-of record))
              (path (bookmark-gt-jump--record-path record))
-             (file-p (stringp filename)))
+             (file-p (stringp filename))
+             ;; What this row's tag and type fields render to, which
+             ;; is what they subtract from the free space.
+             (used (+ (min (string-width tag-seg) tag-w)
+                      (min (string-width type) type-w)))
+             ;; Negative keeps the end of the string, so a file
+             ;; bookmark shows its filename rather than the leading
+             ;; directories; positive keeps the start, so a URL shows
+             ;; its host.
+             (location-w (bookmark-gt-jump--location-width used)))
         (marginalia--fields
-         (tag-seg :truncate tag-w              :face 'completions-annotations)
-         (type    :truncate type-w             :face 'marginalia-type)
-         (path    :truncate (if file-p -0.5 0.5) :face 'marginalia-file-name))))))
+         (tag-seg :truncate tag-w  :face 'completions-annotations)
+         (type    :truncate type-w :face 'marginalia-type)
+         (path    :truncate (if file-p (- location-w) location-w)
+                  :face 'marginalia-file-name))))))
 
 ;;;; Marginalia install / uninstall
 
@@ -516,6 +627,11 @@ scans `bookmark-alist'."
          (candidates (bookmark-gt-with-name-index
                        (mapcar bookmark-gt-jump-candidate-format-function
                                records)))
+         ;; Measure the annotation's starting column once, from this
+         ;; read's candidates, rather than per annotated row.
+         (bookmark-gt-jump--name-column
+          (bookmark-gt-jump--column-for
+           (apply #'max 1 (mapcar #'string-width candidates))))
          ;; Scope the orderless dispatcher to this read only.
          (orderless-style-dispatchers
           (if (and (featurep 'orderless)
