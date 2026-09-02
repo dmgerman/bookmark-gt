@@ -62,6 +62,31 @@ the model.  Where the callee only accepts a name (some built-in
 `bookmark.el` entry points), that is a defect to route around,
 not a pattern to copy.
 
+### Referring to a bookmark
+
+A parameter that refers to an *existing* bookmark is named
+`bookmark` and dispatches on type, through
+`bookmark-gt--resolve`:
+
+| Argument | Type   | Meaning                                    |
+|----------|--------|--------------------------------------------|
+| `nil`    | —      | none given; prompt where that is sensible  |
+| record   | cons   | used directly                              |
+| name     | string | a query: may match none, one, or several   |
+| id       | symbol | resolved exactly                           |
+
+**The `cond` order is nil → cons → string → symbol.** `nil` is
+itself a symbol, so testing the symbol branch first makes every
+"prompt me" call an id lookup. The same for `t`. It reads as
+correct in any order.
+
+Do not call `bookmark-get-bookmark` at a new site. It resolves a
+name to the first match, which is the defect this convention
+exists to prevent.
+
+`bookmark-gt-create` is not part of this: its `NAME` names a
+bookmark being made, not one being referred to.
+
 ### Errors over silent fallback
 
 A reference that cannot be resolved is a broken reference, not
@@ -216,6 +241,26 @@ Namespace anything whose obvious name is generic:
 `bookmark-gt-<key>`.  Keys deliberately shared with bookmark+
 for round-tripping (`tags`, `bmkp-temp`) are the documented
 exceptions, not the pattern.
+
+### Commands: creating versus changing
+
+Creating a bookmark and changing one are separate commands, and
+no variable chooses between them — the user says which they mean
+by which command they invoke. `bookmark-gt-create` creates;
+`bookmark-gt-update`, `-relocate`, `-rename`, `-delete` and the
+property mutators change.
+
+A command that creates is named `bookmark-gt-create-<what>`
+(`-create-url`, `-create-non-file`). A command or API that
+changes one property is named `bookmark-gt-<property>-set`
+(`-tags-set`, `-temp-set`, `-auto-update-set`) — property first,
+so the family sorts together.
+
+Do not use `update-` as a prefix: `bookmark.el` has one
+occurrence (`bookmark-update-last-modified`, a timestamp
+helper), and the vocabulary is otherwise bare verbs. Do not use
+`location` for a position — it means the target throughout this
+package, in `bookmark-location`, and in the list buffer's column.
 
 ### Handler symbols
 

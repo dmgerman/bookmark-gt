@@ -30,6 +30,103 @@ disk:
 - The `bookmark-gt-browser-tabs--refreshing` re-entrancy
   guard.  Bounded by one refresh call.
 
+## Bookmark identity
+
+A bookmark has two natural handles and neither is sufficient:
+
+- **The record cons.** Precise and `eq`-comparable, and what
+  `bookmark-alist` holds. Session-scoped: `bookmark-load`
+  builds fresh conses, so it cannot be written to disk or held
+  across a reload. `bookmark-maybe-load-default-file` reloads
+  whenever the file's mtime changed, and with
+  `bookmark-watch-bookmark-file` set to `silent` it does so
+  without asking — so a cons captured before almost any command
+  can be an orphan, and mutating it writes to something no
+  longer in the alist.
+- **The name.** Persists, but is neither unique (records may
+  share one) nor stable (`bookmark-rename` changes it).
+  `bookmark-get-bookmark` resolves a name with `assoc`, so
+  anything built on a name reaches the first record carrying it.
+
+`bookmark-gt-id` is the third: an interned symbol on the record,
+durable and precise. The key is namespaced because plain `id`
+belongs to `org-bookmark-heading`, whose handler reads it.
+
+**It is best-effort, never an invariant.** Records written by
+`bookmark.el`, bookmark+ or anything else arrive without one, and
+a file copied between machines can carry the same id twice. Code
+resolves by id when present and by name otherwise; it must not
+assume presence or uniqueness.
+
+### Why the id is a symbol
+
+A bookmark name is always a string — `bookmark-store` copies it
+and strips its text properties — so a symbol cannot be a name.
+That makes `bookmark-gt--resolve`'s dispatch total rather than a
+guess: nil, cons, string, symbol, one meaning each.
+
+The `bgt-` prefix is structural, not decoration: it guarantees
+the printed form reads back as a symbol. A body of digits alone
+would read as an integer and fall through the dispatch silently.
+
+Non-determinism is deliberate. A content-derived id would let two
+machines minting the same file agree, but it cannot distinguish
+two records that are identical apart from identity — the case the
+id exists for — and an id that looks computable invites someone
+to recompute it instead of reading it, which is identity-by-
+content again.
+
+### Where identity is enforced
+
+`bookmark-gt-ensure-ids` runs at the three points that already
+read the whole alist: after `bookmark-load`, when the list buffer
+redraws, and once per jump. It drops records the same-name
+setting forbids, then assigns ids to what remains.
+
+Enforcing at those points rather than only at creation is what
+makes the setting mean what it says. `bookmark-gt-create` cannot
+produce a forbidden name, but a bookmark file can, and so can the
+built-in `bookmark-set`, which is deliberately left alone for
+Lisp callers.
+
+Assignment writes with `bookmark-prop-set`, never through the
+mutators: `bookmark-gt--after-mutation` would run the change hook
+once per record, and `bookmark-gt--stamp-modified` would
+overwrite `last-modified` on every record with the time of the
+scan. It counts one modification for the whole pass, with
+`NO-SAVE`, and none for temporary records — so loading a file
+does not provoke a write.
+
+Dropping is not counted at all. It makes memory match the
+setting rather than being an edit the user asked for, and
+counting it would schedule the write that turns an omission in
+memory into a deletion on disk.
+
+### Display names are computed
+
+Records sharing a name are shown with a `<N>` suffix, computed by
+`bookmark-gt-display-name-of` and never stored. Storing it would
+make every name unique behind the user's back, which is what
+allowing shared names exists to avoid.
+
+Bulk callers wrap their loop in `bookmark-gt-with-name-index`;
+without it, asking per record turns a render quadratic.
+
+### What the built-ins are allowed to do
+
+Only the *commands* are remapped (`bookmark-gt-mode-map`). The
+functions keep their own semantics, because packages call them
+from Lisp and depend on them: `org-capture` and `org-refile`
+store onto a fixed name on every capture and rely on
+`bookmark-set` overwriting by name. Such a name is a singleton by
+construction, so first-match resolution is correct there.
+
+One advice guards the data: `bookmark-store`'s overwrite path is
+`(setcdr bm alist)`, which discards every bookmark-gt property on
+the record. `bookmark-gt--store-preserve-advice` carries the
+`bookmark-gt-preserved-props` set across, leaving the built-in's
+own behavior untouched.
+
 ## Direct calls over hooks for internal wiring
 
 Hooks in bookmark-gt are **external extension surface only**.

@@ -121,8 +121,6 @@
 
 * Planned — 0.3.0
 
-Not implemented; see =ai/bookmark-identity.org=.
-
 ** Changed
 
 - The version becomes 0.3.0 and =readme.org= is rewritten around
