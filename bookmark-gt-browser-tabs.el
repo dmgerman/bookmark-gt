@@ -50,6 +50,35 @@
 ;;
 ;; Loads lazily: if browser-gt is not installed the file is a no-op
 ;; and every command signals a friendly `user-error'.
+;;
+;; Tab names and the same-name policy
+;; ----------------------------------
+;;
+;; A tab record is named after the tab's title, and titles repeat:
+;; two windows on one site, a page open twice, several "New Tab"
+;; pages.  Name conflicts are therefore normal here, not a mistake
+;; to be reported.
+;;
+;; `bookmark-gt-allow-same-name-bookmarks' still decides what may
+;; be stored, but a refresh cannot signal the way
+;; `bookmark-gt-create' does: it runs from a timer, on behalf of
+;; no one, and an error partway would abandon the rest of the
+;; tabs.  So a refusal skips that tab and the refresh reports how
+;; many were skipped.  What each setting means for tabs:
+;;
+;;   `always'                every tab is stored.
+;;   `different-destination' tabs sharing a title are stored when
+;;                           their URLs differ.  A second tab on
+;;                           the same URL is skipped — as a
+;;                           bookmark it is indistinguishable from
+;;                           the first, and jumping to either
+;;                           opens the same address.
+;;   `never'                 the first tab with a given title is
+;;                           stored and the rest are skipped.
+;;
+;; Skipping loses nothing that could be acted on differently:
+;; these records are rebuilt from the browser on every refresh,
+;; and they are never written to the bookmark file.
 
 ;;; Code:
 
@@ -189,13 +218,11 @@ tracks browser activity rather than bookmark-gt jump history."
             props))
     (when (and (stringp browser) (not (string-empty-p browser)))
       (push (cons 'tags (list browser)) props))
-    ;; Tab titles repeat across windows and sessions, and these
-    ;; records are rebuilt wholesale on every refresh, so the
-    ;; same-name policy that governs deliberate creation does not
-    ;; apply: it would signal partway through a refresh nobody
-    ;; asked for.  What should govern tab records is a separate
-    ;; question; until it is answered they are stored as named.
-    (let ((bookmark-gt-allow-same-name-bookmarks 'always))
+    ;; A refresh is not a user acting on one bookmark, so a name
+    ;; the policy refuses is skipped rather than signalled: an
+    ;; error here would abandon a refresh nobody asked for,
+    ;; partway through.  See the Commentary on tab names.
+    (when (bookmark-gt-name-available-p base props)
       (bookmark-gt-create-non-file base
                                    'bookmark-gt-handler-url-jump
                                    props
@@ -236,7 +263,8 @@ re-entrancy."
       (when (called-interactively-p 'interactive)
         (message "Browser-tab refresh already in progress; skipping"))
     (let ((bookmark-gt-browser-tabs--refreshing t)
-          (count 0))
+          (count 0)
+          (skipped 0))
       ;; Silence the after-hook (would fire once per stored tab) and
       ;; auto-save (would trigger mid-batch once modification-count
       ;; crosses `bookmark-save-flag') during the loop.  Temp records
@@ -252,10 +280,15 @@ re-entrancy."
           (let ((url (plist-get tab :url)))
             (when (and (stringp url) (not (string-empty-p url))
                        (bookmark-gt-browser-tabs--accept-p tab))
-              (bookmark-gt-browser-tabs--store tab)
-              (setq count (1+ count))))))
+              (if (bookmark-gt-browser-tabs--store tab)
+                  (setq count (1+ count))
+                (setq skipped (1+ skipped)))))))
       (bookmark-gt-list-refresh)
-      (message "Refreshed %d browser-tab bookmark(s)" count))))
+      (if (> skipped 0)
+          (message
+           "Refreshed %d browser-tab bookmark(s); %d skipped, their names are in use"
+           count skipped)
+        (message "Refreshed %d browser-tab bookmark(s)" count)))))
 
 ;;;; Mode
 ;;

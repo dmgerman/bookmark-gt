@@ -490,25 +490,41 @@ refused rather than silently doubling."
      ((or f-a f-b u-a u-b) nil)
      (t t))))
 
-(defun bookmark-gt--check-name-available (name data)
-  "Signal unless a new record named NAME with alist DATA may be stored.
+(defun bookmark-gt-name-available-p (name data)
+  "Return non-nil when a new record named NAME with alist DATA may be stored.
 Applies `bookmark-gt-allow-same-name-bookmarks'; see its
-docstring.  Returns NAME when the name may be used."
+docstring.
+
+The predicate exists for callers that store many records at once
+and cannot stop on one refusal — a browser-tab refresh, which
+the user did not ask for and which must not fail partway.  A
+caller acting on one bookmark should use
+`bookmark-gt--check-name-available', which explains the refusal."
   (let ((existing (bookmark-gt--records-named name)))
     (cond
-     ((null existing) name)
-     ((eq bookmark-gt-allow-same-name-bookmarks 'always) name)
-     ((eq bookmark-gt-allow-same-name-bookmarks 'never)
-      (user-error
-       "A bookmark named `%s' exists; choose another name, or update it with `%s'"
-       name "bookmark-gt-update"))
-     ((seq-find (lambda (other)
-                  (bookmark-gt--same-destination-p (cons name data) other))
-                existing)
-      (user-error
-       "A bookmark named `%s' already points here; update it with `%s'"
-       name "bookmark-gt-update"))
-     (t name))))
+     ((null existing) t)
+     ((eq bookmark-gt-allow-same-name-bookmarks 'always) t)
+     ((eq bookmark-gt-allow-same-name-bookmarks 'never) nil)
+     (t (not (seq-find
+              (lambda (other)
+                (bookmark-gt--same-destination-p (cons name data) other))
+              existing))))))
+
+(defun bookmark-gt--check-name-available (name data)
+  "Signal unless a new record named NAME with alist DATA may be stored.
+Returns NAME when the name may be used.  The message names the
+reason, which differs between the two ways a name can be
+refused."
+  (cond
+   ((bookmark-gt-name-available-p name data) name)
+   ((eq bookmark-gt-allow-same-name-bookmarks 'never)
+    (user-error
+     "A bookmark named `%s' exists; choose another name, or update it with `%s'"
+     name "bookmark-gt-update"))
+   (t
+    (user-error
+     "A bookmark named `%s' already points here; update it with `%s'"
+     name "bookmark-gt-update"))))
 
 ;;;; Hook runners (internal)
 
