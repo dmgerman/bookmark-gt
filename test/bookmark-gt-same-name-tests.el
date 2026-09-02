@@ -141,6 +141,28 @@ resolves \"todo\" to B, the most recently stored one."
     (should-error (bookmark-gt-rename-record "solo" "other"))
     (should-error (bookmark-gt-jump-record "solo"))))
 
+;;;; Name-taking commands ask rather than take the first
+
+(ert-deftest bookmark-gt-same-name-test-relocate-refuses-ambiguous-name ()
+  "Given an ambiguous name, relocate resolves rather than taking one.
+Batch mode cannot prompt, so the resolution signals."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-same-name-test--pair)
+    (should-error (bookmark-gt-relocate "todo"))))
+
+(ert-deftest bookmark-gt-same-name-test-toggle-temp-refuses-ambiguous-name ()
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-same-name-test--pair)
+    (should-error (bookmark-gt-toggle-temp "todo"))))
+
+(ert-deftest bookmark-gt-same-name-test-toggles-take-a-record ()
+  "Given the record, each toggle acts on it and leaves its namesake alone."
+  (bookmark-gt-test-with-clean-bookmarks
+    (pcase-let ((`(,a ,b) (bookmark-gt-same-name-test--pair)))
+      (bookmark-gt-toggle-temp a)
+      (should (bookmark-gt-temp-p a))
+      (should-not (bookmark-gt-temp-p b)))))
+
 (provide 'bookmark-gt-same-name-tests)
 
 ;;; bookmark-gt-same-name-tests.el ends here

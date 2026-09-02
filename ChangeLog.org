@@ -74,6 +74,10 @@
   its id, tags, annotation and visit history — which happened on
   every ~org-capture~ and ~org-refile~, since both store onto a
   fixed name.
+- ~bookmark-gt-relocate~, ~bookmark-gt-toggle-temp~ and
+  ~bookmark-gt-auto-update-toggle~ resolve a reference the same
+  way the other commands do: given a name shared by several
+  bookmarks they ask which one, instead of acting on the first.
 - ~bookmark-gt-relocate~ refuses a target whose type differs from
   the record\='s, instead of leaving, say, a PDF handler pointing
   at an org file.

@@ -73,20 +73,21 @@ Every other field returned by the buffer's
 ;;;; Toggle
 
 ;;;###autoload
-(defun bookmark-gt-auto-update-toggle (name)
-  "Toggle the `auto-update' property on the bookmark called NAME.
-Fires `bookmark-gt-record-changed-hook' with the updated record so
+(defun bookmark-gt-auto-update-toggle (&optional bookmark)
+  "Toggle the `auto-update' property on BOOKMARK.
+BOOKMARK is a record, a name, or an id; nil prompts.  A name
+shared by several bookmarks asks which one rather than taking
+the first.
+
+Runs `bookmark-gt-record-changed-hook' with the updated record so
 the list buffer and any other observers refresh."
-  (interactive
-   (list (bookmark-completing-read "Toggle auto-update"
-                                   (or bookmark-current-bookmark ""))))
-  (let ((record (bookmark-get-bookmark name)))
-    (unless record
-      (user-error "No bookmark called %S" name))
-    (let ((current (bookmark-gt-auto-update-p record)))
-      (bookmark-gt-auto-update-set record (not current))
-      (message "%s auto-update on %S"
-               (if current "Disabled" "Enabled") name))))
+  (interactive)
+  (let* ((record (bookmark-gt--resolve bookmark "Toggle auto-update"))
+         (current (bookmark-gt-auto-update-p record)))
+    (bookmark-gt-auto-update-set record (not current))
+    (message "%s auto-update on %S"
+             (if current "Disabled" "Enabled")
+             (bookmark-name-from-full-record record))))
 
 ;;;###autoload
 (defun bookmark-gt-auto-update-set (record flag &optional no-notify)

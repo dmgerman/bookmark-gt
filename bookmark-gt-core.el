@@ -800,22 +800,23 @@ once at end of a batch.  Returns the mutated record."
       (bookmark-gt--after-mutation entry))
     entry))
 
-(defun bookmark-gt-toggle-temp (name)
-  "Toggle the temp property on the bookmark called NAME.
+(defun bookmark-gt-toggle-temp (&optional bookmark)
+  "Toggle the temp property on BOOKMARK.
+BOOKMARK is a record, a name, or an id; nil prompts.  A name
+shared by several bookmarks asks which one rather than taking
+the first.
+
 Clearing the flag makes the record eligible for the bookmark
 file, so any `bookmark-gt-session-only-props' key is removed at
-the same time.  Fires `bookmark-gt-record-changed-hook' so the list
-buffer and any other observers refresh."
-  (interactive
-   (list (bookmark-completing-read "Toggle temporary"
-                                   (or bookmark-current-bookmark ""))))
-  (let ((record (bookmark-get-bookmark name)))
-    (unless record
-      (user-error "No bookmark called %S" name))
-    (let ((current (bookmark-gt-temp-p record)))
-      (bookmark-gt-temp-set record (not current))
-      (message "%s temp on %S"
-               (if current "Cleared" "Set") name))))
+the same time.  Runs `bookmark-gt-record-changed-hook' so the
+list buffer and any other observers refresh."
+  (interactive)
+  (let* ((record (bookmark-gt--resolve bookmark "Toggle temporary"))
+         (current (bookmark-gt-temp-p record)))
+    (bookmark-gt-temp-set record (not current))
+    (message "%s temp on %S"
+             (if current "Cleared" "Set")
+             (bookmark-name-from-full-record record))))
 
 ;;;; jump-via override
 ;;
@@ -1809,18 +1810,18 @@ creating one could not."
 ;; the same-name-overwrite policy updates `position' in place.
 
 ;;;###autoload
-(defun bookmark-gt-relocate (bookmark)
-  "Change the target of BOOKMARK, a bookmark record or name.
+(defun bookmark-gt-relocate (&optional bookmark)
+  "Change the target of BOOKMARK.
 File bookmarks prompt for a new filename with `read-file-name'
 and keep the current position.  Records with a `url' key
 prompt for a new URL.  Records with neither signal a
 `user-error'.  Fires `bookmark-gt-record-changed-hook'.
 
-Passing a record relocates exactly that record.  Passing a name
-resolves it with `bookmark-get-bookmark', which returns the
-first record carrying it."
-  (interactive (list (bookmark-completing-read "Relocate bookmark")))
-  (let* ((entry    (bookmark-get-bookmark bookmark))
+BOOKMARK is a record, a name, or an id; nil prompts.  A name
+shared by several bookmarks asks which one rather than taking
+the first."
+  (interactive)
+  (let* ((entry    (bookmark-gt--resolve bookmark "Relocate bookmark"))
          (label    (bookmark-name-from-full-record entry))
          (filename (bookmark-prop-get entry 'filename))
          (url      (bookmark-prop-get entry 'url)))

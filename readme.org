@@ -863,11 +863,6 @@ and ~bookmark-gt-delete-record~ take a record and signal if given
 a name, so a caller holding a record cannot act on a different
 one.
 
-*Two exceptions.*  ~bookmark-gt-relocate~ and
-~bookmark-gt-toggle-temp~ accept a record or a name, but a name
-resolves to the first match rather than prompting.  Call them
-with a record when it matters.
-
 *** Record identity
 
 Each record carries a ~bookmark-gt-id~ — a symbol assigned when

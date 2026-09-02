@@ -1080,11 +1080,6 @@ singleton by construction, so first-match resolution is right for it.
 ‘bookmark-gt-delete-record’ take a record and signal if given a name, so
 a caller holding a record cannot act on a different one.
 
-   *Two exceptions.*  ‘bookmark-gt-relocate’ and
-‘bookmark-gt-toggle-temp’ accept a record or a name, but a name resolves
-to the first match rather than prompting.  Call them with a record when
-it matters.
-
 
 File: bookmark-gt.info,  Node: Record identity,  Prev: Which command reaches which record,  Up: Bookmarks that share a name
 
@@ -1742,30 +1737,30 @@ Node: Telling them apart on screen41283
 Node: Loading a file that breaks the setting41940
 Node: If you expected two records and see one43001
 Node: Which command reaches which record44789
-Node: Record identity46962
-Node: Changing an existing bookmark47955
-Node: bookmark-gt-update — point it at where I am49006
-Node: bookmark-gt-relocate — point it somewhere I name49992
-Node: bookmark-gt-rename51155
-Node: Deleting51637
-Node: In-file behaviors52132
-Node: In-buffer cycling52361
-Node: Per-bookmark highlighting53361
-Node: Region bookmarks55324
-Node: Trackers56848
-Node: Visit tracker57024
-Node: File-rename tracker57768
-Node: Extension API58755
-Node: Handler registry58956
-Node: Group registry61153
-Node: Extension points62806
-Node: Compatibility65930
-Node: Data compat with bookmark+66131
-Node: Migrating from bookmark+67474
-Node: Reference69818
-Node: Selected customization69981
-Node: Acknowledgements75247
-Node: License77581
+Node: Record identity46747
+Node: Changing an existing bookmark47740
+Node: bookmark-gt-update — point it at where I am48791
+Node: bookmark-gt-relocate — point it somewhere I name49777
+Node: bookmark-gt-rename50940
+Node: Deleting51422
+Node: In-file behaviors51917
+Node: In-buffer cycling52146
+Node: Per-bookmark highlighting53146
+Node: Region bookmarks55109
+Node: Trackers56633
+Node: Visit tracker56809
+Node: File-rename tracker57553
+Node: Extension API58540
+Node: Handler registry58741
+Node: Group registry60938
+Node: Extension points62591
+Node: Compatibility65715
+Node: Data compat with bookmark+65916
+Node: Migrating from bookmark+67259
+Node: Reference69603
+Node: Selected customization69766
+Node: Acknowledgements75032
+Node: License77366
 
 End Tag Table
 
