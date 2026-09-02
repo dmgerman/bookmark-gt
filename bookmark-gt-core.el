@@ -169,11 +169,16 @@ arriving from other packages are picked up at whichever of those
 comes first.  In the steady state every record has an id and this
 is a scan that changes nothing.
 
+Enforces `bookmark-gt-allow-same-name-bookmarks' first, via
+`bookmark-gt--drop-same-name-violations\=': a record the setting
+forbids should not be given an id and kept.
+
 Assigning is a change to what `bookmark-save' would write, so it
 is counted once at the end rather than per record, and only when
 a record eligible for the file was given an id.  Temporary
 records are excluded from the file, so ids assigned to them do
 not count."
+  (bookmark-gt--drop-same-name-violations)
   (let ((taken (bookmark-gt--ids-in-use))
         (assigned 0)
         (persistent nil))
@@ -387,7 +392,7 @@ keeps them distinct when the destinations match too."
                    record))
            records))
          (choice (completing-read
-                  (format "%s (%d bookmarks are named `%s\='): "
+                  (format "%s (%d bookmarks are named `%s'): "
                           (or prompt "Bookmark") (length records) name)
                   (mapcar #'car table) nil t)))
     (cdr (assoc choice table))))
@@ -1381,10 +1386,82 @@ the caller does not know about are carried across.  See
         (when-let* ((record (bookmark-get-bookmark name 'noerror)))
           (bookmark-gt--restore-preserved record saved))))))
 
+(defun bookmark-gt--record-for-display (record)
+  "Return RECORD pretty-printed, for a message a user has to read.
+The name is copied without text properties: bookmark+ attaches a
+snapshot of the whole record to the name string, which would
+otherwise be printed inline."
+  (pp-to-string (cons (substring-no-properties
+                       (bookmark-name-from-full-record record))
+                      (bookmark-gt--record-data record))))
+
+(defun bookmark-gt--drop-same-name-violations ()
+  "Remove records that `bookmark-gt-allow-same-name-bookmarks' forbids.
+Returns the records removed.
+
+`bookmark-gt-create' cannot produce a name the setting forbids,
+but other things can: a bookmark file written elsewhere, and the
+built-in `bookmark-set', which bookmark-gt leaves alone because
+packages call it from Lisp.  Enforcing the setting only at
+creation would leave `never' meaning \"no two same-named
+bookmarks, unless one arrived some other way\".
+
+Runs from `bookmark-gt-ensure-ids', so every place that reads the
+whole alist enforces it: after a load, when the list buffer
+redraws, and once per jump.
+
+The first record of a name is kept.  Under
+`different-destination' a later one is kept when it points
+somewhere no kept record does.
+
+Not counted as a modification: dropping makes memory match the
+setting, it is not an edit the user asked for, and counting it
+would schedule the write that makes the omission permanent."
+  (let ((seen (make-hash-table :test 'equal))
+        (kept nil)
+        (dropped nil))
+    (dolist (record (reverse bookmark-alist))
+      (let* ((name (substring-no-properties
+                    (bookmark-name-from-full-record record)))
+             (peers (gethash name seen)))
+        (if (or (null peers)
+                (pcase bookmark-gt-allow-same-name-bookmarks
+                  ('always t)
+                  ('never nil)
+                  (_ (not (seq-find
+                           (lambda (other)
+                             (bookmark-gt--same-destination-p record other))
+                           peers)))))
+            (progn (puthash name (cons record peers) seen)
+                   (push record kept))
+          (push record dropped))))
+    (when dropped
+      (setq bookmark-alist (reverse kept))
+      (display-warning
+       'bookmark-gt
+       (format
+        (concat "%d bookmark(s) omitted: their names repeat, and "
+                "`bookmark-gt-allow-same-name-bookmarks' is `%s'.\n\n"
+                "%s\n"
+                "They are still in %s, and stay there until it is "
+                "next saved.  Set the option to `always' and reload "
+                "to keep them.")
+        (length dropped)
+        bookmark-gt-allow-same-name-bookmarks
+        ;; The whole record, not just the name: this warning is the
+        ;; only copy the user has until they open the file, and a
+        ;; name alone does not say which bookmark went.
+        (mapconcat #'bookmark-gt--record-for-display dropped "\n")
+        (abbreviate-file-name (or bookmark-default-file "the bookmark file")))
+       :warning))
+    dropped))
+
 (defun bookmark-gt--ensure-ids-advice (&rest _)
-  "After advice for `bookmark-load' that assigns missing ids.
-`bookmark-load' rebuilds `bookmark-alist' from the file, so any
-record written by another package arrives without one."
+  "After advice for `bookmark-load' that reconciles the loaded alist.
+`bookmark-load' rebuilds `bookmark-alist' from the file, so it
+can hold records another package wrote without an id, and names
+that repeat in ways the same-name setting forbids.
+`bookmark-gt-ensure-ids' deals with both."
   (bookmark-gt-ensure-ids))
 
 (defun bookmark-gt--save-filter-advice (orig-fn &rest args)

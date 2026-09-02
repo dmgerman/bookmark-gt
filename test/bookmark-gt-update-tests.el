@@ -152,6 +152,84 @@ the record wholesale."
               (should (= (bookmark-prop-get after 'visits) 3)))))
       (bookmark-gt-mode -1))))
 
+;;;; Loading a file the policy forbids
+
+(defun bookmark-gt-update-test--load-with (policy records)
+  "Save RECORDS, reload under POLICY, return the resulting alist."
+  (let ((bookmark-gt-allow-same-name-bookmarks 'always))
+    (dolist (spec records)
+      (bookmark-gt-create-non-file (car spec) 'h
+                                   (list (cons 'filename (cdr spec))))))
+  (bookmark-save)
+  (let ((bookmark-alist nil)
+        (bookmark-gt-allow-same-name-bookmarks policy))
+    (bookmark-load bookmark-default-file t t nil)
+    (bookmark-gt--drop-same-name-violations)
+    bookmark-alist))
+
+(ert-deftest bookmark-gt-update-test-load-never-keeps-first ()
+  "Under `never', a file with repeated names loads only the first of each."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((loaded (bookmark-gt-update-test--load-with
+                   'never '(("todo" . "/tmp/a") ("todo" . "/tmp/b")))))
+      (should (= 1 (length loaded))))))
+
+(ert-deftest bookmark-gt-update-test-load-always-keeps-all ()
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((loaded (bookmark-gt-update-test--load-with
+                   'always '(("todo" . "/tmp/a") ("todo" . "/tmp/b")))))
+      (should (= 2 (length loaded))))))
+
+(ert-deftest bookmark-gt-update-test-load-keeps-different-destinations ()
+  "The default keeps repeated names that point at different files."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((loaded (bookmark-gt-update-test--load-with
+                   'different-destination
+                   '(("todo" . "/tmp/a") ("todo" . "/tmp/b")))))
+      (should (= 2 (length loaded))))))
+
+(ert-deftest bookmark-gt-update-test-load-drops-same-destination ()
+  "The default drops a repeat that points where a kept record points."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((loaded (bookmark-gt-update-test--load-with
+                   'different-destination
+                   '(("todo" . "/tmp/a") ("todo" . "/tmp/a")))))
+      (should (= 1 (length loaded))))))
+
+(ert-deftest bookmark-gt-update-test-load-drop-does-not-schedule-a-write ()
+  "Dropping must not count as a change: that would make the loss permanent."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((bookmark-gt-allow-same-name-bookmarks 'always))
+      (bookmark-gt-create-non-file "todo" 'h (list (cons 'filename "/tmp/a")))
+      (bookmark-gt-create-non-file "todo" 'h (list (cons 'filename "/tmp/a"))))
+    (let ((bookmark-gt-allow-same-name-bookmarks 'never)
+          (bookmark-alist-modification-count 0))
+      (bookmark-gt--drop-same-name-violations)
+      (should (= bookmark-alist-modification-count 0)))))
+
+(ert-deftest bookmark-gt-update-test-scan-drops-a-stray-store ()
+  "A duplicate made by the built-in store is dropped by the next scan.
+`bookmark-set' is left alone for Lisp callers, so it can put a
+record into the alist that `bookmark-gt-create' would refuse.
+The id scan is where that is caught."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((bookmark-gt-allow-same-name-bookmarks 'never))
+      (bookmark-gt-create-non-file "todo" 'h (list (cons 'filename "/tmp/a")))
+      ;; NO-OVERWRITE: the built-in pushes a second record.
+      (bookmark-store "todo" (list (cons 'filename "/tmp/b")) t)
+      (should (= 2 (length (bookmark-gt--records-named "todo"))))
+      (bookmark-gt-ensure-ids)
+      (should (= 1 (length (bookmark-gt--records-named "todo")))))))
+
+(ert-deftest bookmark-gt-update-test-scan-keeps-legitimate-namesakes ()
+  "The scan leaves alone what the setting permits."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((bookmark-gt-allow-same-name-bookmarks 'different-destination))
+      (bookmark-gt-create-non-file "todo" 'h (list (cons 'filename "/tmp/a")))
+      (bookmark-gt-create-non-file "todo" 'h (list (cons 'filename "/tmp/b")))
+      (bookmark-gt-ensure-ids)
+      (should (= 2 (length (bookmark-gt--records-named "todo")))))))
+
 (provide 'bookmark-gt-update-tests)
 
 ;;; bookmark-gt-update-tests.el ends here

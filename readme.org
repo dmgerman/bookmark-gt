@@ -728,66 +728,64 @@ seeds itself with any tags provided by
 ~bookmark-gt-default-tags-mode~ or another
 ~bookmark-gt-set-tag-reader-hook~ contributor.
 
-** Same-name policy
+** Bookmarks that share a name
 
-Setting a bookmark whose name is already in use is not an
-error.  Two defcustoms determine the result, and each applies
-to a different kind of collision — for any single
-~bookmark-gt-set~ call at most one of them is consulted:
+A bookmark name is a label, not an identifier.  Two bookmarks may
+share one — a ~todo~ in each of several projects is the case this
+exists for.  What they cannot share is a name *and* a
+destination: that pair is almost always a second bookmark created
+by accident, in a place that already has one.
 
-- ~bookmark-gt-same-name-overwrite~ applies to a *full
-  collision*: the existing record has the same name AND the
-  same handler AND the same filename.  The new record is then
-  the same bookmark at a new position.
-- ~bookmark-gt-allow-duplicate-names~ applies to a *partial
-  collision*: the existing record has the same name but a
-  different filename or a different handler.  The new record is
-  then a different bookmark that reuses an existing name.
+~bookmark-gt-allow-same-name-bookmarks~ decides when
+~bookmark-gt-create~ may reuse a name:
 
-The name the new record ends up stored under is determined by
-these rules, in order:
+| Value                           | Creating with a name already in use                                             |
+|---------------------------------+---------------------------------------------------------------------------------|
+| ~never~                           | refused                                                                         |
+| ~different-destination~ (default) | allowed when the two point at different files or URLs; refused for the same one |
+| ~always~                          | allowed                                                                         |
 
-1. *Prefix-argument override.*  When ~M-x bookmark-gt-set~ is
-   called with a prefix argument (~NO-OVERWRITE~ non-nil from
-   Lisp), a ~<N>~ suffix is always appended.  Same semantics
-   as built-in ~bookmark-set~ with ~C-u~.
-2. *Update in place.*  If ~bookmark-gt-same-name-overwrite~ is
-   non-nil (the default) and the existing record has the same
-   handler AND the same filename as the new one, the existing
-   record is replaced in place.  This is the "update this
-   bookmark's location" case: re-setting ~todo~ inside
-   ~todo.org~ when ~todo~ already points to ~todo.org~ moves
-   the existing record's position to point.
-3. *Shared name across records.*  If
-   ~bookmark-gt-allow-duplicate-names~ is non-nil (the
-   default), the new record is stored under the literal name
-   even when another record already uses it — two bookmarks
-   in different files (or with different handlers) can share
-   the same name.  Example: a ~todo~ bookmark in each of
-   several project files.
-4. *Fallback.*  With both flags off, any collision that isn't
-   handled by rule 2 receives a ~<N>~ suffix.
+A refusal is an error naming the conflict.  The bookmark is not
+stored under an altered name: appending ~<2>~ would make names
+unique behind your back, which is exactly what allowing shared
+names exists to avoid.  When you meant to move the existing
+bookmark rather than add one, the error says so — use
+~bookmark-gt-update~.
 
-*** Worked scenario: the same name in two projects
+Destination means the target, not the position.  Two bookmarks in
+one file at different points share a destination.
 
-Set a bookmark named ~todo~ in =~/src/projA/notes.org=, then
-set another named ~todo~ in =~/src/projB/notes.org=.  The two
-records have the same handler but different filenames, so this
-is a partial collision: rule 2 does not apply whatever the
-value of ~bookmark-gt-same-name-overwrite~, and rule 3
-determines the result.
+*** Telling them apart on screen
 
-| ~same-name-overwrite~ | ~allow-duplicate-names~ | Result                       |
-|---------------------+-----------------------+------------------------------|
-| ~t~ (default)         | ~t~ (default)           | two records, both named ~todo~ |
-| ~nil~                 | ~t~                     | two records, both named ~todo~ |
-| ~t~                   | ~nil~                   | ~todo~ and ~todo<2>~             |
-| ~nil~                 | ~nil~                   | ~todo~ and ~todo<2>~             |
+Records sharing a name are displayed with a ~<N>~ suffix — ~todo~,
+~todo<2>~ — the convention Emacs uses for buffers it cannot
+otherwise distinguish.
 
-The left column has no effect here.  It would matter only if
-the second ~bookmark-gt-set~ ran in =projA/notes.org= again —
-the full-collision case, where ~t~ moves the existing record's
-position to point and ~nil~ produces ~todo<2>~.
+The suffix is computed for display and never stored.  The name in
+the bookmark file is the one you typed, so deleting or renaming
+one of the records renumbers the rest rather than leaving a stale
+suffix behind, and nothing you did not type ends up in your
+bookmark file.
+
+*** Loading a file that breaks the setting
+
+~bookmark-gt-create~ cannot produce a name the setting forbids,
+but a bookmark file can: written by the built-in bookmark
+package, by bookmark-gt under a different setting, or on another
+machine.
+
+When such a file is loaded, the records the setting forbids are
+omitted from ~bookmark-alist~ and a warning lists them.  The
+first record of a name is always kept; under the default a later
+one is kept when it points somewhere no kept record does.
+
+*The omission is in memory only.*  Those bookmarks are still in
+the file, and stay there until it is next saved — at which point
+they are gone from it too.  To keep them, set the option to
+~always~ and reload before saving.
+
+Omitting them is not counted as a change, so it never schedules a
+save on its own.
 
 *** If you expected two records and see one
 
@@ -893,9 +891,8 @@ a name they resolve it to the first match, the same as the
 built-ins.  Call them with a record when it matters.
 
 To avoid the distinction entirely, set
-~bookmark-gt-allow-duplicate-names~ to nil: collisions then get a
-stored ~<N>~ suffix and every name resolves to exactly one
-record.
+~bookmark-gt-allow-same-name-bookmarks~ to ~never~: every name
+then resolves to exactly one record.
 
 *** Record identity
 
@@ -934,8 +931,8 @@ other observer refresh automatically.
 
 For a genuinely new position within a different file, jump to
 the target, place point, and re-invoke ~bookmark-gt-set~ with
-the same name — the same-name-overwrite policy (above) updates
-~position~ in place.
+the same name — ~bookmark-gt-update~ points the bookmark at where
+you are, keeping everything else about it.
 
 * In-file behaviors
 
@@ -1291,30 +1288,29 @@ bookmark file before running.
 
 ** Selected customization
 
-| Variable                           | Default                           | What it does                                                                                                                                                                                                                                                                               |
-|------------------------------------+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| ~bookmark-gt-list-name-width~        | ~32~                                | Character width of the Name column in ~*Bookmarks-gt List*~.  Longer names are truncated with an ellipsis.                                                                                                                                                                                   |
-| ~bookmark-gt-list-type-width~        | ~12~                                | Character width of the Type column.                                                                                                                                                                                                                                                        |
-| ~bookmark-gt-list-tags-width~        | ~24~                                | Character width of the Tags column.                                                                                                                                                                                                                                                        |
-| ~bookmark-gt-list-buffer-name~       | ~"*Bookmarks-gt List*"~               | Name of the buffer opened by ~M-x bookmark-gt-list~.                                                                                                                                                                                                                                         |
-| ~bookmark-gt-list-selection-mark~    | ~?*~                                | Character shown in the mark column for rows marked with ~m~ (a bulk action target).                                                                                                                                                                                                          |
-| ~bookmark-gt-list-deletion-mark~     | ~?D~                                | Character shown in the mark column for rows flagged with ~d~; ~x~ deletes every row bearing this mark.                                                                                                                                                                                         |
-| ~bookmark-gt-list-default-show-temp~ | ~t~                                 | Whether new list buffers show temporary bookmarks by default; toggle per-buffer with ~H~ (~bookmark-gt-list-show-temp~).                                                                                                                                                                       |
-| —                                  | —                                 | (View bookmarks: no defcustom; save via ~M-x bookmark-gt-set~ inside the list buffer.)                                                                                                                                                                                                       |
-| ~bookmark-gt-jump-name-max-width~    | ~58~                                | Width at which the jump reader truncates bookmark names, so a long name does not push the annotation columns off the window.  Avoid multiples of 10: marginalia rounds its alignment column up to a multiple of 10, so such a value leaves the widest rows no room for the aligning space. |
-| ~bookmark-gt-jump-default-sort~      | ~'mru~                              | Sort order used by ~bookmark-gt-jump~ when no ~:sort-by~ is given.  Values: ~'mru~ (most recently used), ~'visits~, ~nil~ (pool order).                                                                                                                                                              |
-| ~bookmark-gt-dired-virtual-max-size~ | ~524288~                            | Maximum bytes of a virtual-dired buffer to inline in a Dired bookmark.  Exceeding this on ~bookmark-gt-set~ signals ~user-error~.                                                                                                                                                              |
-| ~bookmark-gt-auto-update-interval~   | ~60~                                | Seconds of idle time between ticks of ~bookmark-gt-auto-update-mode~; each tick refreshes bookmarks carrying ~auto-update~.                                                                                                                                                                    |
-| ~bookmark-gt-track-renames~          | ~t~                                 | When non-nil, ~rename-file~ rewrites any bookmark whose ~filename~ matched the source path to the destination.                                                                                                                                                                                 |
-| ~bookmark-gt-default-tags~           | ~nil~                               | Under ~bookmark-gt-default-tags-mode~, seeds the tag reader.  Value can be a string, a list of strings, or a function of the record; see the mode's section.                                                                                                                                 |
-| ~bookmark-gt-prompt-for-tags-flag~   | ~t~                                 | Whether the tag reader prompts on ~bookmark-gt-set~.  Off suppresses the prompt globally; batch callers can let-bind ~nil~.                                                                                                                                                                    |
-| ~bookmark-gt-same-name-overwrite~    | ~t~                                 | *Full collision only* (same name AND handler AND filename): replace the existing record in place rather than appending ~<N>~.  Has no effect when the filenames differ; see Same-name policy.                                                                                                  |
-| ~bookmark-gt-allow-duplicate-names~  | ~t~                                 | *Partial collision only* (same name, different filename or handler): store the literal name, letting two records share it.  Off appends ~<N>~ instead; see Same-name policy.                                                                                                                   |
-| ~bookmark-gt-highlight-enable~       | ~t~                                 | Per-bookmark line overlays in file-visiting buffers.  Off suppresses the overlays even while ~bookmark-gt-mode~ is on.                                                                                                                                                                       |
-| ~bookmark-gt-auto-temp-names~        | ~("\\`org-capture-last-stored\\'")~ | Names (regexps) auto-marked temporary on `bookmark-store' — third-party transient bookmarks that should not persist.                                                                                                                                                                       |
-| ~bookmark-gt-file-type-handlers~     | ~nil~                               | Alist mapping filename regexp to a handler function; when a file bookmark's ~filename~ matches, the function is called with the record instead of the built-in ~find-file~ path.                                                                                                               |
-| ~bookmark-gt-browser-tabs-browsers~  | ~nil~                               | List of browser-gt browser client names to query for tabs (e.g. ~'("chrome" "firefox")~), or ~nil~ to query every browser browser-gt is connected to.                                                                                                                                          |
-| ~bookmark-gt-browser-tabs-filter~    | ~nil~                               | Filter applied to each fetched tab before it is stored.  ~nil~ = accept every tab; a regexp = keep tabs whose URL matches; a function = called with the tab plist, kept when it returns non-nil.                                                                                             |
+| Variable                              | Default                           | What it does                                                                                                                                                                                                                                                                               |
+|---------------------------------------+-----------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ~bookmark-gt-list-name-width~           | ~32~                                | Character width of the Name column in ~*Bookmarks-gt List*~.  Longer names are truncated with an ellipsis.                                                                                                                                                                                   |
+| ~bookmark-gt-list-type-width~           | ~12~                                | Character width of the Type column.                                                                                                                                                                                                                                                        |
+| ~bookmark-gt-list-tags-width~           | ~24~                                | Character width of the Tags column.                                                                                                                                                                                                                                                        |
+| ~bookmark-gt-list-buffer-name~          | ~"*Bookmarks-gt List*"~               | Name of the buffer opened by ~M-x bookmark-gt-list~.                                                                                                                                                                                                                                         |
+| ~bookmark-gt-list-selection-mark~       | ~?*~                                | Character shown in the mark column for rows marked with ~m~ (a bulk action target).                                                                                                                                                                                                          |
+| ~bookmark-gt-list-deletion-mark~        | ~?D~                                | Character shown in the mark column for rows flagged with ~d~; ~x~ deletes every row bearing this mark.                                                                                                                                                                                         |
+| ~bookmark-gt-list-default-show-temp~    | ~t~                                 | Whether new list buffers show temporary bookmarks by default; toggle per-buffer with ~H~ (~bookmark-gt-list-show-temp~).                                                                                                                                                                       |
+| —                                     | —                                 | (View bookmarks: no defcustom; save via ~M-x bookmark-gt-set~ inside the list buffer.)                                                                                                                                                                                                       |
+| ~bookmark-gt-jump-name-max-width~       | ~58~                                | Width at which the jump reader truncates bookmark names, so a long name does not push the annotation columns off the window.  Avoid multiples of 10: marginalia rounds its alignment column up to a multiple of 10, so such a value leaves the widest rows no room for the aligning space. |
+| ~bookmark-gt-jump-default-sort~         | ~'mru~                              | Sort order used by ~bookmark-gt-jump~ when no ~:sort-by~ is given.  Values: ~'mru~ (most recently used), ~'visits~, ~nil~ (pool order).                                                                                                                                                              |
+| ~bookmark-gt-dired-virtual-max-size~    | ~524288~                            | Maximum bytes of a virtual-dired buffer to inline in a Dired bookmark.  Exceeding this on ~bookmark-gt-set~ signals ~user-error~.                                                                                                                                                              |
+| ~bookmark-gt-auto-update-interval~      | ~60~                                | Seconds of idle time between ticks of ~bookmark-gt-auto-update-mode~; each tick refreshes bookmarks carrying ~auto-update~.                                                                                                                                                                    |
+| ~bookmark-gt-track-renames~             | ~t~                                 | When non-nil, ~rename-file~ rewrites any bookmark whose ~filename~ matched the source path to the destination.                                                                                                                                                                                 |
+| ~bookmark-gt-default-tags~              | ~nil~                               | Under ~bookmark-gt-default-tags-mode~, seeds the tag reader.  Value can be a string, a list of strings, or a function of the record; see the mode's section.                                                                                                                                 |
+| ~bookmark-gt-prompt-for-tags-flag~      | ~t~                                 | Whether the tag reader prompts on ~bookmark-gt-set~.  Off suppresses the prompt globally; batch callers can let-bind ~nil~.                                                                                                                                                                    |
+| ~bookmark-gt-allow-same-name-bookmarks~ | ~different-destination~             | When ~bookmark-gt-create~ may reuse a name already in use: ~never~, ~different-destination~ (allowed when the two point at different files or URLs), or ~always~.  A refusal is an error, never a renamed bookmark.  See Bookmarks that share a name.                                              |
+| ~bookmark-gt-highlight-enable~          | ~t~                                 | Per-bookmark line overlays in file-visiting buffers.  Off suppresses the overlays even while ~bookmark-gt-mode~ is on.                                                                                                                                                                       |
+| ~bookmark-gt-auto-temp-names~           | ~("\\`org-capture-last-stored\\'")~ | Names (regexps) auto-marked temporary on `bookmark-store' — third-party transient bookmarks that should not persist.                                                                                                                                                                       |
+| ~bookmark-gt-file-type-handlers~        | ~nil~                               | Alist mapping filename regexp to a handler function; when a file bookmark's ~filename~ matches, the function is called with the record instead of the built-in ~find-file~ path.                                                                                                               |
+| ~bookmark-gt-browser-tabs-browsers~     | ~nil~                               | List of browser-gt browser client names to query for tabs (e.g. ~'("chrome" "firefox")~), or ~nil~ to query every browser browser-gt is connected to.                                                                                                                                          |
+| ~bookmark-gt-browser-tabs-filter~       | ~nil~                               | Filter applied to each fetched tab before it is stored.  ~nil~ = accept every tab; a regexp = keep tabs whose URL matches; a function = called with the tab plist, kept when it returns non-nil.                                                                                             |
 
 * Acknowledgements
 

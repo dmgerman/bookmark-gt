@@ -49,6 +49,17 @@
   commands are remapped; the functions keep their own behavior
   for Lisp callers.
 
+** Changed
+
+- Loading a bookmark file whose names repeat in ways
+  ~bookmark-gt-allow-same-name-bookmarks~ forbids omits those
+  records and warns, listing them.  The first record of a name is
+  kept; under the default a later one is kept when it points
+  somewhere no kept record does.  The omission is in memory only
+  — the bookmarks are still in the file until it is next saved —
+  and it is not counted as a change, so it never schedules that
+  save on its own.
+
 ** Fixed
 
 - A browser-tab refresh no longer stops at a repeated tab title.
