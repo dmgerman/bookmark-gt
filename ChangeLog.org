@@ -34,6 +34,17 @@
 
 ** Added
 
+- ~bookmark-gt-unique-names~ — names (regexps) that may identify
+  only one bookmark, whatever
+  ~bookmark-gt-allow-same-name-bookmarks~ says.  Creating a
+  second is refused and one arriving another way is removed by
+  the enforcement scan.  For such a name the string *is* an
+  identifier, usually to a package rather than to you:
+  ~org-capture~ stores onto ~org-capture-last-stored~ on every
+  capture and expects to find its own.  Both org names are in the
+  default, as they are in ~bookmark-gt-auto-temp-names~ — but the
+  two options are independent, so a name can be unique without
+  being temporary, or the reverse.
 - ~bookmark-gt-update~ — points a bookmark at the current
   location, keeping its name, id, tags, annotation, creation time
   and visit history, and replacing everything that describes
@@ -51,9 +62,14 @@
 
 ** Changed
 
+- ~org-refile-last-stored~ is added to
+  ~bookmark-gt-auto-temp-names~.  ~org-refile~ stores it the way
+  ~org-capture~ stores its own, so it was being written to the
+  bookmark file when it should not have been.
+
 - Browser-tab records are refreshed only where they are about to
-  be read: the jump reader, a revert of the list buffer, on
-  demand, and once when the mode is enabled.  The subscription to
+  be read: the jump reader, opening or reverting the list buffer,
+  on demand, and once when the mode is enabled.  The subscription to
   browser connect and disconnect events is removed, along with
   ~bookmark-gt-browser-tabs-debounce~ and the timer that
   coalesced those events.  Tabs change without any client

@@ -553,6 +553,7 @@ caller acting on one bookmark should use
   (let ((existing (bookmark-gt--records-named name)))
     (cond
      ((null existing) t)
+     ((bookmark-gt-unique-name-p name) nil)
      ((eq bookmark-gt-allow-same-name-bookmarks 'always) t)
      ((eq bookmark-gt-allow-same-name-bookmarks 'never) nil)
      (t (not (seq-find
@@ -1485,13 +1486,14 @@ would schedule the write that makes the omission permanent."
                     (bookmark-name-from-full-record record)))
              (peers (gethash name seen)))
         (if (or (null peers)
-                (pcase bookmark-gt-allow-same-name-bookmarks
-                  ('always t)
-                  ('never nil)
-                  (_ (not (seq-find
-                           (lambda (other)
-                             (bookmark-gt--same-destination-p record other))
-                           peers)))))
+                (and (not (bookmark-gt-unique-name-p name))
+                     (pcase bookmark-gt-allow-same-name-bookmarks
+                       ('always t)
+                       ('never nil)
+                       (_ (not (seq-find
+                                (lambda (other)
+                                  (bookmark-gt--same-destination-p record other))
+                                peers))))))
             (progn (puthash name (cons record peers) seen)
                    (push record kept))
           (push record dropped))))
@@ -1546,24 +1548,66 @@ filter is only applied to what gets written to disk."
 ;; so the save filter excludes them.
 
 (defcustom bookmark-gt-auto-temp-names
-  '("\\`org-capture-last-stored\\'")
-  "Bookmark names (regexps) auto-marked temporary on store.
-Each element is a regexp matched against the stored name.
-When any regexp matches, `bookmark-gt-temp-key' is set on the
-record so `bookmark-save' skips it via the temp filter.
+  '("\\`org-capture-last-stored\\'"
+    "\\`org-refile-last-stored\\'")
+  "Bookmark names (regexps) marked temporary when stored.
+Each element is a regexp matched against the stored name.  A
+matching record gets `bookmark-gt-temp-key\=', so `bookmark-save\='
+skips it via the temp filter: it is rebuilt by whatever stores
+it and does not belong in the file.
 
-Default entry covers `org-capture-last-stored', the bookmark
-`org-capture' re-stores on every capture."
+Default entries cover `org-capture-last-stored\=' and
+`org-refile-last-stored\=', which `org-capture\=' and `org-refile\='
+re-store on every capture and refile.
+
+Temporariness and uniqueness are separate: see
+`bookmark-gt-unique-names\=' for names that may only ever
+identify one bookmark.  A name is often both, but need not be."
   :type '(repeat regexp)
   :group 'bookmark-gt)
+
+(defcustom bookmark-gt-unique-names
+  '("\\`org-capture-last-stored\\'"
+    "\\`org-refile-last-stored\\'")
+  "Bookmark names (regexps) that may identify only one bookmark.
+Each element is a regexp matched against the name.  A matching
+name identifies exactly one bookmark, whatever
+`bookmark-gt-allow-same-name-bookmarks\=' says:
+`bookmark-gt-create\=' refuses a second, and the enforcement scan
+removes one that arrived some other way.
+
+For these names the string *is* an identifier, usually to a
+package rather than to the user: `org-capture\=' stores onto
+`org-capture-last-stored\=' on every capture and expects to find
+its own.  A second record under such a name is never what
+anyone meant, so the same-name setting does not get a vote.
+
+This is the place to name any other bookmark whose name must
+resolve to exactly one record, whether or not it is temporary."
+  :type '(repeat regexp)
+  :group 'bookmark-gt)
+
+(defun bookmark-gt-unique-name-p (name)
+  "Return non-nil when NAME may identify only one bookmark.
+True for names matching `bookmark-gt-unique-names\='."
+  (and (stringp name)
+       (seq-some (lambda (pat) (string-match-p pat name))
+                 bookmark-gt-unique-names)
+       t))
+
+(defun bookmark-gt-auto-temp-name-p (name)
+  "Return non-nil when NAME is marked temporary on store.
+True for names matching `bookmark-gt-auto-temp-names\='."
+  (and (stringp name)
+       (seq-some (lambda (pat) (string-match-p pat name))
+                 bookmark-gt-auto-temp-names)
+       t))
 
 (defun bookmark-gt--auto-temp-advice (name &rest _)
   "Mark NAME temp when it matches `bookmark-gt-auto-temp-names'.
 Attached as `:after' advice on `bookmark-store' so the record
 is marked immediately after storage."
-  (when (and (stringp name)
-             (seq-some (lambda (pat) (string-match-p pat name))
-                       bookmark-gt-auto-temp-names))
+  (when (bookmark-gt-auto-temp-name-p name)
     (when-let* ((rec (bookmark-get-bookmark name 'noerror)))
       (bookmark-prop-set rec bookmark-gt-temp-key t))))
 

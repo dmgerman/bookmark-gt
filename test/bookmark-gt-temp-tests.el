@@ -124,5 +124,78 @@
       (bookmark-load bookmark-default-file t t nil)
       (should (= (length bookmark-alist) 2)))))
 
+;;;; Names owned by another package are transient singletons
+
+(ert-deftest bookmark-gt-temp-test-default-names-are-both ()
+  "The two org names are temporary and unique, by default."
+  (bookmark-gt-test-with-clean-bookmarks
+    (dolist (n '("org-capture-last-stored" "org-refile-last-stored"))
+      (should (bookmark-gt-auto-temp-name-p n))
+      (should (bookmark-gt-unique-name-p n)))
+    (should-not (bookmark-gt-auto-temp-name-p "todo"))
+    (should-not (bookmark-gt-unique-name-p "todo"))))
+
+(ert-deftest bookmark-gt-temp-test-the-two-lists-are-independent ()
+  "Uniqueness and temporariness are separate properties.
+A name can be one without the other, which is why they are two
+options rather than one."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((bookmark-gt-unique-names '("\\`solo\\'"))
+          (bookmark-gt-auto-temp-names '("\\`fleeting\\'")))
+      (should (bookmark-gt-unique-name-p "solo"))
+      (should-not (bookmark-gt-auto-temp-name-p "solo"))
+      (should (bookmark-gt-auto-temp-name-p "fleeting"))
+      (should-not (bookmark-gt-unique-name-p "fleeting")))))
+
+(ert-deftest bookmark-gt-temp-test-unique-without-temp-is-enforced ()
+  "A name in the unique list only is still a singleton."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((bookmark-gt-unique-names '("\\`solo\\'"))
+          (bookmark-gt-auto-temp-names nil)
+          (bookmark-gt-allow-same-name-bookmarks 'always))
+      (bookmark-gt-create-non-file "solo" 'h (list (cons 'filename "/tmp/a")))
+      (should-not (bookmark-gt-temp-p (bookmark-get-bookmark "solo")))
+      (should-error
+       (bookmark-gt-create-non-file "solo" 'h (list (cons 'filename "/tmp/b")))
+       :type 'user-error))))
+
+(ert-deftest bookmark-gt-temp-test-singleton-refused-even-with-always ()
+  "`always' does not license a second `org-capture-last-stored'."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((bookmark-gt-allow-same-name-bookmarks 'always))
+      (bookmark-gt-create-non-file "org-capture-last-stored" 'h
+                                   (list (cons 'filename "/tmp/a")))
+      (should-error
+       (bookmark-gt-create-non-file "org-capture-last-stored" 'h
+                                    (list (cons 'filename "/tmp/b")))
+       :type 'user-error))))
+
+(ert-deftest bookmark-gt-temp-test-singleton-duplicate-is-dropped ()
+  "A second one arriving some other way is removed by the scan."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((bookmark-gt-allow-same-name-bookmarks 'always))
+      (bookmark-gt-create-non-file "org-capture-last-stored" 'h
+                                   (list (cons 'filename "/tmp/a")))
+      ;; NO-OVERWRITE: the built-in pushes a second record.
+      (bookmark-store "org-capture-last-stored"
+                      (list (cons 'filename "/tmp/b")) t)
+      (should (= 2 (length (bookmark-gt--records-named
+                            "org-capture-last-stored"))))
+      (bookmark-gt-enforce-same-name-policy)
+      (should (= 1 (length (bookmark-gt--records-named
+                            "org-capture-last-stored")))))))
+
+(ert-deftest bookmark-gt-temp-test-refile-name-is-marked-temp ()
+  "`org-refile-last-stored' is temp, like the capture one."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-mode 1)
+    (unwind-protect
+        (progn
+          (bookmark-store "org-refile-last-stored"
+                          (list (cons 'filename "/tmp/a")) nil)
+          (should (bookmark-gt-temp-p
+                   (bookmark-get-bookmark "org-refile-last-stored"))))
+      (bookmark-gt-mode -1))))
+
 (provide 'bookmark-gt-temp-tests)
 ;;; bookmark-gt-temp-tests.el ends here

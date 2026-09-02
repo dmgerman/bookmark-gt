@@ -740,5 +740,31 @@ falling back to the row at point."
       (should (eq (bookmark-gt-handler-type rec) 'bookmark-gt-view))
       (should (equal (bookmark-gt-handler-name rec) "BkView")))))
 
+;;;; Ephemeral sources are rebuilt when the list is read
+
+(ert-deftest bookmark-gt-list-test-open-refreshes-ephemeral ()
+  "Opening the list refreshes browser tabs, not only reverting does.
+Nothing else populates tab records between reads, so a list
+opened without this shows nothing in a session where no jump has
+happened."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((refreshed 0))
+      (cl-letf (((symbol-function 'bookmark-gt-browser-tabs-refresh)
+                 (lambda (&rest _) (cl-incf refreshed))))
+        (let ((bookmark-gt-browser-tabs-mode t))
+          (bookmark-gt-list-test--in-buffer
+            (should (= refreshed 1))))))))
+
+(ert-deftest bookmark-gt-list-test-revert-refreshes-ephemeral ()
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((refreshed 0))
+      (cl-letf (((symbol-function 'bookmark-gt-browser-tabs-refresh)
+                 (lambda (&rest _) (cl-incf refreshed))))
+        (let ((bookmark-gt-browser-tabs-mode t))
+          (bookmark-gt-list-test--in-buffer
+            (setq refreshed 0)
+            (bookmark-gt-list--revert)
+            (should (= refreshed 1))))))))
+
 (provide 'bookmark-gt-list-tests)
 ;;; bookmark-gt-list-tests.el ends here

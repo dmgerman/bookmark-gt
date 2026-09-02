@@ -614,6 +614,7 @@ mode defaults."
   (interactive)
   (bookmark-maybe-load-default-file)
   (bookmark-gt-enforce-same-name-policy)
+  (bookmark-gt-list--refresh-ephemeral)
   (let ((buf (get-buffer-create bookmark-gt-list-buffer-name)))
     (with-current-buffer buf
       (unless (derived-mode-p 'bookmark-gt-list-mode)
@@ -621,15 +622,27 @@ mode defaults."
       (tabulated-list-print t))
     (pop-to-buffer-same-window buf)))
 
-(defun bookmark-gt-list--revert (&rest _args)
-  "Revert function for the bookmark-gt list buffer.
-Refreshes ephemeral sources (browser tabs, auto-update
-positions) that are currently enabled, then redraws."
-  (bookmark-gt-enforce-same-name-policy)
+(defun bookmark-gt-list--refresh-ephemeral ()
+  "Rebuild the ephemeral sources whose opt-in modes are enabled.
+Browser tabs and auto-update positions describe state outside
+`bookmark-alist', so they are rebuilt when the list is about to
+be read — both when it is opened and when it is reverted.
+
+Opening matters as much as reverting: nothing else populates tab
+records between one read and the next, so a list opened without
+this shows whatever the last refresh left, or nothing at all in
+a session where no jump has happened yet."
   (when (bound-and-true-p bookmark-gt-browser-tabs-mode)
     (bookmark-gt-browser-tabs-refresh))
   (when (bound-and-true-p bookmark-gt-auto-update-mode)
-    (bookmark-gt-auto-update-tick))
+    (bookmark-gt-auto-update-tick)))
+
+(defun bookmark-gt-list--revert (&rest _args)
+  "Revert function for the bookmark-gt list buffer.
+Refreshes ephemeral sources that are currently enabled, then
+redraws."
+  (bookmark-gt-enforce-same-name-policy)
+  (bookmark-gt-list--refresh-ephemeral)
   (bookmark-gt-list--redraw-preserving-point))
 
 ;;;; Cursor → record lookup

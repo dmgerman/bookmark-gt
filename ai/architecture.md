@@ -361,15 +361,20 @@ not kept in sync:
   `bookmark-gt-jump-before-read-hook`, which the reader runs
   exactly once per outer call, so nested jump calls do not
   re-refresh.
-- **`g` (revert) in the list buffer.** `bookmark-gt-list--revert`
-  calls `bookmark-gt-browser-tabs-refresh` and
-  `bookmark-gt-auto-update-tick` directly, each gated by a
+- **Opening the list buffer, and `g` (revert).** Both call
+  `bookmark-gt-list--refresh-ephemeral`, which refreshes browser
+  tabs and auto-update positions, each gated by a
   `bound-and-true-p` check on its opt-in mode.
 - **On demand**, and once when the tabs mode is enabled with a
   browser already connected.
 
-The initial list render does not refresh: `bookmark-gt-list`
-calls `tabulated-list-print`, not `revert-buffer`.
+Opening used to be excluded, on the grounds that
+`bookmark-gt-list` calls `tabulated-list-print` rather than
+`revert-buffer`. That was tenable only while the tabs module
+subscribed to client events, which kept records populated
+between reads. Without the subscription nothing else fills them,
+so a list opened in a session with no prior jump showed no tabs
+at all.
 
 The browser-tabs module previously also subscribed to
 browser-gt's client connect and disconnect hooks, with a
