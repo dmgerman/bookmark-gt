@@ -43,9 +43,6 @@
 ;; minibuffer reads a tag and re-runs the read with the filter
 ;; active.  Multiple `M-t' calls compose; `M-d' pops the last
 ;; filter; abort clears them.
-;;
-;; See ai/design/registries.org for the handler-registry schema
-;; this reader queries.
 
 ;;; Code:
 

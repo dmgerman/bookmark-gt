@@ -41,6 +41,34 @@ Not preferred:
   (process args))
 ```
 
+### Never resolve a record back to its name
+
+If you already hold a record, act on it.  Do not pass
+`(car record)` to a function that takes a name — that
+re-enters `bookmark-get-bookmark`, which is `assoc`, which
+returns the *first* record with that name.  When names are
+duplicated, that is a different record than the one you had.
+
+```elisp
+;; Wrong — holds the record, acts on whichever comes first.
+(bookmark-delete (car record) t)
+
+;; Right — the callee takes a record.
+(bookmark-gt-tags-set record tags)
+```
+
+`bookmark-gt-tags-set` and the other record-taking mutators are
+the model.  Where the callee only accepts a name (some built-in
+`bookmark.el` entry points), that is a defect to route around,
+not a pattern to copy.
+
+### Errors over silent fallback
+
+A reference that cannot be resolved is a broken reference, not
+an absent one.  Signal.  Returning `nil` lets the caller treat
+it as "no bookmark" and continue, which turns a bug into wrong
+behavior somewhere else, later, with no diagnostic.
+
 ### Internal hooks — direct calls
 
 Do not use bookmark-gt's own hooks
@@ -48,7 +76,7 @@ Do not use bookmark-gt's own hooks
 `bookmark-gt-set-tag-reader-hook`,
 `bookmark-gt-set-name-reader-hook`) for internal wiring —
 those are external extension points and ship empty.  See
-`ai/architecture.md` for the rationale and the browsel-tabs
+`ai/architecture.md` for the rationale and the browser-tabs
 performance incident that prompted the rule.
 
 External hooks (Emacs's own — `find-file-hook`,
@@ -132,6 +160,24 @@ remove it.
   sentence).  Public functions get an argument description if
   the argument name isn't self-explanatory.
 
+## Citing documents from source
+
+Source comments and docstrings may cite `ai/architecture.md`,
+`ai/conventions.md`, and `readme.org` — the documents that are
+maintained and tracked in git.
+
+Do not cite decision records.  Those exist to settle one
+question, are moved to `ai/rip/` once implemented, and are
+git-ignored while live, so a citation is a path that a fresh
+clone never had and that stops existing after the work lands.
+
+This is not hypothetical: six source files accumulated ten
+pointers into `ai/design/`, two of them naming a file that was
+never created, and one inside a docstring — where the rule
+above already forbids design rationale.  Put the durable
+statement in the source comment itself, or in
+`ai/architecture.md`, and cite that.
+
 ## Naming
 
 ### List-buffer commands
@@ -153,6 +199,23 @@ reserved for hook *variables*.  Prefer `--on-<event>`:
   `bookmark-gt-auto-update--on-kill-buffer`.
 - Wrong: `bookmark-gt-highlight--find-file-hook` (reads as if
   it's a hook variable named `find-file-hook`).
+
+### Record keys
+
+Before adding a key to a bookmark record, check whether another
+package already writes it.  Bookmark records are a shared
+namespace: every package that stores bookmarks writes into the
+same alist.
+
+`id` is the cautionary case — `org-bookmark-heading` stores the
+org heading ID under it (`org-bookmark-heading.el:162`) and its
+jump handler depends on it.  A generic name we assumed was free
+was not.
+
+Namespace anything whose obvious name is generic:
+`bookmark-gt-<key>`.  Keys deliberately shared with bookmark+
+for round-tripping (`tags`, `bmkp-temp`) are the documented
+exceptions, not the pattern.
 
 ### Handler symbols
 

@@ -17,7 +17,9 @@ Consequences:
 - Adding a new per-bookmark fact = adding an alist key.  No
   new registry needed.
 
-Exceptions (allowlisted, process-scoped only):
+Exceptions, process-scoped only — each is bounded by the
+lifetime of a buffer or a single call, and none survives to
+disk:
 
 - Buffer-local hash for list-buffer marks
   (`bookmark-gt-list--marks`).  Bounded by the buffer's
@@ -25,7 +27,7 @@ Exceptions (allowlisted, process-scoped only):
 - Buffer-local hash for post-jump positions used by the
   highlighter (`bookmark-gt-highlight--jumped-positions`).
   Bounded by the buffer's lifetime.
-- The `bookmark-gt-browsel-tabs--refreshing` re-entrancy
+- The `bookmark-gt-browser-tabs--refreshing` re-entrancy
   guard.  Bounded by one refresh call.
 
 ## Direct calls over hooks for internal wiring
@@ -36,15 +38,15 @@ and history:
 
 - The original design registered internal observers into
   `bookmark-gt-set-after-hook` (the list refresh, the highlight
-  refresh), then had ephemeral sources (browsel-tabs,
+  refresh), then had ephemeral sources (browser-tabs,
   auto-update) fire a shared `bookmark-gt-ephemeral-refresh-hook`.
   This produced invisible control flow: reading a mutator, you
   couldn't tell what would run afterwards without grepping
   `add-hook` calls across five files.
-- The performance bug this created was concrete: browsel-tabs
+- The performance bug this created was concrete: browser-tabs
   refresh fired the after-hook with a `nil` sentinel to mean
   "batch mutation," which cascaded into the highlighter's
-  full-buffer sweep — 840 ms per browsel refresh in a session
+  full-buffer sweep — 840 ms per browser-tab refresh in a session
   with ~130 file buffers and ~120 bookmarks.  A sentinel hack
   patched the symptom but muddied the contract.
 - The refactor replaced the sentinel and the ephemeral hook
@@ -54,7 +56,7 @@ and history:
   filename, then runs the public `bookmark-gt-set-after-hook`.
   Every mutator calls it.  Browsel-tabs refresh calls
   `bookmark-gt-list-refresh` directly at end of batch.
-- End result: 840 ms → 40 ms browsel refresh, ~330 fewer lines
+- End result: 840 ms → 40 ms browser-tab refresh, ~330 fewer lines
   of code, and every internal action is visible at the call
   site.
 
@@ -77,7 +79,7 @@ entry)`.  The helper:
 Batch callers that would otherwise notify per-record pass
 `NO-NOTIFY` non-nil to `bookmark-gt-set-non-file` and call
 `bookmark-gt-list-refresh` once at end.  See
-`bookmark-gt-browsel-tabs-refresh` for the pattern.
+`bookmark-gt-browser-tabs-refresh` for the pattern.
 
 ## Modification accounting is separate from notification
 
@@ -124,10 +126,16 @@ metadata (`:type`, `:name`, `:group`, `:face`, `:narrow-char`,
   (`bmkp-jump-*`) so records from either format classify
   consistently.
 - **Third-party handlers**: for types that other packages own
-  the handler for (EWW, Info, Org, PDF, browser-tab from
-  browsel-tab-manager, etc.), the registry entry lists the
-  third-party symbol.  We do not depend on those packages
-  being loaded — the symbols are quoted data.
+  the handler for (EWW, Info, Org, PDF, etc.), the registry
+  entry lists the third-party symbol.  We do not depend on those
+  packages being loaded — the symbols are quoted data.
+- **Retired-package aliases**: symbols from packages no longer
+  used, kept so records written by them still classify.
+  `bmkp-gt-browsel-tabs-jump` is the current example — browsel
+  is retired (browser tabs now come from `browser-gt`), but
+  records created under it survive in users' bookmark files.
+  `bookmark-gt-migrate.el` rewrites the handler; the registry
+  entry covers records that were never migrated.
 
 Unknown handlers auto-classify via `bookmark-gt-handler-classify`'s
 derive-fallback, which strips common suffixes
@@ -157,26 +165,33 @@ column.
 
 ## Browser tabs are URL bookmarks
 
-Browsel-owned tab records use `handler =
-bookmark-gt-handler-url-jump`.  Two independent markers apply:
+Tab records created by `bookmark-gt-browser-tabs-mode` use
+`handler = bookmark-gt-handler-url-jump`.  Tabs are fetched
+from `browser-gt` over its WebSocket bridge; the module is a
+no-op when `browser-gt` is absent (`(require 'browser-gt nil t)`).
+
+Two independent markers apply:
 
 - `bmkp-temp = t` — this record is transient; the temp-save
-  filter drops it from `bookmark-save` output.  Any temporary
-  record carries this, not just browsel tabs.
-- `bookmark-gt-browsel-tab = t` — this record was created by
-  the browsel-tabs module.  `bookmark-gt-browsel-tabs--own-record-p`
-  reads this and only this; `--clear` uses it to remove only
-  our records on refresh, leaving records from other browsel
-  ecosystem packages (`browsel-tab-manager-bookmark-jump`,
-  etc.) untouched.
+  filter removes it from `bookmark-save` output.  Any temporary
+  record carries this, not just browser tabs.
+- `bookmark-gt-browser-tab = t` — this record was created by
+  the browser-tabs module.  `bookmark-gt-browser-tabs--own-record-p`
+  reads this and only this, so `--clear` removes only our
+  records on refresh and leaves URL bookmarks the user created
+  by hand untouched.
+
+Records also carry `browser-gt-id` and `browser-gt-browser`,
+identifying the live tab and its client.  Both are session-only
+(see `bookmark-gt-session-only-props`) and are removed when a
+tab record stops being temporary.
 
 Rationale for the unified handler: the URL handler already
-does `browse-url`, and the user's `browse-url-browser-function`
-(commonly set by browsel to a function that focuses existing
-tabs) provides the "focus existing tab" behavior without any
-bookmark-gt code needing to know about it.  Duplicating
-`browse-url` dispatch inside a bookmark-gt handler was
-strictly redundant.
+calls `browse-url`, and the user's
+`browse-url-browser-function` provides any focus-existing-tab
+behavior without bookmark-gt needing to know about it.
+Duplicating `browse-url` dispatch inside a dedicated handler
+was redundant.
 
 ## bookmark-gt owns the Dired handler at set time
 
@@ -226,12 +241,37 @@ otherwise run.
 ## Refresh policy
 
 Refresh of ephemeral sources (browser tabs, auto-update
-positions) is **user-driven only**.  `g` (revert) in the list
-buffer directly calls `bookmark-gt-browsel-tabs-refresh` and
-`bookmark-gt-auto-update-tick`, gated by
-`bound-and-true-p` checks on the opt-in modes.  Neither the
-jump reader nor the initial list-buffer render fires an
-implicit refresh — the previous cross-firing masked the browsel
-refresh cost as a per-jump surprise.
+positions) happens at three points, and nowhere else:
 
-Manual refresh: `M-x bookmark-gt-browsel-tabs-refresh`.
+- **`g` (revert) in the list buffer.**
+  `bookmark-gt-list--revert` calls
+  `bookmark-gt-browser-tabs-refresh` and
+  `bookmark-gt-auto-update-tick` directly, each gated by a
+  `bound-and-true-p` check on its opt-in mode.
+- **Each `bookmark-gt-jump` call**, for browser tabs only.
+  `bookmark-gt-browser-tabs-mode` adds its refresh to
+  `bookmark-gt-jump-before-read-hook`
+  (`bookmark-gt-browser-tabs.el:335`), which the reader runs
+  exactly once per outer call (`bookmark-gt-jump.el:518`), so a
+  live tab list is current when the prompt displays and nested
+  jump calls do not re-refresh.
+- **`M-x bookmark-gt-browser-tabs-refresh`**, explicitly.
+
+The initial list-buffer render does not refresh:
+`bookmark-gt-list` calls `tabulated-list-print`, not
+`revert-buffer`.
+
+### The jump hook is a deliberate exception to "direct calls over hooks"
+
+This is the one place bookmark-gt code adds to a bookmark-gt
+hook, contradicting the test stated above.  The reason is
+dependency direction: `bookmark-gt-jump.el` must not know the
+browser-tabs module exists, since that module is opt-in and
+requires an external package.  A direct call would invert the
+dependency.  The hook keeps the jump reader independent while
+letting an opt-in module participate.
+
+If a second module ever registers here, the cost becomes a
+per-jump refresh chain — the failure mode that motivated the
+direct-call rule.  Treat further registrations as needing
+justification.

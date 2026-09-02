@@ -32,10 +32,12 @@
 ;; `bookmark-gt-tags-alist', `bookmark-gt-bookmarks-with-tag',
 ;; `bookmark-gt-has-tag-p'), the mutation API
 ;; (`bookmark-gt-tags-add', `-remove', `-set'), and the interactive
-;; reader (`bookmark-gt-tags-read') registered into
-;; `bookmark-gt-set-tag-reader-hook'.
+;; reader (`bookmark-gt-tags-read').
 ;;
-;; See ai/design/tag-storage.org for the API contract.
+;; The reader is called directly by `bookmark-gt--collect-tags' when
+;; `bookmark-gt-prompt-for-tags-flag' is non-nil.  It is not added to
+;; `bookmark-gt-set-tag-reader-hook' — that hook is external surface
+;; and ships empty.
 
 ;;; Code:
 

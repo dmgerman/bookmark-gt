@@ -1,0 +1,724 @@
+#+TITLE: Records, names, and bookmark identity
+#+STARTUP: overview
+
+#+STATUS: decision record — active until implemented
+
+* About this document
+
+This is a *decision record*, not a description of the system.
+It exists to make one set of decisions reviewable on paper
+before any code is written, and it has an expiry.
+
+| Stage             | What happens                                    |
+|-------------------+-------------------------------------------------|
+| now               | decisions agreed, nothing implemented           |
+| during work       | this file is the reference                      |
+| after implementing | durable content moves out; this file is ripped |
+
+On completion: the naming and reference rules move to
+=ai/conventions.md=, the identity model and its rationale move
+to =ai/architecture.md=, user-visible behavior moves to
+=readme.org=, and this file moves to =ai/rip/=.
+
+Nothing else should cite it — in particular, no source comment
+or docstring should point here, because this path will stop
+existing.  Source comments cite =ai/architecture.md=,
+=ai/conventions.md=, or nothing.
+
+It extends the principle that bookmark records are the only
+persistent mutable state, with a rule about how records are
+*referenced*.
+
+* The problem
+
+A bookmark has two identity mechanisms and neither is adequate
+on its own:
+
+- **The record cons.**  Precise and ~eq~-comparable, and it is
+  what ~bookmark-alist~ holds.  Session-scoped: ~bookmark-load~
+  builds fresh conses, so a cons cannot be written to disk or
+  survive a reload.
+- **The name.**  Persists across sessions, but is neither
+  unique (duplicates are legal, and bookmark-gt now supports
+  them deliberately) nor stable (~bookmark-rename~ changes it).
+
+Every defect in §Evidence is code that needed an identity which
+only existed in the form it could not use at that moment.
+
+Emacs's own ~bookmark.el~ assumes names are unique — its
+~bookmark-store~ overwrites on a name match alone, with no
+handler or filename check.  bookmark-gt inherited that
+vocabulary while narrowing the condition, which is how
+~bookmark-gt-same-name-overwrite~ came to describe something it
+does not do.
+
+bookmark+ identified the same problem and solved it by
+attaching the record to its own name string as the text
+property ~bmkp-full-record~.  That substrate does not survive
+~substring-no-properties~, ~format~, or ~concat~; ~equal~
+ignores text properties, so records differing only in identity
+compare as equal; and it requires circular structures in the
+bookmark file.  The conclusion drawn here: an identifier must
+be a *value in the record*, not metadata on the key.
+
+* Decisions
+
+** Records are truth; names are queries
+
+Records are precise but perishable.  Names are durable but
+ambiguous.  The id is the only form that is both — which is the
+whole argument for introducing it.
+
+A function that already holds a record must not convert back to
+a name to act on it.  Doing so re-enters ~assoc~ and can act on
+a different record.  Every defect in §Evidence is an instance.
+
+*** Perishable: the alist can be rebuilt at any command boundary
+
+~bookmark-maybe-load-default-file~ reloads the file when its
+mtime has changed, and with ~bookmark-watch-bookmark-file~ set
+to ~silent~ it does so without asking:
+
+#+begin_src emacs-lisp
+(and (not (time-equal-p new-mtime old-mtime))
+     (not (bookmark--watch-file-already-queried-p new-mtime))
+     (or (eq 'silent bookmark-watch-bookmark-file) ...))
+(bookmark-load (car bookmark-bookmarks-timestamp) t t)
+#+end_src
+
+That function runs at the top of ~bookmark-gt-set~
+(=bookmark-gt-core.el:1054=), ~bookmark-gt-list~
+(=bookmark-gt-list.el:601=), ~bookmark-store~, and others.  A
+reload rebuilds every cons, so a record captured beforehand is
+an orphan: mutating it writes to something no longer in
+~bookmark-alist~, and the write is lost without a diagnostic.
+Bookmark files kept in a synchronized directory make this
+routine rather than theoretical.
+
+*** The rule is about lifetime, not about memory versus disk
+
+| Reference lifetime                            | Hold   |
+|-----------------------------------------------+--------|
+| within one uninterrupted operation            | record |
+| across a prompt, timer, stored state, or disk | id     |
+
+Exposed today: ~bookmark-gt-list--marks~ keys conses in a hash
+held indefinitely, the ~tabulated-list~ IDs are conses,
+~bookmark-gt-list-edit-tags~ captures records and then prompts
+before mutating, and the auto-update and browser-tabs timers
+close over records.
+
+Two corollaries:
+
+- **Mint before holding.**  Ids are best-effort, so a record
+  about to be held across time may not have one.  The act of
+  making the reference is the minting moment — the same rule
+  already agreed for sequences.
+- **Do not resolve ids inside tight loops.**  A batch mutation
+  over hundreds of records resolves once and works with records
+  inside the loop body, or it becomes O(n²).
+
+*** Why the existing bugs have been survivable
+
+Passing a *name* accidentally survives a reload, because a name
+re-resolves against the fresh alist.  That is why the
+first-match defects below have gone unnoticed: acting on the
+wrong record is quieter than acting on an orphaned one.  It is
+not an argument for names.
+
+** Reference parameters are polymorphic
+
+A parameter that *refers to an existing bookmark* dispatches on
+type.  The dispatch is total: each Lisp type means exactly one
+thing, so nothing has to be guessed.
+
+| Argument | Type   | Behavior                                         |
+|----------+--------+--------------------------------------------------|
+| ~nil~      | —      | no bookmark given; prompt where appropriate      |
+| record   | cons   | used directly                                    |
+| name     | string | resolved as a query; ambiguity errors or prompts |
+| id       | symbol | resolved exactly; see §The identifier            |
+
+Order matters in the implementation: ~nil~ is itself a symbol,
+so it must be tested before the symbol branch or every
+"prompt me" call resolves as an id lookup.  Same for ~t~.  The
+~cond~ runs nil → cons → string → symbol.  This reads as
+correct while being wrong if written in any other order.
+
+~nil~ means *absence*, not "a bookmark that does not exist":
+commands prompt, and callers for which prompting is
+inappropriate (readers running non-interactively, timers)
+error rather than block on a minibuffer nobody is watching.
+
+Resolution goes through one helper.  Parameter name stays
+simple (~bookmark~, as ~bookmark.el~ uses in ~bookmark-jump~);
+the contract lives in the docstring.
+
+~bookmark-gt-set~ is **not** part of this convention.  Its
+~NAME~ names a bookmark being created, not one being
+referenced, which is why ~bookmark-gt--prompt-name~
+(=bookmark-gt-core.el:1037=) exists and stays.
+
+** An ambiguous name is an error
+
+No implicit first-match.  A name that matches several records
+is not an answer to a query.  Interactive callers may resolve
+it by prompting, which is an explicit user choice;
+non-interactive callers get an error.
+
+Disambiguation cannot prompt with a plain name list —
+~completing-read~ cannot distinguish two identical strings.
+Candidates must carry distinguishing data and map back to
+records; reuse ~bookmark-gt-jump-candidate-format-function~
+rather than growing a second formatter.
+
+Location and tags are not always enough.  Two records with the
+same name, in the same file, at the same position have
+identical values for both — and under ~set~-always-creates that
+is produced by pressing the set key twice in one spot, which is
+easy to do by accident.  In that case an id fragment is the
+only discriminator, so the formatter needs an id fallback,
+shown only when the other fields fail to separate two
+candidates.  This is the one place the id is user-visible by
+design; see §Visibility.
+
+** Duplicate names are supported, not configured
+
+Both defcustoms retire:
+
+- ~bookmark-gt-allow-duplicate-names~ — duplicates are simply
+  supported, as ~bookmark.el~ already supports them via
+  ~bookmark-set-no-overwrite~.
+- ~bookmark-gt-same-name-overwrite~ — deleted rather than
+  renamed.  Every attempt to name it accurately failed because
+  the variable should not exist; it selected an implicit update
+  that is now an explicit command.
+
+Retiring with them: ~bookmark-gt--collision-record~,
+~bookmark-gt--resolve-collision~,
+~bookmark-gt-disambiguate-name~, and the ~NO-OVERWRITE~ /
+~C-u~ argument to ~bookmark-gt-set~ (which forced a duplicate;
+~set~ now always creates).
+
+*** Road not taken
+
+Enforcing unique names would make the name a usable
+identifier, and is what ~bookmark.el~ assumes.  Rejected:
+duplicate names are a wanted feature (the same short name in
+each of several projects), and ~rename~ would still break
+references.
+
+** Update commands are separate from creation
+
+~bookmark-gt-set~ creates.  Changing an existing bookmark is an
+explicit command, one per property:
+
+| Command                  | Changes        | Status                      |
+|--------------------------+----------------+-----------------------------|
+| ~bookmark-gt-relocate~     | ~filename~ / ~url~ | exists                      |
+| ~bookmark-gt-position-set~ | ~position~       | new                         |
+| ~bookmark-gt-tags-set~     | ~tags~           | exists; needs ~(interactive)~ |
+
+~bookmark-gt-relocate~ keeps its name: ~bookmark-relocate~ is
+the built-in, and in ~bookmark.el~ the record-or-name contract
+is carried by the *parameter* name
+(~bookmark-name-or-record~, 24 uses; ~bookmark-name~, 5), never
+by the function name.  ~update-~ is foreign to that vocabulary
+(~bookmark-update-last-modified~ is the sole occurrence and is
+a timestamp helper).
+
+Not ~-location-set~: ~location~ already means the target — it
+is bookmark+'s key for a URL (read by ~bookmark-gt-url-of~),
+the built-in ~bookmark-location~ returns file-or-URL, and it
+is the list buffer's column heading.
+
+The existing ~-set~ names (~bookmark-gt-tags-set~,
+~bookmark-gt-auto-update-set~) are Lisp APIs taking a record,
+not commands.  Under the polymorphic convention they become
+both, which closes a gap: tags are currently editable only from
+the list buffer or from Lisp.
+
+* The identifier
+
+** Key name: ~bookmark-gt-id~
+
+Not ~id~.  That key is taken: ~org-bookmark-heading~ stores the
+org heading ID there (=org-bookmark-heading.el:162=), and its
+jump handler depends on it.  27 of 148 records in one live
+alist already carry an ~id~ from other tools.  Writing ours
+there would overwrite an org heading ID and break the jump.
+
+Namespaced like ~bookmark-gt-browser-tab~.
+
+** Computing the id
+
+An interned **symbol**, prefixed ~bgt-~, whose body is a mint
+timestamp plus a hex suffix — the shape already present in
+bookmark files carrying ids from other tools (e.g.
+~20260630T091111-5386fe~):
+
+#+begin_src emacs-lisp
+(intern (format "bgt-%s-%s"
+                (format-time-string "%Y%m%dT%H%M%S")
+                (substring (secure-hash 'sha1
+                                        (format "%s%s%s" (emacs-pid)
+                                                (current-time) (random)))
+                           0 8)))
+#+end_src
+
+*** Why a symbol, not a string
+
+The type *is* the disambiguation.  A bookmark name is always a
+string by ~bookmark-store~'s contract (it calls
+~copy-sequence~ and ~set-text-properties~ on the name), so a
+symbol can never be a name.  That makes the resolver's dispatch
+total rather than heuristic — see §Reference parameters are
+polymorphic — and removes any need to guess whether a given
+string is a name or an id.
+
+Secondary benefits: interned symbols compare with ~eq~ rather
+than ~equal~, and a symbol resists ~concat~ and ~substring~,
+which reinforces the rule that the id is opaque and must not be
+recomputed.
+
+Cost, stated once: symbols are interned and not collected, so
+reading a file interns one symbol per bookmark.  Irrelevant at
+any realistic size, and bookmark files are user-controlled.
+
+*** The ~bgt-~ prefix is structural, not decorative
+
+It guarantees the printed form reads back as a symbol.  The
+timestamp body alone would read as a symbol only because the
+~T~ makes it non-numeric — an accident of the format.  Verified
+with ~read-from-string~:
+
+#+begin_src text
+20260901T143012-a3f9c2       => symbol
+12345678                     => integer
+bgt-20260901T143012-a3f9c2   => symbol
+#+end_src
+
+Without a guaranteed non-numeric leading character, a future
+format change to an all-digit body would make ids read back as
+integers and fall through the dispatch without an error.
+
+*** The timestamp is mint time, not creation time
+
+For a record minted during a load pass the bookmark may be
+years older than its id.  ~created~ holds the real value; the
+id must not be read for it.  The timestamp is kept because it
+makes ids sortable and legible when reading the file by hand.
+
+*** Collision checking is free
+
+Minting always runs during a full scan of ~bookmark-alist~, so
+the pass collects existing ids into a hash and regenerates on a
+hit.  Within-file uniqueness is therefore exact rather than
+probabilistic, and the entropy in the suffix only has to cover
+the cross-file case (importing or merging two files minted
+independently), where the same check applies at import time.
+
+Eight hex characters plus the in-pass check leaves no
+collision exposure worth reasoning about.  Six would give
+roughly 0.07% for 148 records minted in the same second —
+small, but there is no reason to accept it when the check costs
+nothing.
+
+*** Generation goes behind a seam
+
+The generator is indirected through a variable so tests bind a
+deterministic counter-based stub.  Building the seam now is
+cheaper than retrofitting one into a hardcoded ~secure-hash~
+call later.
+
+*** Non-determinism is deliberate
+
+A content-derived id (hashing name, filename, position) would
+make two machines minting the same file agree.  Rejected for
+two reasons:
+
+- **It cannot distinguish the case the id exists for.**  Two
+  genuinely duplicate records — same name, same file, same
+  position — hash identically.  Breaking the tie requires
+  folding in the alist index, which is unstable under
+  reordering and deletion.
+- **An id that looks computable invites recomputation.**  A
+  visibly derived id leads someone to write a
+  ~bookmark-gt--compute-id~ and compare that instead of reading
+  the stored value, which is identity-by-content — the bug
+  class being removed here, and what
+  ~bookmark-gt--collision-record~ was.  A random id is opaque
+  by construction: there is nothing to recompute.
+
+The cost is that two machines minting the same id-less file
+before syncing produce different ids for the same record.  The
+answer is minting then saving — once either machine writes, the
+other sees ids and mints nothing — leaving a merge problem,
+which merging two bookmark files already was.
+
+Emacs seeds its RNG per process, so ~(random)~ does not need
+~(random t)~; three ~emacs -Q --batch~ runs on 31.1 gave
+distinct values.  Hashing ~current-time~ and ~emacs-pid~
+alongside it is redundancy, not a requirement.
+
+** Best-effort, never an invariant
+
+Records written by ~bookmark.el~, bookmark+, or
+~org-bookmark-heading~ will have no ~bookmark-gt-id~.  Records
+copied between files can share one.  Any code assuming presence
+or uniqueness fails the same way name-based code fails today.
+
+The id is a precision layer over name resolution — *id if
+present, else name, error if ambiguous* — not a replacement for
+it.
+
+** Visibility
+
+The id is internal plumbing: minted by bookmark-gt, stored by
+bookmark-gt, resolved by bookmark-gt, never typed by a user.
+The user's query interface remains names.
+
+It is visible in exactly three places:
+
+1. ~bookmark-gt-list-describe-record~, which pretty-prints the
+   raw record.  Already true, no work required, and the right
+   surface — present when inspecting a record, absent
+   otherwise.
+2. The bookmark file, where every record gains a key.  Expected;
+   worth an upgrade note.
+3. The disambiguation prompt, as a fallback discriminator when
+   location and tags cannot separate two candidates (see §An
+   ambiguous name is an error).
+
+Deliberately *not* visible: no list-buffer column, no
+marginalia annotation, no prompt that asks a user to supply an
+id.
+
+** Dangling and duplicate ids
+
+An id that does not resolve is a *broken reference*, not an
+absent one.  Resolution signals an error and never returns nil,
+which would let callers treat it as "no bookmark" and continue
+— the silent-failure pattern this design removes.
+
+Two failures, two messages: an id matching no record is
+dangling; an id matching more than one is ambiguous (possible
+because ids are best-effort, so a copied file or a merge can
+duplicate one).  The fixes differ, so the diagnostics must.
+
+*** Two moments, two mechanisms
+
+| Moment          | Trigger                         | Mechanism |
+|-----------------+---------------------------------+-----------|
+| resolution time | jumping a sequence, Lisp call   | ~error~     |
+| scan time       | the minting pass over the alist | report    |
+
+Scan time must not error, or one dangling reference makes the
+bookmark file unloadable.  The minting pass already walks the
+whole alist at load, list refresh, and jump, so it validates
+stored references in the same traversal at no extra cost.
+
+For the non-fatal report, follow the existing idiom:
+~bookmark-gt-list--missing-file-p~ (=bookmark-gt-list.el:216=)
+renders a record whose ~filename~ does not exist in
+~bookmark-gt-face-missing-file~.  A dangling bookmark-to-bookmark
+reference is the same class of problem and gets the same
+treatment — visible in the list buffer, not fatal, discoverable
+without running anything.
+
+*** Sequences validate before traversing
+
+A five-member sequence with one dangling member must not jump
+four and then fail partway through an action that cannot be
+undone.  Members are checked up front, producing one error that
+names every missing reference.
+
+*** Deletion is what creates dangling ids
+
+~bookmark-gt-delete~ checks for referrers and reports before
+deleting — cheap, since the scan already exists.  It reports
+rather than blocks: the user may intend it.
+
+This is a further argument for ~bookmark-gt-delete~ existing at
+all.  The built-in ~bookmark-delete~ cannot check referrers,
+cannot act on a record, and is the destructive first-match path
+documented in =readme.org=.
+
+** Compatibility
+
+Bookmark files are alists; ~bookmark.el~ and bookmark+ ignore
+keys they do not know, and bookmark-gt already writes ~created~,
+~last-modified~, ~visits~, and ~tags~ that neither understands.
+One more key changes nothing for them.
+
+Name text properties are already stripped on store
+(=bookmark-gt-core.el:361=, matching ~bookmark-store~).  Today
+that removes bookmark+'s identity with nothing to replace it;
+with ~bookmark-gt-id~ it becomes a handoff.  A record arriving
+with ~bmkp-full-record~ and no id is a natural minting point.
+
+Open: whether dropping ~bmkp-full-record~ affects a file
+round-tripping back to bookmark+.  The readme currently
+promises files "can be read by bookmark+"; verify before
+restating that.
+
+** Minting points
+
+One function, called from the places that already scan the
+whole alist:
+
+1. Load (advice on the ~bookmark-load~ path).
+2. ~bookmark-gt-list~ refresh — catches records created by
+   other backends through ~bookmark-store~.
+3. ~bookmark-gt-jump-before-read-hook~ — the third full scan,
+   and where a foreign record is most likely first seen.
+
+Steady state must be a no-op scan.  Minting during the list
+scan must not notify: ~bookmark-gt-list--entries~ is the
+~tabulated-list-entries~ function and redraws are triggered by
+~bookmark-gt--after-mutation~, so notifying there is
+render → mutate → notify → render.
+
+** Minting must not use the mutation helpers
+
+Write with ~bookmark-prop-set~ directly.  Never
+~bookmark-gt--after-mutation~ or ~bookmark-gt--stamp-modified~
+(=bookmark-gt-core.el:691=).
+
+Three reasons:
+
+- ~--stamp-modified~ writes ~last-modified~ on every record it
+  touches.  A load-time pass would stamp the whole file with
+  one timestamp, destroying the real history.  Nothing sorts by
+  or displays ~last-modified~ today (only Name and Type
+  comparators are registered), so the damage would produce no
+  visible symptom until someone adds a modification sort — by
+  which point the original values are gone.
+- ~created~ is set only when absent
+  (=bookmark-gt-core.el:362-365=); minting must preserve that.
+- ~--after-mutation~ runs ~bookmark-gt-set-after-hook~, the
+  documented third-party extension point.  A load-time pass
+  would fire it once per bookmark in the file.
+
+** Persistence
+
+Minted ids must reach disk.  Ids minted per session and
+discarded would differ on the next launch, so any stored
+reference would dangle — the failure being eliminated,
+reintroduced.
+
+Bump ~bookmark-alist-modification-count~ **once, at the end of
+the pass, with ~NO-SAVE~** (=bookmark-gt-core.el:298=, whose
+~NO-SAVE~ argument exists for batch mutators).  Ids then
+persist at the next natural save — the quit prompt, or the
+user's next real change — rather than provoking an immediate
+write at load, which is what a plain ~--note-modification~
+would do via ~bookmark-gt--maybe-auto-save~ when
+~bookmark-save-flag~ is non-nil.
+
+Temporary records are minted like any other but must not count
+toward the tally: they are excluded from ~bookmark-save~ output,
+so counting them would make the file appear modified when
+nothing writable changed.
+
+*** Rejected: prompt at load
+
+"Bookmarks were loaded without an id — save?" was considered
+and rejected.  It does not happen only once:
+
+- Other packages keep creating id-less records through
+  ~bookmark-store~; ~org-bookmark-heading~ does so via
+  ~org-capture-last-stored~.
+- A decline must be remembered or it re-asks every session.
+- A file used from a machine running an older bookmark-gt
+  returns id-less.
+
+A prompt worded as a one-time migration becomes recurring.  The
+timing is also unsafe: ~bookmark-maybe-load-default-file~ fires
+lazily on the first bookmark operation, which may be inside the
+jump reader's ~completing-read~ or inside the browser-tabs idle
+timer.
+
+** Regenerated records
+
+Browser-tab bookmarks are rebuilt on every refresh.  Minting a
+fresh id per rebuild makes any reference to a tab dangle
+immediately.  They already carry ~browser-gt-id~, which is the
+natural stable seed — identity is domain-specific for some
+handlers, not purely generated.
+
+* Evidence
+
+Ten defects found while deriving the above.  They are what
+makes these decisions load-bearing rather than stylistic.
+
+Five of them (§Jump and list commands resolve through names)
+share one shape: the code *holds the record* and passes
+~(car record)~ — the name — to a name-taking function.  That is
+the "records are truth" rule stated as a bug class, and it
+includes a data-loss path reachable through the primary UI.
+
+** Visit tracking credits the wrong record
+
+=bookmark-gt-core.el:886-893=.
+~bookmark-gt--on-jump-record-visit~ passes
+~bookmark-current-bookmark~ — a *name* — to
+~bookmark-gt-record-visit~, which resolves via ~assoc~.  With
+two records sharing a name, every jump to either increments
+~visits~ and ~last-visited~ on the first.  The second never
+accumulates, so the jump reader's MRU sort
+(=bookmark-gt-jump.el:447=) ranks it last permanently.
+
+The record is available: ~bookmark-gt--jump-via-override~
+receives ~bookmark-name-or-record~.  Under the ambiguity rule
+this path would start erroring on every jump to a duplicated
+name unless converted to pass the record.
+
+** Rename tracker mutates a record it did not test
+
+=bookmark-gt-core.el:945-946=:
+
+#+begin_src emacs-lisp
+(when (equal (bookmark-gt-filename-of rec) from-abs)
+  (bookmark-prop-set (car rec) 'filename to-abs))
+#+end_src
+
+Holds ~rec~, tests ~rec~, writes through ~(car rec)~ — the
+name.  With duplicates this retargets the first record bearing
+that name, which may not be ~rec~, leaving the correct record
+stale.
+
+** Overwrite discards tags and annotation
+
+~bookmark-gt--resolve-collision~ deletes the record
+(~assoc-delete-all~) and ~bookmark-gt-set~ pushes a freshly
+built one.  Verified:
+
+#+begin_src text
+BEFORE tags=("alpha" "beta") annot="my note" pos=1
+AFTER  tags=nil             annot=nil        pos=20  count=1
+#+end_src
+
+Re-setting a bookmark at a new position in the same file loses
+its tags and annotation.  This is a live bug on the current
+default path, independent of the redesign — the update is
+implemented as a create, which is the root of the whole naming
+problem.  ~bookmark-gt-tags-set~ shows the correct model:
+~setcdr~ on the existing cons, preserving record identity and
+every other property.
+
+** Sequence bookmarks reference members by name
+
+=bookmark-gt-handlers.el:973= stores ~(cons 'sequence
+bookmarks)~ where ~bookmarks~ is a list of name strings read
+via ~bookmark-completing-read~ — which collapses duplicates, so
+a sequence can never reference the second record of a
+duplicated name.  Renaming a member breaks the sequence with no
+diagnostic.
+
+This is the package's one existing persistent cross-reference,
+and it is built on the field with no stability.  Under
+~bookmark-gt-id~, sequences should store ids, minting on the
+referenced records at the moment the reference is made.
+
+** Jump and list commands resolve through names
+
+Five sites, one shape.  Each holds the record and passes its
+name to a name-taking function, which resolves first-match:
+
+| Site                                             | Code                                                |
+|--------------------------------------------------+-----------------------------------------------------|
+| ~bookmark-gt-jump~ (=jump.el:203,401,417=)           | candidate carries ~'bookmark-gt-name~, not the record |
+| ~bookmark-gt-list-jump~ (=list.el:829=)              | ~(bookmark-jump (car record))~                        |
+| ~bookmark-gt-list-relocate~ (=list.el:876=)          | ~(bookmark-gt-relocate (car record))~                 |
+| ~bookmark-gt-list-rename~ (=list.el:866=)            | ~(bookmark-rename (car record) unique)~               |
+| ~bookmark-gt-list-execute-deletions~ (=list.el:817=) | ~(bookmark-delete (car record) t)~                    |
+
+The deletion site is data loss reachable through the primary
+UI: flag the second of two records sharing a name, press ~x~,
+and the *first* is deleted while the flagged row remains.
+~bookmark-gt-allow-duplicate-names~ defaults to ~t~, so nothing
+has to be configured to reach it.
+
+The jump reader is the same mistake bookmark+ made, reduced:
+identity is carried on the candidate string, but it carries the
+*name* rather than the record, so it does not disambiguate at
+all.  Both duplicates are listed as separate candidates;
+selecting either jumps to the first.
+
+Fixing these does not require ids — only that the commands stop
+round-tripping through names.  ~bookmark-delete~ is the one
+exception worth checking, since the built-in is name-based.
+Independent of the redesign, and a candidate for fixing first.
+
+** List filters persist with no indicator
+
+~bookmark-gt-list--filters~ is written to
+~bookmark-gt-list-state-file~ and restored when the buffer is
+created.  There is no mode-line or header-line element showing
+that a filter is active, so a filter set in one session narrows
+the list indefinitely with nothing on screen saying so.
+
+This is the likely cause of the user report that started the
+discussion: two bookmarks stored and jumpable, one shown in the
+list.  Unrelated to identity, recorded here because it was
+found alongside.
+
+* Open question: what ~bookmark-gt-set~ does interactively
+
+The only deliberately unresolved item.  It would be open even
+if every record had an id today.
+
+With ~set~ creating and no policy variable, re-setting a name no
+longer moves the bookmark, and users must know
+~bookmark-gt-position-set~ exists.  The proposal is a completion
+prompt offering the existing bookmarks alongside a new-bookmark
+candidate, annotated with each one's tags and destination, so
+the create-or-update choice is explicit at the moment of
+action.  That makes the choice per-action instead of global
+configuration, and would leave this area with zero defcustoms.
+
+Constraints identified:
+
+- ~completing-read~ cannot distinguish selecting an existing
+  name from typing the same text.  A synthetic
+  ~New bookmark: <suggested>~ candidate makes the two intents
+  different candidates rather than the same string.
+- The fast path must survive.  ~bookmark-gt-set~ currently puts
+  the suggested name in as editable initial input specifically
+  so ~RET~ accepts it (=bookmark-gt-core.el:1109-1122=).
+  Setting a bookmark is frequent and usually means "new, here,
+  now".
+- Choosing an existing record is the one branch that modifies
+  data the user already has; a stray ~RET~ under fuzzy matching
+  would move someone's bookmark.  Decide whether it confirms,
+  or at minimum reports what changed.
+- Candidate order: bookmarks in the current buffer first — the
+  same set ~bookmark-gt-cycle-next~ computes.
+
+Selecting an existing bookmark whose target is a different file
+means changing both ~position~ and ~filename~ — relocate and
+position-set in one action.  Acceptable, but the prompt should
+make the destination change visible.
+
+* Migration impact
+
+- Re-setting a name stops moving the bookmark.  This is the
+  largest user-visible behavior change in the package, and it
+  affects every user who never set either defcustom.
+- Both defcustoms become obsolete.  Neither can be handled by
+  ~define-obsolete-variable-alias~, since neither has a
+  successor.
+- =readme.org= §Same-name policy is superseded.  Four rules and
+  a flag matrix collapse to: ~set~ creates; names are queries;
+  the update commands change a bookmark.  The troubleshooting
+  subsection about filters and temporary records stays.
+- ~bookmark-current-bookmark~ is a name-as-identity mechanism
+  inherited from ~bookmark.el~, read at six sites here.  The
+  built-in cannot change; bookmark-gt should stop reading it on
+  any path that mutates.
+- The first save after upgrading rewrites nearly every record —
+  a new key on all of them, and text properties omitted from
+  the 48 names carrying ~bmkp-full-record~ in one live file.
+  Worth an upgrade note for anyone version-controlling their
+  bookmark file.

@@ -93,7 +93,7 @@ Same-name policy
 
 * Worked scenario the same name in two projects::
 * If you expected two records and see one::
-* Name-based lookup::
+* Warning only the list buffer addresses duplicates::
 
 In-file behaviors
 
@@ -939,7 +939,7 @@ rules, in order:
 
 * Worked scenario the same name in two projects::
 * If you expected two records and see one::
-* Name-based lookup::
+* Warning only the list buffer addresses duplicates::
 
 
 File: bookmark-gt.info,  Node: Worked scenario the same name in two projects,  Next: If you expected two records and see one,  Up: Same-name policy
@@ -966,7 +966,7 @@ full-collision case, where ‘t’ moves the existing record's position to
 point and ‘nil’ produces ‘todo<2>’.
 
 
-File: bookmark-gt.info,  Node: If you expected two records and see one,  Next: Name-based lookup,  Prev: Worked scenario the same name in two projects,  Up: Same-name policy
+File: bookmark-gt.info,  Node: If you expected two records and see one,  Next: Warning only the list buffer addresses duplicates,  Prev: Worked scenario the same name in two projects,  Up: Same-name policy
 
 4.2.2 If you expected two records and see one
 ---------------------------------------------
@@ -1004,18 +1004,72 @@ them with ‘string=’ and, when both files exist, with ‘file-equal-p’ — 
 two paths that differ only by a symlink are a full collision.
 
 
-File: bookmark-gt.info,  Node: Name-based lookup,  Prev: If you expected two records and see one,  Up: Same-name policy
+File: bookmark-gt.info,  Node: Warning only the list buffer addresses duplicates,  Prev: If you expected two records and see one,  Up: Same-name policy
 
-4.2.3 Name-based lookup
------------------------
+4.2.3 Warning: only the list buffer addresses duplicates
+--------------------------------------------------------
 
-Rule 3 has one consequence.  Emacs's ‘bookmark-jump NAME’ and
-‘bookmark-get-bookmark NAME’ return the first alist match.  When two
-records share a name, only one is reachable that way; the others still
-appear in ‘bookmark-gt-list’ and ‘bookmark-gt-jump’ (both iterate the
-alist directly and distinguish records by the Location column).  Set
-‘bookmark-gt-allow-duplicate-names’ to nil if name-based lookup matters
-more to you than shared names.
+Rule 3 has one consequence, and it is severe enough to decide whether
+you want duplicate names at all.
+
+   A bookmark name is not an identifier.  ‘bookmark-get-bookmark’
+resolves a name with ‘assoc’ and returns the *first* record carrying it.
+Every command that takes a name inherits this, so when two records share
+a name only one of them is reachable by name — and which one is an
+accident of the order records sit in ‘bookmark-alist’.
+
+   *Affected — do not use these on a duplicated name:*
+
+Command                     Effect on a duplicated name
+-----------------------------------------------------------------
+‘bookmark-delete’           deletes an arbitrary one of them
+‘bookmark-rename’           renames an arbitrary one of them
+‘bookmark-relocate’         retargets an arbitrary one of them
+‘bookmark-jump’             always jumps to the first
+‘bookmark-insert’           inserts the first
+‘bookmark-gt-relocate’      retargets the first
+‘bookmark-gt-toggle-temp’   acts on the first
+
+   ‘bookmark-delete’ and ‘bookmark-rename’ are the dangerous entries:
+they modify or destroy a record you did not choose, without a
+diagnostic.  Emacs's own ‘bookmark-delete’ docstring states that it
+"removes only the first instance of a bookmark with that name".
+
+   *‘bookmark-gt-jump’ is also affected.*  It lists every record
+separately — both duplicates appear as candidates, annotated with their
+own tags and location — but it returns the selected candidate's *name*,
+and the jump then resolves that name to the first match.  Selecting the
+second of two duplicates jumps to the first.
+
+   *The list buffer distinguishes duplicates on screen but does not
+consistently act on the row you chose.*  Each row holds its own record,
+and the Location and Tags columns show them apart.  Commands differ in
+whether they keep that record:
+
+List command                            Key     Acts on
+--------------------------------------------------------------------
+‘bookmark-gt-list-edit-tags’ etc.       ‘t e’   the row (correct)
+‘bookmark-gt-list-toggle-temp’          ‘T’     the row (correct)
+‘bookmark-gt-list-toggle-auto-update’   ‘^’     the row (correct)
+‘bookmark-gt-list-jump’                 ‘RET’   the *first* match
+‘bookmark-gt-list-relocate’             ‘R’     the *first* match
+‘bookmark-gt-list-rename’               ‘r’     the *first* match
+‘bookmark-gt-list-execute-deletions’    ‘x’     the *first* match
+
+   The last four resolve the row's record back to its name before
+acting, so they inherit first-match resolution.  Deletion is the
+consequential one: flagging the second of two duplicates and pressing
+‘x’ deletes the first record and leaves the flagged row in place.
+
+   *Recommendation.*  Until this is fixed, treat duplicate names as safe
+only for records you never need to delete, rename, relocate, or jump to
+individually.  If you need to act on specific records, set
+‘bookmark-gt-allow-duplicate-names’ to nil so collisions get a ‘<N>’
+suffix and every name stays addressable.
+
+   This is a known defect, not a design intent.  Bookmark names were
+never identifiers; the fix is to give records a stable id and resolve by
+record rather than by name.
 
 
 File: bookmark-gt.info,  Node: Relocate change a bookmark's target,  Prev: Same-name policy,  Up: Setting bookmarks
@@ -1543,56 +1597,56 @@ GPL-3.0-or-later.  See ‘LICENSE’.
 
 Tag Table:
 Node: Top205
-Node: Install2607
-Node: Which version is installed4199
-Node: Getting started4741
-Node: Master switch bookmark-gt-mode4939
-Node: Opt-in modes7958
-Node: bookmark-gt-auto-update-mode8309
-Node: bookmark-gt-default-tags-mode9295
-Node: bookmark-gt-browser-tabs-mode10323
-Node: User interface13734
-Node: The *Bookmarks-gt List* buffer13991
-Node: Columns14564
-Node: Keys15802
-Node: Acting on several bookmarks at once17690
-Node: Persisting view state21546
-Node: Jump to a bookmark bookmark-gt-jump22505
-Node: Elisp signatures23913
-Node: Non-file bookmark types26676
-Node: URL bookmarks — bookmark-gt-set-url27249
-Node: Dired bookmarks — bookmark-gt-handler-dired-jump28036
-Ref: Virtual dired29606
-Node: Function bookmarks — bookmark-gt-set-function30819
-Node: Keyboard-macro bookmarks — bookmark-gt-set-kmacro31632
-Node: Sequence bookmarks — bookmark-gt-set-sequence33290
-Node: File-type handlers — override the file-jump path per pattern34046
-Node: View bookmarks — save the list buffer's current view35419
-Node: Setting bookmarks36581
-Node: Tag reader36819
-Node: Same-name policy37824
-Node: Worked scenario the same name in two projects40129
-Node: If you expected two records and see one41501
-Node: Name-based lookup43455
-Node: Relocate change a bookmark's target44092
-Node: In-file behaviors45241
-Node: In-buffer cycling45470
-Node: Per-bookmark highlighting46470
-Node: Region bookmarks48427
-Node: Trackers49948
-Node: Visit tracker50124
-Node: File-rename tracker50868
-Node: Extension API51855
-Node: Handler registry52056
-Node: Group registry54253
-Node: Extension points55906
-Node: Compatibility58825
-Node: Data compat with bookmark+59026
-Node: Migrating from bookmark+60156
-Node: Reference62500
-Node: Selected customization62663
-Node: Acknowledgements68045
-Node: License70379
+Node: Install2639
+Node: Which version is installed4231
+Node: Getting started4773
+Node: Master switch bookmark-gt-mode4971
+Node: Opt-in modes7990
+Node: bookmark-gt-auto-update-mode8341
+Node: bookmark-gt-default-tags-mode9327
+Node: bookmark-gt-browser-tabs-mode10355
+Node: User interface13766
+Node: The *Bookmarks-gt List* buffer14023
+Node: Columns14596
+Node: Keys15834
+Node: Acting on several bookmarks at once17722
+Node: Persisting view state21578
+Node: Jump to a bookmark bookmark-gt-jump22537
+Node: Elisp signatures23945
+Node: Non-file bookmark types26708
+Node: URL bookmarks — bookmark-gt-set-url27281
+Node: Dired bookmarks — bookmark-gt-handler-dired-jump28068
+Ref: Virtual dired29638
+Node: Function bookmarks — bookmark-gt-set-function30851
+Node: Keyboard-macro bookmarks — bookmark-gt-set-kmacro31664
+Node: Sequence bookmarks — bookmark-gt-set-sequence33322
+Node: File-type handlers — override the file-jump path per pattern34078
+Node: View bookmarks — save the list buffer's current view35451
+Node: Setting bookmarks36613
+Node: Tag reader36851
+Node: Same-name policy37856
+Node: Worked scenario the same name in two projects40193
+Node: If you expected two records and see one41565
+Node: Warning only the list buffer addresses duplicates43551
+Node: Relocate change a bookmark's target47127
+Node: In-file behaviors48276
+Node: In-buffer cycling48505
+Node: Per-bookmark highlighting49505
+Node: Region bookmarks51462
+Node: Trackers52983
+Node: Visit tracker53159
+Node: File-rename tracker53903
+Node: Extension API54890
+Node: Handler registry55091
+Node: Group registry57288
+Node: Extension points58941
+Node: Compatibility61860
+Node: Data compat with bookmark+62061
+Node: Migrating from bookmark+63191
+Node: Reference65535
+Node: Selected customization65698
+Node: Acknowledgements71080
+Node: License73414
 
 End Tag Table
 

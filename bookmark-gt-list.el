@@ -33,8 +33,8 @@
 ;; tabulated-list machinery — no advice on any other package.
 ;;
 ;; Filter registry (`bookmark-gt-filter-alist') and sort registry
-;; (`bookmark-gt-sort-alist') are plain alists per
-;; ai/design/registries.org.
+;; (`bookmark-gt-sort-alist') are plain alists; see their defvar
+;; docstrings for the entry shape.
 
 ;;; Code:
 
@@ -160,10 +160,9 @@ first should sort before the second.")
 
 ;;;; Buffer-local state
 ;;
-;; All buffer-local variables listed in
-;; ai/design/records-only-allowlist as category 3 (process-scoped
-;; resource — bounded to the buffer's lifetime, cleared on
-;; buffer kill).
+;; Every variable below is a process-scoped resource: bounded to
+;; the buffer's lifetime and cleared on buffer kill.  No
+;; per-bookmark fact is stored here — those live on the record.
 
 (defvar-local bookmark-gt-list--filters nil
   "Alist of active filters in this buffer ((KEY . ARG) ...).")

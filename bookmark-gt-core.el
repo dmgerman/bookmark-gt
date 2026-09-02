@@ -26,14 +26,15 @@
 ;;; Commentary:
 ;;
 ;; Core wrappers around `bookmark-store', `bookmark-save', and
-;; `bookmark-load' with the extension-hook protocol used by the
-;; rest of bookmark-gt (name-reader, tag-reader, after-set hooks;
-;; same-name disambiguation via text properties on the stored
-;; name string).
+;; `bookmark-load', plus the extension hooks third parties may
+;; add to (name-reader, tag-reader, after-set).  Those hooks are
+;; external surface only and ship empty; bookmark-gt's own
+;; cross-module coordination is direct calls through
+;; `bookmark-gt--after-mutation'.
 ;;
-;; See ai/design/bookmark-set-hooks.org and
-;; ai/design/records-only-invariant.org in the source repository
-;; for the design contracts this file implements.
+;; Same-name collisions are resolved by appending a `<N>' suffix
+;; to the stored name, never by text properties: names are
+;; stripped of properties on store, matching `bookmark-store'.
 
 ;;; Code:
 
@@ -82,9 +83,8 @@ Returns nil when neither is present."
 
 ;;;; Extension hooks
 ;;
-;; All three hooks are top-level defvars per Emacs hook convention;
-;; they contain callbacks, not state, and are listed in
-;; ai/design/records-only-allowlist.el as category 4 (hook variable).
+;; All three hooks are top-level defvars per Emacs hook convention:
+;; they contain callbacks, not state.
 
 (defvar bookmark-gt-set-name-reader-hook nil
   "Abnormal hook that refines the default bookmark name.
@@ -243,9 +243,8 @@ then any third-party functions on the public
 
 (defun bookmark-gt--with-tags (record tags)
   "Return RECORD's alist with TAGS attached under the `tags' key.
-When TAGS is empty, RECORD is returned unchanged (no empty
-`(tags)' entry is emitted, per the invariant in
-ai/design/tag-storage.org)."
+When TAGS is empty, RECORD is returned unchanged; no empty
+`(tags)' entry is emitted."
   (if (null tags)
       record
     (cons (cons 'tags tags) record)))

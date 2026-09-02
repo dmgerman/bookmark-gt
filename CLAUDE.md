@@ -120,7 +120,7 @@ patch bindings via `define-key`.
 | `bookmark-gt-list.el` | `*Bookmarks-gt List*` buffer (tabulated-list-mode derivative). |
 | `bookmark-gt-jump.el` | Jump reader (consult / marginalia / orderless integrations, all soft-deps). |
 | `bookmark-gt-auto-update.el` | Opt-in mode that refreshes bookmarks with `auto-update` prop. |
-| `bookmark-gt-browsel-tabs.el` | Opt-in mode that stores live browser tabs as temporary URL bookmarks (marker: `bookmark-gt-browsel-tab`). |
+| `bookmark-gt-browser-tabs.el` | Opt-in mode that stores live browser tabs as temporary URL bookmarks (marker: `bookmark-gt-browser-tab`). |
 | `test/` | ERT suite.  Every test wraps its body in `bookmark-gt-test-with-clean-bookmarks`. |
 
 ## Common pitfalls
@@ -132,7 +132,7 @@ patch bindings via `define-key`.
   `-relocate`, `bookmark-gt-tags-set`).
 - **Batch mutations** (many records in one loop): pass
   `NO-NOTIFY` non-nil to `bookmark-gt-set-non-file` inside the
-  loop and call the UI refresh once at end (browsel-tabs is the
+  loop and call the UI refresh once at end (browser-tabs is the
   reference example).
 - **Byte-compile order**: `bookmark-gt-core.el` compiles before
   the modules that define functions it calls at runtime.  Use
@@ -146,7 +146,7 @@ patch bindings via `define-key`.
   `derived-mode-p 'dired-mode` clause.
 - **Handler aliases in the registry**: symbols like
   `bmkp-jump-url-browse`, `bmkp-jump-dired`,
-  `browsel-tab-manager-bookmark-jump` are registered so records
+  `bmkp-gt-browsel-tabs-jump` (from the retired browsel package) are registered so records
   from other packages classify correctly.  These are quoted
   symbols in a data table — bookmark-gt does not depend on
   those packages being loaded.

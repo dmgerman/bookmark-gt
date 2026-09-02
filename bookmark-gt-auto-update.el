@@ -155,9 +155,9 @@ matches that buffer."
 
 ;;;; Timer + hooks
 ;;
-;; The timer is the one true piece of process-scoped state this
-;; module owns.  Listed in ai/design/records-only-invariant.org
-;; category 3 (resource handle held for teardown).
+;; The timer is the one piece of process-scoped state this module
+;; owns: a resource handle kept so the timer can be cancelled when
+;; the mode is turned off.
 
 (defvar bookmark-gt-auto-update--timer nil
   "Idle timer object for `bookmark-gt-auto-update-mode'.
