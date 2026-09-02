@@ -115,6 +115,11 @@ cons)."
 
 (defun bookmark-gt-tags-set (record tags &optional no-notify)
   "Replace RECORD's tag list with TAGS (normalized).
+RECORD is a `(NAME . DATA)' pair or a bookmark name.  A name is
+resolved to the first record carrying it: this runs in batches
+and from timers, where prompting to disambiguate would be wrong,
+so the caller is expected to pass a record when it matters.
+
 When NO-NOTIFY is non-nil, skip UI refresh and the external
 `bookmark-gt-record-changed-hook' — the caller is expected to notify
 once at end of a batch.  The record is stamped `last-modified'

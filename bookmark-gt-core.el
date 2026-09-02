@@ -1347,6 +1347,11 @@ propagates to the end anchor."
 
 (defun bookmark-gt-record-visit (name-or-record)
   "Increment visits and set `last-visited' on NAME-OR-RECORD.
+A name is resolved to the first record carrying it.  This runs
+from `bookmark-after-jump-hook', mid-jump, where prompting to
+disambiguate would be wrong; callers pass the record they jumped
+to.
+
 Both alist keys are written directly onto the record — no
 `modification-count' bump, so visit tracking doesn't force a
 disk write per jump."

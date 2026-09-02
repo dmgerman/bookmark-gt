@@ -80,12 +80,38 @@ itself a symbol, so testing the symbol branch first makes every
 "prompt me" call an id lookup. The same for `t`. It reads as
 correct in any order.
 
-Do not call `bookmark-get-bookmark` at a new site. It resolves a
-name to the first match, which is the defect this convention
-exists to prevent.
-
 `bookmark-gt-create` is not part of this: its `NAME` names a
 bookmark being made, not one being referred to.
+
+#### Which functions resolve, and which take what they are given
+
+The dividing line is whether the function may prompt.
+`bookmark-gt--resolve` asks the user when a name is shared, so a
+function that must not prompt cannot use it.
+
+**Resolve** — every command, and anything reached from one that
+can stop and ask: `bookmark-gt-update`, `-delete`, `-rename`,
+`-relocate`, `-toggle-temp`, `-auto-update-toggle`, the
+`bookmark-gt-jump` entry points, and the sequence handler.
+
+**Take what they are given** — record-taking APIs whose caller
+already holds the reference, and which run where a prompt would
+be wrong:
+
+| Function | Why it cannot prompt |
+|---|---|
+| `bookmark-gt-record-visit` | runs from `bookmark-after-jump-hook`, mid-jump |
+| the `bookmark--jump-via` override | records what the caller passed, mid-jump |
+| `bookmark-gt-tags-set`, `-temp-set`, `-auto-update-set` | mutation chokepoints, called in batches and from timers |
+
+These accept a record or a name and resolve a name with
+`bookmark-get-bookmark`, which takes the first match. That is
+acceptable *because the caller supplies the reference*: internal
+callers pass a record, and a Lisp caller passing an ambiguous
+name has chosen the ambiguity. Their docstrings say so.
+
+So: do not call `bookmark-get-bookmark` at a new site unless the
+function is in the second group. If it can prompt, it resolves.
 
 ### Errors over silent fallback
 
