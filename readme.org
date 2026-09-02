@@ -441,6 +441,68 @@ Mid-read tag filter:
 - ~M-d~ — pop the most recent tag filter.
 - ~M-D~ — clear every active tag filter.
 
+*** The annotation
+
+With ~marginalia~ loaded, each candidate carries three fields:
+its tags, its type, and its location — the ~filename~ or the
+URL.
+
+The location field is sized from the space the other columns
+leave free:
+
+: window width − annotation start column − tags − type − separators
+
+Marginalia positions annotations at a fixed column past the
+widest candidate, and bookmark-gt caps candidate names at
+~bookmark-gt-jump-name-max-width~, so the free width is known
+and the location field uses it.  It therefore widens on a wide
+frame and narrows on a small one, without a fixed fraction.
+The width is measured once per read, so every row of one
+display computes the same layout.
+
+~bookmark-gt-jump-location-max-width~ bounds it, default 100
+columns.  A bound is worth having because a wide location is
+not always an informative one: a record whose location holds
+machine state rather than a destination — a window
+configuration serialized into a URL, for example — runs to
+hundreds of characters and would otherwise occupy every free
+column.  Set it to ~nil~ for no bound beyond the free space, to
+an integer for a column count, or to a float for a fraction of
+~marginalia-field-width~.
+
+Which end of the location is kept depends on the record.  File
+bookmarks are truncated from the left, so the file name
+survives; other bookmarks are truncated from the right, so a
+URL keeps its scheme and host.
+
+**** Relationship to ~marginalia-field-width~
+
+~marginalia-field-width~ (default 80) does not bound a
+bookmark-gt annotation.  Marginalia treats a field width as a
+column count when it is an integer and as a fraction of
+~marginalia-field-width~ when it is a float; bookmark-gt passes
+integers for all three fields — the tag and type widths are
+measured from the data, and the location width is computed from
+the free space.  Raising ~marginalia-field-width~ therefore has
+no effect here.
+
+The one exception is a float ~bookmark-gt-jump-location-max-width~.
+That is a fraction of ~marginalia-field-width~ as marginalia has
+already reduced it for the current display, namely
+~(min (/ window-width 2) 80)~ — not of the raw setting.
+
+This is also a deliberate departure from marginalia's own
+policy.  Marginalia keeps annotations within half the window so
+that a wide annotation cannot displace the candidate names,
+which it must do conservatively because it does not know how
+wide the candidates are: it computes the alignment column after
+the annotators have run.  bookmark-gt does know — names are
+capped by ~bookmark-gt-jump-name-max-width~ and the candidate
+list is complete before the read opens — so it measures the free
+space instead, and the location field may extend past half the
+window.  What bounds it is the free space and
+~bookmark-gt-jump-location-max-width~.
+
 *** Elisp signatures
 
 All three entry points take keyword arguments only:

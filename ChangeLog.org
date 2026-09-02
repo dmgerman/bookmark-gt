@@ -107,6 +107,19 @@
 
 ** Fixed
 
+- The location field of the jump annotation now uses the width the
+  other columns leave free, instead of half of
+  ~marginalia-field-width~.  That budget is 80 columns by default
+  and is chosen without reference to how much room the candidates
+  leave, so on a wide frame the annotation stopped short of the
+  right edge with columns to spare, and URLs — truncated from the
+  right — lost the path and query that distinguish them.  The new
+  width is measured once per read, so every row of one display
+  shares a layout.  ~bookmark-gt-jump-location-max-width~ bounds
+  it, default 100 columns; ~nil~ applies no bound beyond the free
+  space, and a float still means a fraction of
+  ~marginalia-field-width~.
+
 - A package storing a bookmark under a name you chose no longer
   replaces whatever already had that name.  ~burly~ asks for a
   name and stores with ~bookmark-store~, so saving a window

@@ -80,6 +80,7 @@ The ‘*Bookmarks-gt List*’ buffer
 
 Jump to a bookmark: ‘bookmark-gt-jump’
 
+* The annotation::
 * Elisp signatures::
 
 Non-file bookmark types
@@ -605,12 +606,75 @@ orderless is loaded:
 
 * Menu:
 
+* The annotation::
 * Elisp signatures::
 
 
-File: bookmark-gt.info,  Node: Elisp signatures,  Up: Jump to a bookmark bookmark-gt-jump
+File: bookmark-gt.info,  Node: The annotation,  Next: Elisp signatures,  Up: Jump to a bookmark bookmark-gt-jump
 
-3.2.1 Elisp signatures
+3.2.1 The annotation
+--------------------
+
+With ‘marginalia’ loaded, each candidate carries three fields: its tags,
+its type, and its location — the ‘filename’ or the URL.
+
+   The location field is sized from the space the other columns leave
+free:
+
+     window width − annotation start column − tags − type − separators
+
+   Marginalia positions annotations at a fixed column past the widest
+candidate, and bookmark-gt caps candidate names at
+‘bookmark-gt-jump-name-max-width’, so the free width is known and the
+location field uses it.  It therefore widens on a wide frame and narrows
+on a small one, without a fixed fraction.  The width is measured once
+per read, so every row of one display computes the same layout.
+
+   ‘bookmark-gt-jump-location-max-width’ bounds it, default 100 columns.
+A bound is worth having because a wide location is not always an
+informative one: a record whose location holds machine state rather than
+a destination — a window configuration serialized into a URL, for
+example — runs to hundreds of characters and would otherwise occupy
+every free column.  Set it to ‘nil’ for no bound beyond the free space,
+to an integer for a column count, or to a float for a fraction of
+‘marginalia-field-width’.
+
+   Which end of the location is kept depends on the record.  File
+bookmarks are truncated from the left, so the file name survives; other
+bookmarks are truncated from the right, so a URL keeps its scheme and
+host.
+
+  1. Relationship to ‘marginalia-field-width’
+
+     ‘marginalia-field-width’ (default 80) does not bound a bookmark-gt
+     annotation.  Marginalia treats a field width as a column count when
+     it is an integer and as a fraction of ‘marginalia-field-width’ when
+     it is a float; bookmark-gt passes integers for all three fields —
+     the tag and type widths are measured from the data, and the
+     location width is computed from the free space.  Raising
+     ‘marginalia-field-width’ therefore has no effect here.
+
+     The one exception is a float ‘bookmark-gt-jump-location-max-width’.
+     That is a fraction of ‘marginalia-field-width’ as marginalia has
+     already reduced it for the current display, namely ‘(min (/
+     window-width 2) 80)’ — not of the raw setting.
+
+     This is also a deliberate departure from marginalia's own policy.
+     Marginalia keeps annotations within half the window so that a wide
+     annotation cannot displace the candidate names, which it must do
+     conservatively because it does not know how wide the candidates
+     are: it computes the alignment column after the annotators have
+     run.  bookmark-gt does know — names are capped by
+     ‘bookmark-gt-jump-name-max-width’ and the candidate list is
+     complete before the read opens — so it measures the free space
+     instead, and the location field may extend past half the window.
+     What bounds it is the free space and
+     ‘bookmark-gt-jump-location-max-width’.
+
+
+File: bookmark-gt.info,  Node: Elisp signatures,  Prev: The annotation,  Up: Jump to a bookmark bookmark-gt-jump
+
+3.2.2 Elisp signatures
 ----------------------
 
 All three entry points take keyword arguments only:
@@ -1631,7 +1695,7 @@ File: bookmark-gt.info,  Node: Selected customization,  Up: Reference
 ==========================
 
 Variable                                  Default                                                              What it does
-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ‘bookmark-gt-list-name-width’             ‘32’                                                                 Character width of the Name column in ‘*Bookmarks-gt List*’.  Longer names are truncated with an ellipsis.
 ‘bookmark-gt-list-type-width’             ‘12’                                                                 Character width of the Type column.
 ‘bookmark-gt-list-tags-width’             ‘24’                                                                 Character width of the Tags column.
@@ -1641,6 +1705,7 @@ Variable                                  Default                               
 ‘bookmark-gt-list-default-show-temp’      ‘t’                                                                  Whether new list buffers show temporary bookmarks by default; toggle per-buffer with ‘H’ (‘bookmark-gt-list-show-temp’).
 —                                         —                                                                    (View bookmarks: no defcustom; save via ‘M-x bookmark-gt-create’ inside the list buffer.)
 ‘bookmark-gt-jump-name-max-width’         ‘58’                                                                 Width at which the jump reader truncates bookmark names, so a long name does not push the annotation columns off the window.  Avoid multiples of 10: marginalia rounds its alignment column up to a multiple of 10, so such a value leaves the widest rows no room for the aligning space.
+‘bookmark-gt-jump-location-max-width’     ‘100’                                                                Maximum width of the location field in the jump annotation.  The field takes the columns the candidate, tag and type fields leave free, so it widens on a wide frame and narrows on a small one; this value bounds it.  An integer is a column count, a float is a fraction of ‘marginalia-field-width’, ‘nil’ applies no bound beyond the free space.
 ‘bookmark-gt-jump-default-sort’           ‘'mru’                                                               Sort order used by ‘bookmark-gt-jump’ when no ‘:sort-by’ is given.  Values: ‘'mru’ (most recently used), ‘'visits’, ‘nil’ (pool order).
 ‘bookmark-gt-dired-virtual-max-size’      ‘524288’                                                             Maximum bytes of a virtual-dired buffer to inline in a Dired bookmark.  Exceeding this on ‘bookmark-gt-create’ signals ‘user-error’.
 ‘bookmark-gt-auto-update-interval’        ‘60’                                                                 Seconds of idle time between ticks of ‘bookmark-gt-auto-update-mode’; each tick refreshes bookmarks carrying ‘auto-update’.
@@ -1713,62 +1778,64 @@ GPL-3.0-or-later.  See ‘LICENSE’.
 
 Tag Table:
 Node: Top205
-Node: Install3390
-Node: Which version is installed5610
-Node: Getting started6152
-Node: Master switch bookmark-gt-mode6350
-Node: Opt-in modes9366
-Node: bookmark-gt-auto-update-mode9717
-Node: bookmark-gt-default-tags-mode10703
-Node: bookmark-gt-browser-tabs-mode11735
-Node: User interface14693
-Node: The *Bookmarks-gt List* buffer14950
-Node: Columns15523
-Node: Keys16761
-Node: Acting on several bookmarks at once18649
-Node: Persisting view state22505
-Node: Jump to a bookmark bookmark-gt-jump23464
-Node: Elisp signatures24872
-Node: Non-file bookmark types27875
-Node: URL bookmarks — bookmark-gt-create-url28460
-Node: Dired bookmarks — bookmark-gt-handler-dired-jump29262
-Ref: Virtual dired30838
-Node: Function bookmarks — bookmark-gt-create-function32051
-Node: Keyboard-macro bookmarks — bookmark-gt-create-kmacro32885
-Node: Sequence bookmarks — bookmark-gt-create-sequence34564
-Node: File-type handlers — override the file-jump path per pattern35335
-Node: View bookmarks — save the list buffer's current view36711
-Node: Setting bookmarks37879
-Node: Tag reader38135
-Node: Bookmarks that share a name39417
-Node: Telling them apart on screen41090
-Node: Loading a file that breaks the setting41747
-Node: If you expected two records and see one43251
-Node: Which command reaches which record45039
-Node: Record identity46997
-Node: Changing an existing bookmark47990
-Node: bookmark-gt-update — point it at where I am49041
-Node: bookmark-gt-relocate — point it somewhere I name50027
-Node: bookmark-gt-rename51190
-Node: Deleting51672
-Node: In-file behaviors52167
-Node: In-buffer cycling52396
-Node: Per-bookmark highlighting53396
-Node: Region bookmarks55359
-Node: Trackers56883
-Node: Visit tracker57059
-Node: File-rename tracker57803
-Node: Extension API58790
-Node: Handler registry58991
-Node: Group registry61188
-Node: Extension points62841
-Node: Compatibility65965
-Node: Data compat with bookmark+66166
-Node: Migrating from bookmark+67509
-Node: Reference69853
-Node: Selected customization70016
-Node: Acknowledgements76755
-Node: License79089
+Node: Install3409
+Node: Which version is installed5629
+Node: Getting started6171
+Node: Master switch bookmark-gt-mode6369
+Node: Opt-in modes9385
+Node: bookmark-gt-auto-update-mode9736
+Node: bookmark-gt-default-tags-mode10722
+Node: bookmark-gt-browser-tabs-mode11754
+Node: User interface14712
+Node: The *Bookmarks-gt List* buffer14969
+Node: Columns15542
+Node: Keys16780
+Node: Acting on several bookmarks at once18668
+Node: Persisting view state22524
+Node: Jump to a bookmark bookmark-gt-jump23483
+Node: The annotation24910
+Ref: Relationship to marginalia-field-width26515
+Node: Elisp signatures28035
+Node: Non-file bookmark types31061
+Node: URL bookmarks — bookmark-gt-create-url31646
+Node: Dired bookmarks — bookmark-gt-handler-dired-jump32448
+Ref: Virtual dired34024
+Node: Function bookmarks — bookmark-gt-create-function35237
+Node: Keyboard-macro bookmarks — bookmark-gt-create-kmacro36071
+Node: Sequence bookmarks — bookmark-gt-create-sequence37750
+Node: File-type handlers — override the file-jump path per pattern38521
+Node: View bookmarks — save the list buffer's current view39897
+Node: Setting bookmarks41065
+Node: Tag reader41321
+Node: Bookmarks that share a name42603
+Node: Telling them apart on screen44276
+Node: Loading a file that breaks the setting44933
+Node: If you expected two records and see one46437
+Node: Which command reaches which record48225
+Node: Record identity50183
+Node: Changing an existing bookmark51176
+Node: bookmark-gt-update — point it at where I am52227
+Node: bookmark-gt-relocate — point it somewhere I name53213
+Node: bookmark-gt-rename54376
+Node: Deleting54858
+Node: In-file behaviors55353
+Node: In-buffer cycling55582
+Node: Per-bookmark highlighting56582
+Node: Region bookmarks58545
+Node: Trackers60069
+Node: Visit tracker60245
+Node: File-rename tracker60989
+Node: Extension API61976
+Node: Handler registry62177
+Node: Group registry64374
+Node: Extension points66027
+Node: Compatibility69151
+Node: Data compat with bookmark+69352
+Node: Migrating from bookmark+70695
+Node: Reference73039
+Node: Selected customization73202
+Node: Acknowledgements80471
+Node: License82805
 
 End Tag Table
 
