@@ -292,8 +292,13 @@ Uses the bookmark+-compat helpers so a placeholder filename or a
 Returns a three-field annotation: tags, type, path.  Fields use
 `marginalia--fields' so widths auto-align across candidates."
   (when (featurep 'marginalia)
-    (when-let* ((name (bookmark-gt-jump--candidate-name candidate))
-                (record (assoc name bookmark-alist)))
+    ;; Annotate from the record the candidate carries, not from a
+    ;; lookup by name: the visible string may differ from the
+    ;; stored name, and a name shared by two records would resolve
+    ;; to the first, annotating both rows with one record's data.
+    (when-let* ((record (or (get-text-property 0 'bookmark-gt-record candidate)
+                            (assoc (bookmark-gt-jump--candidate-name candidate)
+                                   bookmark-alist))))
       (let* ((tags (bookmark-gt-tags-of record))
              (tag-seg (if tags (bookmark-gt-jump--tag-tokens tags) ""))
              (tag-w (bookmark-gt-jump--tags-column-width))

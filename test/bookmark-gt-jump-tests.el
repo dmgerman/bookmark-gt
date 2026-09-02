@@ -219,5 +219,43 @@ for the aligning space."
         (bookmark-gt-jump--read "prompt"))
       (should (= count 1)))))
 
+;;;; Annotation follows the candidate's record
+
+(ert-deftest bookmark-gt-jump-test-annotates-a-suffixed-candidate ()
+  "A candidate shown as NAME<2> is annotated from its own record.
+The visible string is not the stored name, so a lookup by name
+finds nothing — and for two records sharing a name it would find
+the wrong one."
+  (skip-unless (featurep 'marginalia))
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((bookmark-gt-allow-same-name-bookmarks 'always))
+      (bookmark-gt-create-non-file "test" 'h (list (cons 'filename "/tmp/a")))
+      (bookmark-gt-create-non-file "test" 'h (list (cons 'filename "/tmp/b"))))
+    (let* ((records (bookmark-gt--records-named "test"))
+           (second (nth 1 records))
+           (candidate (bookmark-gt-jump-candidate-default second)))
+      (should (string-match-p "test<2>" candidate))
+      (should (bookmark-gt-jump-annotate candidate)))))
+
+(ert-deftest bookmark-gt-jump-test-annotation-uses-its-own-record ()
+  "Each of two same-named candidates annotates from its own record."
+  (skip-unless (featurep 'marginalia))
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((bookmark-gt-allow-same-name-bookmarks 'always))
+      (bookmark-gt-create-non-file "test" 'h (list (cons 'filename "/tmp/aaa")))
+      (bookmark-gt-create-non-file "test" 'h (list (cons 'filename "/tmp/bbb"))))
+    ;; By filename, not position: `bookmark-alist' holds the most
+    ;; recently stored record first.
+    (let* ((by-file (lambda (f)
+                      (seq-find (lambda (r)
+                                  (equal (bookmark-gt-filename-of r) f))
+                                (bookmark-gt--records-named "test"))))
+           (a (bookmark-gt-jump-annotate
+               (bookmark-gt-jump-candidate-default (funcall by-file "/tmp/aaa"))))
+           (b (bookmark-gt-jump-annotate
+               (bookmark-gt-jump-candidate-default (funcall by-file "/tmp/bbb")))))
+      (should (string-match-p "aaa" a))
+      (should (string-match-p "bbb" b)))))
+
 (provide 'bookmark-gt-jump-tests)
 ;;; bookmark-gt-jump-tests.el ends here
