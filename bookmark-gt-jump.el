@@ -190,7 +190,7 @@ Returns a propertized string with:
   `consult--type'         — the narrow char.
   `bookmark-gt-particles' — the `@Type ;tag' tokens for the
                              orderless dispatcher."
-  (let* ((name (bookmark-gt-display-name (car record)))
+  (let* ((name (bookmark-gt-display-name-of record))
          (visible (bookmark-gt-jump--truncate-name name))
          (tags (bookmark-gt-tags-of record))
          (type-token (bookmark-gt-jump--type-token record))
@@ -533,6 +533,7 @@ rather than per tag-filter restart.  Also re-runs
 that loaded after `bookmark-gt-mode' still gets our annotator —
 the mode-on install is a no-op in that case."
   (bookmark-gt-jump--install-marginalia)
+  (bookmark-gt-ensure-ids)
   (run-hooks 'bookmark-gt-jump-before-read-hook)
   (let (result)
     (while (null result)

@@ -268,7 +268,7 @@ no mark is stored, returns a single space."
   "Return the tabulated-list vector for RECORD.
 Reads the mark cell from `bookmark-gt-list--marks' so marks
 survive re-render as long as the record cons is unchanged."
-  (let* ((raw-name (bookmark-gt-display-name (car record)))
+  (let* ((raw-name (bookmark-gt-display-name-of record))
          (name (truncate-string-to-width raw-name
                                          bookmark-gt-list-name-width
                                          nil nil t))
@@ -313,6 +313,7 @@ from the display when `bookmark-gt-list--show-temp' is nil.
 The underlying `bookmark-alist' is not modified.  The record
 itself is used as the tabulated-list ID so mutations survive
 sorting."
+  (bookmark-gt-ensure-ids)
   (let ((records (bookmark-gt-list--apply-filters bookmark-alist)))
     (unless bookmark-gt-list--show-temp
       (setq records (seq-remove #'bookmark-gt-temp-p records)))
@@ -538,7 +539,7 @@ Sorting: click a column header, or press `S' for column-at-point sort.
 (defun bookmark-gt-list--name-at-point ()
   "Return the visible name of the record at point, or nil."
   (when-let* ((rec (tabulated-list-get-id)))
-    (bookmark-gt-display-name (car rec))))
+    (bookmark-gt-display-name-of rec)))
 
 (defun bookmark-gt-list--goto-name (name)
   "Move point to the first row whose visible name equals NAME.
@@ -550,7 +551,7 @@ matches."
       (while (and (not (eobp)) (not found))
         (let ((rec (tabulated-list-get-id)))
           (if (and rec
-                   (equal (bookmark-gt-display-name (car rec)) name))
+                   (equal (bookmark-gt-display-name-of rec) name))
               (setq found t)
             (forward-line 1))))
       (unless found (goto-char (point-min))))))
@@ -858,7 +859,7 @@ characters rather than retype the whole name."
    (let ((record (bookmark-gt-list--require-record)))
      (list (read-from-minibuffer
             "Rename to: "
-            (bookmark-gt-display-name (car record)))))
+            (bookmark-gt-display-name-of record))))
    bookmark-gt-list-mode)
   (let* ((record (bookmark-gt-list--require-record))
          (unique (bookmark-gt-disambiguate-name new-name)))
@@ -1074,8 +1075,8 @@ hash, not in the record."
          (ra (funcall rank (car a)))
          (rb (funcall rank (car b))))
     (if (= ra rb)
-        (string< (bookmark-gt-display-name (car (car a)))
-                 (bookmark-gt-display-name (car (car b))))
+        (string< (bookmark-gt-display-name-of (car a))
+                 (bookmark-gt-display-name-of (car b)))
       (> ra rb))))
 
 (defun bookmark-gt-list--sort-by-group (a b)
@@ -1083,8 +1084,8 @@ hash, not in the record."
   (let* ((ga (bookmark-gt-group-name (bookmark-gt-handler-group (car a))))
          (gb (bookmark-gt-group-name (bookmark-gt-handler-group (car b)))))
     (if (equal ga gb)
-        (string< (bookmark-gt-display-name (car (car a)))
-                 (bookmark-gt-display-name (car (car b))))
+        (string< (bookmark-gt-display-name-of (car a))
+                 (bookmark-gt-display-name-of (car b)))
       (string< (or ga "") (or gb "")))))
 
 (defun bookmark-gt-list--sort-by-record-flag (prop)
@@ -1098,8 +1099,8 @@ Ties break by display name for stability."
       (cond
        ((and fa (not fb)) t)
        ((and fb (not fa)) nil)
-       (t (string< (bookmark-gt-display-name (car ra))
-                   (bookmark-gt-display-name (car rb))))))))
+       (t (string< (bookmark-gt-display-name-of ra)
+                   (bookmark-gt-display-name-of rb)))))))
 
 (defun bookmark-gt-list--sortable-columns ()
   "Return the ordered names of sortable columns in `tabulated-list-format'.
@@ -1245,7 +1246,7 @@ The special KEY `unfilter' clears every active filter."
                          :predicate (lambda (record regexp)
                                       (string-match-p
                                        regexp
-                                       (bookmark-gt-display-name (car record))))
+                                       (bookmark-gt-display-name-of record)))
                          :doc "Show only bookmarks whose name matches a regexp.")))
 
 ;;;; Built-in sort entries
@@ -1260,8 +1261,8 @@ The special KEY `unfilter' clears every active filter."
                    (list :name "Name"
                          :comparator
                          (lambda (a b)
-                           (string< (bookmark-gt-display-name (car a))
-                                    (bookmark-gt-display-name (car b))))
+                           (string< (bookmark-gt-display-name-of a)
+                                    (bookmark-gt-display-name-of b)))
                          :doc "Alphabetical by name.")))
 
 (add-to-list 'bookmark-gt-sort-alist

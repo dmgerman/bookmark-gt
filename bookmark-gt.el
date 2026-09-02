@@ -113,6 +113,7 @@ own variable."
     (advice-add 'bookmark-default-handler
                 :around #'bookmark-gt--file-type-handler-advice)
     (advice-add 'bookmark-store    :after  #'bookmark-gt--auto-temp-advice)
+    (advice-add 'bookmark-load     :after  #'bookmark-gt--ensure-ids-advice)
     (advice-add 'tabulated-list-sort :after
                 #'bookmark-gt-list--tabulated-sort-observer)
     (add-hook 'bookmark-after-jump-hook #'bookmark-gt--on-jump-record-visit)
@@ -129,6 +130,7 @@ own variable."
     (advice-remove 'bookmark-default-handler
                    #'bookmark-gt--file-type-handler-advice)
     (advice-remove 'bookmark-store    #'bookmark-gt--auto-temp-advice)
+    (advice-remove 'bookmark-load     #'bookmark-gt--ensure-ids-advice)
     (advice-remove 'tabulated-list-sort
                    #'bookmark-gt-list--tabulated-sort-observer)
     (remove-hook 'bookmark-after-jump-hook #'bookmark-gt--on-jump-record-visit)

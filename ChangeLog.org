@@ -3,6 +3,22 @@
 
 * Unreleased
 
+** Added
+
+- Every record carries a ~bookmark-gt-id~: a symbol, assigned on
+  creation and to records lacking one when the bookmark file is
+  loaded, the list buffer redraws, or the jump reader opens.  The
+  built-in bookmark package ignores the key, so files stay
+  readable by it.  The first save after upgrading rewrites every
+  record.
+- Records sharing a name are shown with a ~<N>~ suffix, as Emacs
+  does for buffers.  The suffix is computed for display and never
+  stored, so it cannot go stale.
+- Sequence bookmarks reference members by id, so a member can be
+  renamed without breaking the sequence.  Existing sequences are
+  converted where the member name matches one record; members
+  that match none or several are left as names and reported.
+
 ** Fixed
 
 - Commands act on the bookmark selected, not on the first record
@@ -59,8 +75,6 @@ Not implemented; see =ai/bookmark-identity.org=.
   signals for URL, function, kmacro and sequence bookmarks.
 - ~bookmark-gt-delete~ — deletes the record given, and reports
   any sequence bookmark referencing it.
-- ~bookmark-gt-id~ on every record.  The built-in bookmark
-  package ignores it.
 
 ** Fixed
 
@@ -75,8 +89,3 @@ Not implemented; see =ai/bookmark-identity.org=.
   differs from the one typed.
 - ~bookmark-gt-relocate~ refuses a target of a different type;
   ~bookmark-gt-update~ is what changes type.
-- Sequence bookmarks reference members by id, so renaming a
-  member keeps the sequence intact.  Existing sequences are
-  converted where the member name resolves to one record.
-- Bookmark files gain one key per record; the first save after
-  upgrading rewrites all of them.

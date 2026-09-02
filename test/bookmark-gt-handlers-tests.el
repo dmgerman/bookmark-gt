@@ -240,20 +240,48 @@ is added alongside it."
 ;;;; Sequence bookmarks
 
 (ert-deftest bookmark-gt-handlers-test-sequence-jump-visits-each ()
-  "Jumping a sequence bookmark calls `bookmark-jump' on each entry in order."
+  "Jumping a sequence bookmark visits each member record in order."
   (bookmark-gt-test-with-clean-bookmarks
     (let (jumped)
       ;; Create three placeholder bookmarks the sequence will reference.
       (dolist (n '("a" "b" "c"))
         (bookmark-gt-set-non-file n (function ignore) nil))
-      (bookmark-gt-set-sequence "seq" '("a" "b" "c"))
-      (cl-letf (((symbol-function 'bookmark-jump)
-                 (lambda (name &rest _) (push name jumped))))
+      (bookmark-gt-set-sequence "seq" (list "a" "b" "c"))
+      (cl-letf (((symbol-function 'bookmark-gt-jump-record)
+                 (lambda (record &rest _)
+                   (push (bookmark-name-from-full-record record) jumped))))
         (condition-case _err
             (bookmark-gt-handler-sequence-jump
              (assoc "seq" bookmark-alist))
           (no-catch nil)))
       (should (equal (nreverse jumped) '("a" "b" "c"))))))
+
+(ert-deftest bookmark-gt-handlers-test-sequence-members-become-ids ()
+  "Members stored as names are converted to ids by the id scan."
+  (bookmark-gt-test-with-clean-bookmarks
+    (dolist (n '("a" "b"))
+      (bookmark-gt-set-non-file n (function ignore) nil))
+    (bookmark-gt-set-sequence "seq" (list "a" "b"))
+    (let ((seq (assoc "seq" bookmark-alist)))
+      ;; Written as names, converted on the next scan.
+      (bookmark-prop-set seq 'sequence (list "a" "b"))
+      (bookmark-gt-ensure-ids)
+      (should (equal (bookmark-prop-get seq 'sequence)
+                     (list (bookmark-gt-id-of (bookmark-get-bookmark "a"))
+                           (bookmark-gt-id-of (bookmark-get-bookmark "b"))))))))
+
+(ert-deftest bookmark-gt-handlers-test-sequence-member-survives-rename ()
+  "A member referenced by id still resolves after the member is renamed."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-set-non-file "a" (function ignore) nil)
+    (bookmark-gt-set-sequence "seq" (list "a"))
+    (bookmark-gt-ensure-ids)
+    (let ((member (bookmark-get-bookmark "a"))
+          (seq (assoc "seq" bookmark-alist)))
+      (bookmark-gt-rename-record member "renamed")
+      (should (eq (bookmark-gt--resolve
+                   (car (bookmark-prop-get seq 'sequence)))
+                  member)))))
 
 (ert-deftest bookmark-gt-handlers-test-sequence-classify ()
   (bookmark-gt-test-with-clean-bookmarks

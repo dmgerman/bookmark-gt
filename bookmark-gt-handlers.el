@@ -934,14 +934,20 @@ Returns the stored (NAME . DATA) pair."
 
 (defun bookmark-gt-handler-sequence-jump (bookmark)
   "Bookmark handler for sequence bookmark BOOKMARK.
-Jump to each name in the record's `sequence' prop in order.
+Jump to each member of the record's `sequence' prop in order.
 Whatever buffer the last jump leaves current is what the
-jump-via display step will show."
-  (let ((names (bookmark-prop-get bookmark 'sequence)))
-    (unless (listp names)
+jump-via display step will show.
+
+Members are ids (symbols) or, for sequences written before ids
+existed, names.  Every member is resolved before the first jump,
+so a broken reference is reported without leaving the traversal
+half finished."
+  (let ((members (bookmark-prop-get bookmark 'sequence)))
+    (unless (listp members)
       (user-error "Sequence bookmark's `sequence' is not a list"))
-    (dolist (name names)
-      (bookmark-jump name))))
+    (let ((records (mapcar #'bookmark-gt--resolve members)))
+      (dolist (record records)
+        (bookmark-gt-jump-record record)))))
 
 ;;;###autoload
 (defun bookmark-gt-set-sequence (name bookmarks &optional tags)

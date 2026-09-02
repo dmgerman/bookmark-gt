@@ -133,7 +133,7 @@ default policy (both flags on)."
     (add-hook 'bookmark-gt-set-name-reader-hook
               (lambda (default _ctx) (concat default "-refined")) 90)
     (let ((result (bookmark-gt-set-non-file "seed" 'ignore nil)))
-      (should (equal (bookmark-gt-display-name (car result))
+      (should (equal (car result)
                      "seed-refined")))))
 
 (ert-deftest bookmark-gt-test-tag-reader-hook-folds ()
@@ -437,7 +437,7 @@ was jumped to or stored in this buffer last."
           (with-current-buffer (find-file-noselect tmp)
             (setq-local bookmark-current-bookmark "Some Browser Tab Title")
             (let ((stored (bookmark-gt-set nil)))
-              (should (equal (bookmark-gt-display-name (car stored))
+              (should (equal (car stored)
                              (file-name-nondirectory tmp))))
             (kill-buffer))
         (delete-file tmp)))))

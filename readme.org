@@ -856,13 +856,21 @@ jumps to, renames, relocates, or deletes that one:
 | ~bookmark-gt-list-edit-tags~ etc.    | ~t e~     |
 | ~bookmark-gt-list-toggle-temp~       | ~T~       |
 
-Jumping also credits the visit to the record you jumped to, so
-most-recently-used ordering stays correct when names repeat.
+Jumping also increments the visit count on the record you jumped
+to, so most-recently-used ordering stays correct when names
+repeat.
+
+*Telling them apart.*  Records sharing a name are displayed with
+a ~<N>~ suffix — ~todo~, ~todo<2>~ — the convention Emacs uses
+for buffers it cannot otherwise distinguish.  The suffix is
+computed for display only.  The stored name is still what you
+typed, so renaming, relocating or deleting one of the records
+renumbers the rest rather than leaving a stale suffix behind.
 
 From Lisp, ~bookmark-gt-jump-record~,
 ~bookmark-gt-rename-record~, and ~bookmark-gt-delete-record~ take
 a record and signal if given a name, so a caller holding a
-record cannot accidentally act on a different one.
+record cannot act on a different one.
 
 *What is still name-based.*  ~bookmark-gt-relocate~ and
 ~bookmark-gt-toggle-temp~ accept either a record or a name; given
@@ -871,7 +879,26 @@ built-ins.  Call them with a record when it matters.
 
 To avoid the distinction entirely, set
 ~bookmark-gt-allow-duplicate-names~ to nil: collisions then get a
-~<N>~ suffix and every name resolves to exactly one record.
+stored ~<N>~ suffix and every name resolves to exactly one
+record.
+
+*** Record identity
+
+Each record carries a ~bookmark-gt-id~ — a symbol assigned when
+the bookmark is created, and to records that lack one when the
+bookmark file is loaded, the list buffer redraws, or the jump
+reader opens.  It is what lets a reference survive a rename: a
+sequence bookmark stores its members by id rather than by name.
+
+The id is internal.  Nothing asks you to type one, and it
+appears only in ~i~ (describe record) in the list buffer and in
+the bookmark file itself.  The built-in bookmark package ignores
+the key, so a file bookmark-gt has written still loads there.
+
+Records written by other packages have no id until bookmark-gt
+next reads them, and a file copied between machines can hold the
+same id twice.  Both cases are expected: a bookmark is resolved
+by id when it has one and by name otherwise.
 
 ** Relocate: change a bookmark's target
 

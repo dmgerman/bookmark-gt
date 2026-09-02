@@ -81,6 +81,250 @@ Returns nil when neither is present."
   (or (bookmark-prop-get record 'url)
       (bookmark-prop-get record 'location)))
 
+;;;; Record identity
+;;
+;; A bookmark name is not an identifier: `bookmark-get-bookmark'
+;; resolves one with `assoc', so a name shared by two records
+;; reaches only the first, and `bookmark-rename' changes it.  The
+;; record cons is precise but does not survive `bookmark-load',
+;; which builds fresh conses, so it cannot be written to disk or
+;; held across a reload.
+;;
+;; `bookmark-gt-id' is the durable form: an interned symbol stored
+;; on the record.  The key is namespaced because plain `id' is
+;; taken — `org-bookmark-heading' stores the org heading ID there
+;; and its handler depends on it.
+;;
+;; It is best-effort, never an invariant.  Records written by
+;; `bookmark.el', bookmark+, or any other package have no id, and
+;; a file copied between machines can carry the same id twice.
+;; Code resolves by id when present and by name otherwise; it must
+;; never assume presence or uniqueness.
+
+(defvar bookmark-gt-id-generator-function #'bookmark-gt--generate-id
+  "Function of no arguments returning a fresh bookmark id.
+Must return an interned symbol.  Indirected so tests can bind a
+deterministic generator; production code calls
+`bookmark-gt--new-id' rather than this variable directly.")
+
+(defun bookmark-gt--generate-id ()
+  "Return a fresh id: `bgt-' followed by a timestamp and hex suffix.
+The timestamp is the moment the id was assigned, which for a
+record read from an older bookmark file is not when the bookmark
+was created — `created' holds that.  It is included because it
+makes ids sortable and legible when reading the file.
+
+The `bgt-' prefix is what guarantees the printed form reads back
+as a symbol: a body of digits alone would read as an integer."
+  (intern
+   (format "bgt-%s-%s"
+           (format-time-string "%Y%m%dT%H%M%S")
+           (substring (secure-hash 'sha1
+                                   (format "%s%s%s" (emacs-pid)
+                                           (current-time) (random)))
+                      0 8))))
+
+(defun bookmark-gt--new-id ()
+  "Return a fresh id from `bookmark-gt-id-generator-function'."
+  (funcall bookmark-gt-id-generator-function))
+
+(defun bookmark-gt-id-of (bookmark)
+  "Return BOOKMARK's `bookmark-gt-id', or nil when it has none.
+BOOKMARK is a record or a name."
+  (bookmark-prop-get bookmark 'bookmark-gt-id))
+
+(defun bookmark-gt--ids-in-use ()
+  "Return a hash table of every `bookmark-gt-id' in `bookmark-alist'."
+  (let ((taken (make-hash-table :test 'eq)))
+    (dolist (record bookmark-alist taken)
+      (when-let* ((id (bookmark-gt-id-of record)))
+        (puthash id t taken)))))
+
+(defun bookmark-gt--assign-id (record taken)
+  "Assign a fresh id to RECORD and return it.
+TAKEN is a hash table of ids already in use; the generated id is
+regenerated until it is absent from TAKEN, and then added to it.
+Within-file uniqueness is therefore exact rather than probable.
+
+Writes with `bookmark-prop-set' rather than through a mutator:
+`bookmark-gt--after-mutation' would run
+`bookmark-gt-set-after-hook' once per record, and
+`bookmark-gt--stamp-modified' would overwrite `last-modified' on
+every record with the time of the scan."
+  (let ((id (bookmark-gt--new-id)))
+    (while (gethash id taken)
+      (setq id (bookmark-gt--new-id)))
+    (puthash id t taken)
+    (bookmark-prop-set record 'bookmark-gt-id id)
+    id))
+
+(defun bookmark-gt-ensure-ids ()
+  "Assign a `bookmark-gt-id' to every record in `bookmark-alist' lacking one.
+Returns the number of ids assigned.
+
+Called from the places that already read the whole alist: after
+a load, when the list buffer redraws, and once per jump.  Records
+arriving from other packages are picked up at whichever of those
+comes first.  In the steady state every record has an id and this
+is a scan that changes nothing.
+
+Assigning is a change to what `bookmark-save' would write, so it
+is counted once at the end rather than per record, and only when
+a record eligible for the file was given an id.  Temporary
+records are excluded from the file, so ids assigned to them do
+not count."
+  (let ((taken (bookmark-gt--ids-in-use))
+        (assigned 0)
+        (persistent nil))
+    (dolist (record bookmark-alist)
+      (unless (bookmark-gt-id-of record)
+        (bookmark-gt--assign-id record taken)
+        (setq assigned (1+ assigned))
+        (unless (bookmark-gt-temp-p record)
+          (setq persistent t))))
+    (when (bookmark-gt--convert-sequence-members)
+      (setq persistent t))
+    (when persistent
+      ;; NO-SAVE: one count for the whole pass, persisted at the
+      ;; next save rather than provoking a write during a load.
+      (bookmark-gt--note-modification 'no-save))
+    assigned))
+
+(defun bookmark-gt--convert-sequence-members ()
+  "Rewrite sequence members from names to ids.
+Return non-nil when any member changed.
+
+Sequences written before ids existed reference their members by
+name.  Such a reference stops resolving when the member is
+renamed, and cannot address one of two records sharing a name.
+
+Runs after ids are assigned, so a member stored moments ago
+already has one.  A member name matching exactly one record
+becomes that record\='s id; a name matching none or several has
+no unambiguous answer, so it is left alone and reported."
+  (let ((changed nil)
+        (unresolved 0))
+    (dolist (record bookmark-alist)
+      (when-let* ((members (bookmark-prop-get record 'sequence))
+                  ((listp members)))
+        (let ((converted
+               (mapcar
+                (lambda (member)
+                  (if (not (stringp member))
+                      member
+                    (let ((matches (bookmark-gt--records-named member)))
+                      (if (and matches (null (cdr matches)))
+                          (or (bookmark-gt-id-of (car matches)) member)
+                        (setq unresolved (1+ unresolved))
+                        member))))
+                members)))
+          (unless (equal converted members)
+            (bookmark-prop-set record 'sequence converted)
+            (setq changed t)))))
+    (when (> unresolved 0)
+      (message
+       "bookmark-gt: %d sequence member%s left as %s; the name matches no record or several"
+       unresolved (if (= unresolved 1) "" "s")
+       (if (= unresolved 1) "a name" "names")))
+    changed))
+
+;;;; Resolving a bookmark reference
+;;
+;; One helper, four argument types, no guessing:
+;;
+;;   nil     no bookmark given
+;;   cons    the record itself
+;;   string  a name — a query, which may match none or several
+;;   symbol  an id — resolved exactly
+;;
+;; A name is always a string (`bookmark-store' copies it and
+;; strips its text properties), so a symbol can only be an id.
+;; That makes the dispatch total rather than heuristic.
+
+(defun bookmark-gt--records-named (name)
+  "Return every record in `bookmark-alist' named NAME."
+  (let ((wanted (substring-no-properties name)))
+    (seq-filter (lambda (record)
+                  (equal (substring-no-properties
+                          (bookmark-name-from-full-record record))
+                         wanted))
+                bookmark-alist)))
+
+(defun bookmark-gt--record-with-id (id)
+  "Return the record carrying ID, signaling if none or several do.
+Ids are best-effort, so two records can carry one after a file
+is copied or merged; that is as much a broken reference as an id
+matching nothing, and gets its own message."
+  (let ((matches (seq-filter (lambda (record)
+                               (eq (bookmark-gt-id-of record) id))
+                             bookmark-alist)))
+    (cond
+     ((null matches)
+      (error "No bookmark with id %s" id))
+     ((cdr matches)
+      (error "Ambiguous bookmark id %s: %d records carry it"
+             id (length matches)))
+     (t (car matches)))))
+
+(defun bookmark-gt--resolve (bookmark &optional prompt)
+  "Return the record BOOKMARK refers to.
+
+BOOKMARK is nil, a record, a name, or an id; see the dispatch
+table above.  PROMPT is used when BOOKMARK is nil, or when a
+name matches several records and the user can be asked.
+
+A name matching several records is not an answer.  When a prompt
+is possible the user chooses; otherwise this signals rather than
+returning the first match, which would act on a record the
+caller did not choose.
+
+Note the clause order: nil is itself a symbol, so it has to be
+tested before the id branch.  So does t."
+  (cond
+   ((null bookmark)
+    (unless (bookmark-gt--can-prompt-p)
+      (error "No bookmark given"))
+    (bookmark-gt--resolve
+     (bookmark-completing-read (or prompt "Bookmark"))))
+   ((consp bookmark) bookmark)
+   ((stringp bookmark)
+    (let ((matches (bookmark-gt--records-named bookmark)))
+      (cond
+       ((null matches)
+        (error "No bookmark named %s" bookmark))
+       ((null (cdr matches)) (car matches))
+       ((bookmark-gt--can-prompt-p)
+        (bookmark-gt--read-among matches bookmark prompt))
+       (t
+        (error "Ambiguous bookmark name %s: %d records share it"
+               bookmark (length matches))))))
+   ((symbolp bookmark) (bookmark-gt--record-with-id bookmark))
+   (t (error "Not a bookmark reference: %S" bookmark))))
+
+(defun bookmark-gt--can-prompt-p ()
+  "Return non-nil when it is safe to read from the minibuffer.
+Batch sessions cannot prompt, and a prompt from a timer would
+block on a minibuffer nobody is watching."
+  (not (or noninteractive
+           (bound-and-true-p bookmark-gt--in-timer))))
+
+(defvar bookmark-gt--in-timer nil
+  "Bound non-nil around work run from a timer.
+Resolution refuses to prompt while it is set.")
+
+(defun bookmark-gt--read-among (records name prompt)
+  "Read one of RECORDS, all named NAME, under PROMPT.
+Candidates are display names, which carry a `<N>' suffix when
+the stored names are identical, so each is distinct."
+  (let* ((table (mapcar (lambda (record)
+                          (cons (bookmark-gt-display-name-of record) record))
+                        records))
+         (choice (completing-read
+                  (format "%s (%s is used by %d bookmarks): "
+                          (or prompt "Bookmark") name (length records))
+                  (mapcar #'car table) nil t)))
+    (cdr (assoc choice table))))
+
 ;;;; Extension hooks
 ;;
 ;; All three hooks are top-level defvars per Emacs hook convention:
@@ -125,12 +369,25 @@ Return values are ignored.")
 ;; list buffer; it is the accepted convention across built-in,
 ;; bookmark+, and every third-party bookmark front-end.
 
-(defun bookmark-gt-display-name (name)
-  "Return the display form of NAME.
-Currently the identity function; retained as an API surface so
-future changes (e.g. hiding auto-generated \"<N>\" suffixes in the
-list buffer) have a single place to hook."
-  name)
+(defun bookmark-gt-display-name-of (record)
+  "Return RECORD's display name, unique among records in `bookmark-alist'.
+A stored name is what the user typed, and two records may share
+one.  The display name distinguishes them with a `<N>' suffix,
+the convention `generate-new-buffer-name' uses for buffers:
+the first record keeps the bare name, later ones get `<2>',
+`<3>', and so on.
+
+The suffix is computed, never stored, so it cannot go stale when
+a record is renamed, relocated or deleted.  It reflects the
+order records currently sit in `bookmark-alist', so it is stable
+for as long as the alist is — long enough for one render or one
+prompt, which is all that reads it."
+  (let* ((name (bookmark-name-from-full-record record))
+         (peers (bookmark-gt--records-named name)))
+    (if (null (cdr peers))
+        name
+      (let ((n (1+ (or (seq-position peers record #'eq) 0))))
+        (if (= n 1) name (format "%s<%d>" name n))))))
 
 (defun bookmark-gt-disambiguate-name (name)
   "Return NAME, or NAME<N> where N is the smallest available integer.
@@ -362,6 +619,14 @@ Returns the stripped name."
       (setq alist (cons (cons 'created now) alist)))
     (unless (assq 'last-modified alist)
       (setq alist (cons (cons 'last-modified now) alist)))
+    ;; A record created here gets its id now, so it is addressable
+    ;; without waiting for the next scan.  No uniqueness check:
+    ;; the id carries a timestamp to the second plus 32 random
+    ;; bits, and this path adds one record.  `bookmark-gt-ensure-ids'
+    ;; does check, because it has the table of ids in hand anyway.
+    (unless (assq 'bookmark-gt-id alist)
+      (setq alist (cons (cons 'bookmark-gt-id (bookmark-gt--new-id))
+                        alist)))
     (push (cons stripped alist) bookmark-alist)
     (unless no-current
       (setq bookmark-current-bookmark stripped)
@@ -681,7 +946,7 @@ nor a post-jump recorded position."
         (overlay-put ov 'bookmark-gt-highlight t)
         (overlay-put ov 'help-echo
                      (format "bookmark-gt: %s"
-                             (bookmark-gt-display-name (car record))))
+                             (bookmark-gt-display-name-of record)))
         ov))))
 
 (defun bookmark-gt-highlight--clear-buffer ()
@@ -793,7 +1058,7 @@ considered.  Records without a numeric `position' are skipped."
                        (not (file-remote-p f))
                        (file-exists-p f)
                        (file-equal-p f path)
-                       (cons p (bookmark-gt-display-name (car rec))))))
+                       (cons p (bookmark-gt-display-name-of rec)))))
               bookmark-alist))
        (lambda (a b) (< (car a) (car b)))))))
 
@@ -1009,6 +1274,12 @@ further built-in arguments.  Rewrites bookmarks whose
           ;; resolved with `assoc', retargeting the first record
           ;; carrying it rather than the one just tested.
           (bookmark-prop-set rec 'filename to-abs))))))
+
+(defun bookmark-gt--ensure-ids-advice (&rest _)
+  "After advice for `bookmark-load' that assigns missing ids.
+`bookmark-load' rebuilds `bookmark-alist' from the file, so any
+record written by another package arrives without one."
+  (bookmark-gt-ensure-ids))
 
 (defun bookmark-gt--save-filter-advice (orig-fn &rest args)
   "Around advice for `bookmark-save' that excludes temp records.

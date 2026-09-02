@@ -79,8 +79,7 @@ Fires `bookmark-gt-set-after-hook' with the updated record so
 the list buffer and any other observers refresh."
   (interactive
    (list (bookmark-completing-read "Toggle auto-update"
-                                   (bookmark-gt-display-name
-                                    (or bookmark-current-bookmark "")))))
+                                   (or bookmark-current-bookmark ""))))
   (let ((record (bookmark-get-bookmark name)))
     (unless record
       (user-error "No bookmark called %S" name))
