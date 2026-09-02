@@ -235,7 +235,7 @@ It permits the use case duplicates exist for — the same short
 name in each of several projects — and prevents the accidental
 duplicate from creating twice in one spot.
 
-It also narrows the blast radius of the redesign: a user who
+It also limits how many users the redesign affects: a user who
 never wanted duplicates gets ~todo<2>~ rather than a second
 silent ~todo~, so both records stay addressable by name and
 none of the first-match hazards in §Evidence reach them.
@@ -654,7 +654,7 @@ It is visible in exactly two places:
 
 1. ~bookmark-gt-list-describe-record~, which pretty-prints the
    raw record.  Already true, no work required, and the right
-   surface — present when inspecting a record, absent
+   place for it — present when inspecting a record, absent
    otherwise.
 2. The bookmark file, where every record gains a key.  Expected;
    worth an upgrade note.
@@ -874,8 +874,8 @@ AFTER  tags=nil             annot=nil        pos=20  count=1
 Re-setting a bookmark at a new position in the same file loses
 its tags and annotation.  This is a live bug on the current
 default path, independent of the redesign — the update is
-implemented as a create, which is the root of the whole naming
-problem.  ~bookmark-gt-tags-set~ shows the correct model:
+implemented as a create, which is what the whole naming problem
+follows from.  ~bookmark-gt-tags-set~ shows the correct model:
 ~setcdr~ on the existing cons, preserving record identity and
 every other property.
 

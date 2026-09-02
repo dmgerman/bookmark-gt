@@ -199,6 +199,7 @@ Returns a propertized string with:
                                  " ")))
     (propertize visible
                 'bookmark-gt-name name
+                'bookmark-gt-record record
                 'consult--type (bookmark-gt-jump--type-char record)
                 'bookmark-gt-particles
                 (and (not (string-empty-p particles)) particles))))
@@ -207,6 +208,24 @@ Returns a propertized string with:
   "Return the raw bookmark name stored on CANDIDATE, or CANDIDATE itself."
   (or (get-text-property 0 'bookmark-gt-name candidate)
       candidate))
+
+(defun bookmark-gt-jump--candidate-record (candidate records)
+  "Return the record CANDIDATE stands for, from RECORDS.
+Prefers the `bookmark-gt-record' text property, which survives
+the consult path.  Text properties do not survive every
+`completing-read' return value, so falls back to matching
+CANDIDATE's name against RECORDS.
+
+The fallback resolves to the first record of that name when
+several share one; making candidate strings unique is what
+removes that residual ambiguity."
+  (or (get-text-property 0 'bookmark-gt-record candidate)
+      (let ((name (bookmark-gt-jump--candidate-name candidate)))
+        (seq-find (lambda (r)
+                    (equal (substring-no-properties
+                            (bookmark-name-from-full-record r))
+                           (substring-no-properties name)))
+                  records))))
 
 ;;;; Orderless dispatchers
 
@@ -395,8 +414,9 @@ Bound around the reader; outside a read, always nil.")
    :narrow (consult--type-narrow (bookmark-gt-jump--narrow-alist))
    :keymap bookmark-gt-jump-minibuffer-map
    :lookup (lambda (selected cands &rest _)
-             (bookmark-gt-jump--candidate-name
-              (or (car (member selected cands)) selected)))))
+             ;; Return the candidate itself, not its name: the
+             ;; record is stored in its text properties.
+             (or (car (member selected cands)) selected))))
 
 (defun bookmark-gt-jump--read-plain (prompt candidates)
   "Read a CANDIDATES member via built-in `completing-read' under PROMPT.
@@ -411,9 +431,8 @@ work because we let-bind `minibuffer-local-completion-map' via
                bookmark-gt-jump-minibuffer-map
                minibuffer-local-completion-map))
          (minibuffer-local-completion-map map))
-    (bookmark-gt-jump--candidate-name
-     (completing-read (bookmark-gt-jump--prompt prompt)
-                      candidates nil t nil 'bookmark-history))))
+    (completing-read (bookmark-gt-jump--prompt prompt)
+                     candidates nil t nil 'bookmark-history)))
 
 (defvar bookmark-gt-jump--pool nil
   "Dynamic override for the candidate pool during `bookmark-gt-jump--read'.
@@ -483,7 +502,7 @@ have no equivalent primitive we can call from here."
 
 (defun bookmark-gt-jump--read-once (prompt)
   "One iteration of the jump reader under PROMPT.
-Returns the selected bookmark name or throws `quit' on abort.
+Returns the selected bookmark record, or throws `quit' on abort.
 Consults `bookmark-gt-jump--pool' when non-nil, otherwise
 scans `bookmark-alist'."
   (let* ((source (or bookmark-gt-jump--pool bookmark-alist))
@@ -499,12 +518,14 @@ scans `bookmark-alist'."
                     orderless-style-dispatchers)
             (and (boundp 'orderless-style-dispatchers)
                  orderless-style-dispatchers))))
-    (if (featurep 'consult)
-        (bookmark-gt-jump--read-with-consult prompt candidates)
-      (bookmark-gt-jump--read-plain prompt candidates))))
+    (bookmark-gt-jump--candidate-record
+     (if (featurep 'consult)
+         (bookmark-gt-jump--read-with-consult prompt candidates)
+       (bookmark-gt-jump--read-plain prompt candidates))
+     records)))
 
 (defun bookmark-gt-jump--read (prompt)
-  "Read a bookmark name under PROMPT, running the tag-filter restart loop.
+  "Read a bookmark record under PROMPT, running the tag-filter restart loop.
 Runs `bookmark-gt-jump-before-read-hook' exactly once, before the
 first reader iteration, so pool-refresh contributors fire per jump
 rather than per tag-filter restart.  Also re-runs
@@ -606,12 +627,11 @@ Minibuffer keys:
   (let* ((pool (bookmark-gt-jump--resolve-pool bookmarks-list
                                                bookmarks-filter
                                                group))
-         (name (or bookmark
-                   (bookmark-gt-jump--with-read-state pool sort-by preselect
-                     (bookmark-gt-jump--read "Jump to bookmark: ")))))
-    (if display-function
-        (bookmark-jump name display-function)
-      (bookmark-jump name))))
+         (record (bookmark-get-bookmark
+                  (or bookmark
+                      (bookmark-gt-jump--with-read-state pool sort-by preselect
+                        (bookmark-gt-jump--read "Jump to bookmark: "))))))
+    (bookmark-gt-jump-record record display-function)))
 
 ;;;###autoload
 (cl-defun bookmark-gt-jump-other-window
@@ -627,10 +647,11 @@ the display function is fixed to another window."
   (let* ((pool (bookmark-gt-jump--resolve-pool bookmarks-list
                                                bookmarks-filter
                                                group))
-         (name (or bookmark
-                   (bookmark-gt-jump--with-read-state pool sort-by preselect
-                     (bookmark-gt-jump--read "Jump (other window)")))))
-    (bookmark-jump-other-window name)))
+         (record (bookmark-get-bookmark
+                  (or bookmark
+                      (bookmark-gt-jump--with-read-state pool sort-by preselect
+                        (bookmark-gt-jump--read "Jump (other window)"))))))
+    (bookmark-gt-jump-record record #'switch-to-buffer-other-window)))
 
 ;;;###autoload
 (cl-defun bookmark-gt-jump-tagged
@@ -651,8 +672,8 @@ Interactively, :TAG is prompted for from the set of known tags."
   (let* ((pool (bookmark-gt-jump--resolve-pool bookmarks-list
                                                bookmarks-filter
                                                group))
-         (name (or bookmark
-                   (let ((bookmark-gt-jump--pool pool)
+         (record (or bookmark
+                     (let ((bookmark-gt-jump--pool pool)
                          (bookmark-gt-jump--sort-by sort-by)
                          (bookmark-gt-jump--preselect preselect)
                          (bookmark-gt-jump--active-filters (list tag))
@@ -660,7 +681,7 @@ Interactively, :TAG is prompted for from the set of known tags."
                      (when (and (integerp preselect) (> preselect 0))
                        (bookmark-gt-jump--preselect-arm))
                      (bookmark-gt-jump--read (format "Jump [;%s]" tag))))))
-    (bookmark-jump name)))
+    (bookmark-gt-jump-record (bookmark-get-bookmark record))))
 
 (provide 'bookmark-gt-jump)
 

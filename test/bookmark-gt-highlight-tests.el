@@ -120,7 +120,7 @@ records the landed point."
         (should (= (bookmark-gt-highlight-test--overlay-count) 0))
         ;; Simulate a jump landing at position 9 (inside line2).
         (goto-char 9)
-        (let ((bookmark-current-bookmark "b"))
+        (let ((bookmark-gt-current-bookmark (bookmark-get-bookmark "b")))
           (bookmark-gt-highlight--on-jump))
         (should (= (bookmark-gt-highlight-test--overlay-count) 1))))))
 

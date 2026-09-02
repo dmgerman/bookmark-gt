@@ -1,0 +1,82 @@
+#+TITLE: bookmark-gt — ChangeLog
+#+STARTUP: overview
+
+* Unreleased
+
+** Fixed
+
+- Commands act on the bookmark selected, not on the first record
+  sharing its name: list-buffer jump, rename, relocate and
+  delete, and ~bookmark-gt-jump~.
+- Visit count, highlight overlay and region restore apply to the
+  record jumped to.
+- ~rename-file~ rewrites the record whose filename matched, not a
+  namesake.
+
+** Added
+
+- ~bookmark-gt-jump-record~, ~bookmark-gt-rename-record~,
+  ~bookmark-gt-delete-record~ — take a record, signal on a name.
+- ~bookmark-gt-relocate~ accepts a record as well as a name.
+
+** Documentation
+
+- =readme.org=: which commands are name-based (Emacs's own) and
+  which act on the record chosen.
+
+* Planned — 0.3.0
+
+Not implemented; see =ai/bookmark-identity.org=.
+
+** Breaking
+
+- ~bookmark-gt-set~ removed — it conflated creating with
+  updating.  Use ~bookmark-gt-create~ or ~bookmark-gt-update~.
+  Rebind ~C-x r m~, or ~use-package :bind~ fails at init.
+- ~bookmark-gt-set-url~, ~-set-function~, ~-set-kmacro~,
+  ~-set-sequence~ → ~bookmark-gt-create-*~.  Rebind ~C-x r u~.
+- ~bookmark-gt-set-non-file~ → ~bookmark-gt-create-non-file~.
+- ~bookmark-gt-set-temp~ → ~bookmark-gt-temp-set~.
+- ~bookmark-gt-set-after-hook~ →
+  ~bookmark-gt-record-changed-hook~, now called with the record
+  and a symbol naming the operation.
+- ~bookmark-gt-set-name-reader-hook~ and
+  ~bookmark-gt-set-tag-reader-hook~ →
+  ~bookmark-gt-create-*-reader-hook~; they run only on create.
+- ~bookmark-gt-same-name-overwrite~ removed.
+- ~bookmark-gt-allow-duplicate-names~ →
+  ~bookmark-gt-allow-same-name-bookmarks~, now a symbol.  Old
+  ~t~ and ~nil~ map to ~always~ and ~never~ with a warning.
+- ~C-u~ on create no longer forces a ~<N>~ suffix.
+
+** Added
+
+- ~bookmark-gt-create~ — always creates.  The name prompt
+  completes over existing names.
+- ~bookmark-gt-update~ — points a bookmark at the current
+  location, keeping its name, id, tags, annotation, creation
+  time and visit history.  Confirms when the type would change;
+  signals for URL, function, kmacro and sequence bookmarks.
+- ~bookmark-gt-delete~ — deletes the record given, and reports
+  any sequence bookmark referencing it.
+- ~bookmark-gt-id~ on every record.  The built-in bookmark
+  package ignores it.
+
+** Fixed
+
+- Updating a bookmark keeps its tags and annotation.
+
+** Changed
+
+- ~bookmark-gt-allow-same-name-bookmarks~ decides only whether
+  ~create~ may reuse an existing name: ~never~,
+  ~different-destination~ (default, allowing one ~todo~ per
+  file), or ~always~.  The stored name is reported when it
+  differs from the one typed.
+- ~bookmark-gt-relocate~ refuses a target of a different type;
+  ~bookmark-gt-update~ is what changes type.
+- Sequence bookmarks reference members by id, so renaming a
+  member keeps the sequence intact.  Existing sequences are
+  converted where the member name resolves to one record.
+- Bookmark files gain one key per record; the first save after
+  upgrading rewrites all of them.

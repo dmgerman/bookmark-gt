@@ -364,7 +364,8 @@ Returns the stripped name."
       (setq alist (cons (cons 'last-modified now) alist)))
     (push (cons stripped alist) bookmark-alist)
     (unless no-current
-      (setq bookmark-current-bookmark stripped))
+      (setq bookmark-current-bookmark stripped)
+      (setq-local bookmark-gt-current-bookmark (car bookmark-alist)))
     (unless temp
       (bookmark-gt--note-modification))
     stripped))
@@ -491,6 +492,22 @@ buffer and any other observers refresh."
 
 (declare-function bookmark--set-fringe-mark "bookmark" ())
 
+(defvar-local bookmark-gt-current-bookmark nil
+  "Record of the bookmark most recently used in this buffer.
+Set by `bookmark-gt--jump-via-override' after the handler runs,
+and by `bookmark-gt--push-record' on store.  Holds the record
+itself, not its name.
+
+Built-in `bookmark-current-bookmark' holds a *name*, so every
+reader of it re-enters `assoc' and acts on the first record
+carrying that name — the wrong one whenever names are shared.
+This variable exists so the post-jump readers act on the record
+that was actually jumped to.
+
+May hold a record that is no longer in `bookmark-alist' if the
+bookmark file was reloaded since the jump; readers must
+tolerate that rather than assume membership.")
+
 (defun bookmark-gt--jump-via-override (bookmark-name-or-record display-function)
   "Override of `bookmark--jump-via'.
 Handle BOOKMARK-NAME-OR-RECORD, then call DISPLAY-FUNCTION on
@@ -505,7 +522,14 @@ fringe mark, and `bookmark-after-jump-hook' all still run."
                    (bookmark-handle-bookmark bookmark-name-or-record)
                    nil))
       (setq buf (current-buffer)
-            point (point)))
+            point (point))
+      ;; Record what was actually jumped to, in the buffer the
+      ;; handler left current, before `bookmark-after-jump-hook'
+      ;; runs.  When the caller passed a record this is exact;
+      ;; when it passed a name the ambiguity is the caller's.
+      (setq-local bookmark-gt-current-bookmark
+                  (bookmark-get-bookmark bookmark-name-or-record
+                                         'noerror)))
     (funcall display-function buf)
     (when-let* ((win (get-buffer-window buf 0)))
       (set-window-point win point))
@@ -520,6 +544,48 @@ fringe mark, and `bookmark-after-jump-hook' all still run."
     (run-hooks 'bookmark-after-jump-hook)
     (when (and bookmark-automatically-show-annotations (not skip))
       (bookmark-show-annotation bookmark-name-or-record))))
+
+(defun bookmark-gt-jump-record (record &optional display-func)
+  "Jump to RECORD, a cons from `bookmark-alist'.
+Like `bookmark-jump', but takes the record itself, so the jump
+cannot go to a different bookmark that shares RECORD's name.
+DISPLAY-FUNC defaults to `pop-to-buffer-same-window'.
+
+RECORD's name, not RECORD, is added to `bookmark-history':
+`bookmark-jump' would push the record there, and that history
+holds strings."
+  (unless (consp record)
+    (error "Not a bookmark record: %S" record))
+  (add-to-history 'bookmark-history (bookmark-name-from-full-record record))
+  (bookmark--jump-via record (or display-func #'pop-to-buffer-same-window)))
+
+(defun bookmark-gt-delete-record (record)
+  "Delete RECORD from `bookmark-alist' by identity.
+Unlike `bookmark-delete', which removes the first record
+carrying a given name, this removes exactly RECORD.
+
+A change confined to a temporary record is not counted: temp
+records are excluded from `bookmark-save' output, so removing
+one cannot alter the file."
+  (unless (consp record)
+    (error "Not a bookmark record: %S" record))
+  (let ((temp (bookmark-gt-temp-p record)))
+    (bookmark--remove-fringe-mark record)
+    (setq bookmark-alist (delq record bookmark-alist))
+    (unless temp
+      (bookmark-gt--note-modification))
+    record))
+
+(defun bookmark-gt-rename-record (record new-name)
+  "Rename RECORD to NEW-NAME in place.
+Unlike `bookmark-rename', which renames the first record
+carrying a given name, this renames exactly RECORD.  Returns
+RECORD, whose car is now NEW-NAME."
+  (unless (consp record)
+    (error "Not a bookmark record: %S" record))
+  (bookmark-set-name record new-name)
+  (bookmark-gt--after-mutation record)
+  record)
 
 (defmacro bookmark-gt-skip-post-handler (value)
   "Throw VALUE to suppress this jump's annotation popup.
@@ -657,8 +723,7 @@ overlay per match."
 Lets records without a numeric `position' (e.g. org-heading
 bookmarks) still get an overlay at their landed position."
   (when-let* ((bookmark-gt-highlight-enable)
-              (name bookmark-current-bookmark)
-              (rec (bookmark-get-bookmark name 'noerror)))
+              (rec bookmark-gt-current-bookmark))
     (unless bookmark-gt-highlight--jumped-positions
       (setq bookmark-gt-highlight--jumped-positions
             (make-hash-table :test 'eq)))
@@ -848,8 +913,7 @@ there (activated) so the region reappears highlighted.  Apply
 a delta correction so context-based re-anchoring at the start
 propagates to the end anchor."
   (when-let* ((bookmark-gt-use-region)
-              (name bookmark-current-bookmark)
-              (rec (bookmark-get-bookmark name 'noerror))
+              (rec bookmark-gt-current-bookmark)
               (end-pos (bookmark-prop-get rec 'end-position))
               (raw-pos (bookmark-prop-get rec 'position)))
     (let ((delta (- (point) raw-pos)))
@@ -884,12 +948,11 @@ disk write per jump."
 
 (defun bookmark-gt--on-jump-record-visit ()
   "Hook for `bookmark-after-jump-hook'.
-Records the visit against `bookmark-current-bookmark' (set by
-built-in `bookmark-handle-bookmark' before the after-jump-hook
-runs).  Runs on every jump under
-`bookmark-gt--jump-via-override'."
-  (when bookmark-current-bookmark
-    (bookmark-gt-record-visit bookmark-current-bookmark)))
+Records the visit against `bookmark-gt-current-bookmark', the
+record `bookmark-gt--jump-via-override' set before this hook
+ran.  Runs on every jump under that override."
+  (when bookmark-gt-current-bookmark
+    (bookmark-gt-record-visit bookmark-gt-current-bookmark)))
 
 ;;;; File-rename tracker
 ;;
@@ -942,7 +1005,10 @@ further built-in arguments.  Rewrites bookmarks whose
           (to-abs   (expand-file-name to)))
       (dolist (rec bookmark-alist)
         (when (equal (bookmark-gt-filename-of rec) from-abs)
-          (bookmark-prop-set (car rec) 'filename to-abs))))))
+          ;; Write through REC, not `(car rec)': a name would be
+          ;; resolved with `assoc', retargeting the first record
+          ;; carrying it rather than the one just tested.
+          (bookmark-prop-set rec 'filename to-abs))))))
 
 (defun bookmark-gt--save-filter-advice (orig-fn &rest args)
   "Around advice for `bookmark-save' that excludes temp records.
@@ -1140,31 +1206,36 @@ stored (NAME . DATA) pair."
 ;; the same-name-overwrite policy updates `position' in place.
 
 ;;;###autoload
-(defun bookmark-gt-relocate (name)
-  "Change the target of the bookmark called NAME.
+(defun bookmark-gt-relocate (bookmark)
+  "Change the target of BOOKMARK, a bookmark record or name.
 File bookmarks prompt for a new filename with `read-file-name'
 and keep the current position.  Records with a `url' key
 prompt for a new URL.  Records with neither signal a
-`user-error'.  Fires `bookmark-gt-set-after-hook'."
+`user-error'.  Fires `bookmark-gt-set-after-hook'.
+
+Passing a record relocates exactly that record.  Passing a name
+resolves it with `bookmark-get-bookmark', which returns the
+first record carrying it."
   (interactive (list (bookmark-completing-read "Relocate bookmark")))
-  (let* ((entry    (bookmark-get-bookmark name))
+  (let* ((entry    (bookmark-get-bookmark bookmark))
+         (label    (bookmark-name-from-full-record entry))
          (filename (bookmark-prop-get entry 'filename))
          (url      (bookmark-prop-get entry 'url)))
     (cond
      (filename
       (let ((new (read-file-name
-                  (format "Relocate `%s' to file: " name)
+                  (format "Relocate `%s' to file: " label)
                   (file-name-directory filename)
                   filename nil (file-name-nondirectory filename))))
         (bookmark-prop-set entry 'filename (expand-file-name new))))
      (url
       (let ((new (read-string
-                  (format "Relocate `%s' URL: " name) url)))
+                  (format "Relocate `%s' URL: " label) url)))
         (bookmark-prop-set entry 'url new)))
      (t
       (user-error
        "bookmark-gt-relocate: `%s' has neither `filename' nor `url'"
-       name)))
+       label)))
     (unless (bookmark-gt-temp-p entry)
       (bookmark-gt--note-modification))
     (bookmark-gt--after-mutation entry)

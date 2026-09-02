@@ -814,7 +814,7 @@ than reporting that there is nothing to delete."
                                  (length flagged)))
       (user-error "Aborted"))
     (dolist (record flagged)
-      (bookmark-delete (car record) t)
+      (bookmark-gt-delete-record record)
       (remhash record bookmark-gt-list--marks))
     (bookmark-gt--after-mutation (car flagged))
     (message "Deleted %d bookmark(s)" (length flagged))))
@@ -825,13 +825,13 @@ than reporting that there is nothing to delete."
   "Jump to the bookmark on the current line."
   (interactive nil bookmark-gt-list-mode)
   (let ((record (bookmark-gt-list--require-record)))
-    (bookmark-jump (car record))))
+    (bookmark-gt-jump-record record)))
 
 (defun bookmark-gt-list-jump-other-window ()
   "Jump to the bookmark on the current line in another window."
   (interactive nil bookmark-gt-list-mode)
   (let ((record (bookmark-gt-list--require-record)))
-    (bookmark-jump-other-window (car record))))
+    (bookmark-gt-jump-record record #'switch-to-buffer-other-window)))
 
 (defun bookmark-gt-list-preview ()
   "Preview the bookmark on the current line in another window.
@@ -862,17 +862,17 @@ characters rather than retype the whole name."
    bookmark-gt-list-mode)
   (let* ((record (bookmark-gt-list--require-record))
          (unique (bookmark-gt-disambiguate-name new-name)))
-    (bookmark-rename (car record) unique)
-    (bookmark-gt--after-mutation (cons unique (cdr record)))))
+    (bookmark-gt-rename-record record unique)))
 
 (defun bookmark-gt-list-relocate ()
   "Relocate the bookmark on the current line.
-Dispatches to `bookmark-gt-relocate' with the row's record
-name so the user gets file-name completion for file
-bookmarks and a plain string prompt for URL bookmarks."
+Dispatches to `bookmark-gt-relocate' with the row's record, so
+the relocation cannot apply to a different bookmark sharing its
+name.  File bookmarks get file-name completion; URL bookmarks
+get a plain string prompt."
   (interactive nil bookmark-gt-list-mode)
   (let ((record (bookmark-gt-list--require-record)))
-    (bookmark-gt-relocate (car record))))
+    (bookmark-gt-relocate record)))
 
 (defun bookmark-gt-list-edit-tags ()
   "Edit the tag list on the marked bookmarks, or the one at point.

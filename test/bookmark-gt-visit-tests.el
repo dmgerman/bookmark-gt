@@ -48,14 +48,14 @@
 (ert-deftest bookmark-gt-visit-test-hook-uses-current-bookmark ()
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-set-non-file "b" 'h nil)
-    (let ((bookmark-current-bookmark "b"))
+    (let ((bookmark-gt-current-bookmark (bookmark-get-bookmark "b")))
       (bookmark-gt--on-jump-record-visit)
       (should (= (bookmark-prop-get "b" 'visits) 1)))))
 
 (ert-deftest bookmark-gt-visit-test-hook-no-current-is-noop ()
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-set-non-file "b" 'h nil)
-    (let ((bookmark-current-bookmark nil))
+    (let ((bookmark-gt-current-bookmark nil))
       (bookmark-gt--on-jump-record-visit))
     (should-not (bookmark-prop-get "b" 'visits))))
 
