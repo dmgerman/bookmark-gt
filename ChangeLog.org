@@ -82,6 +82,13 @@
 
 ** Fixed
 
+- The TAGS argument of ~bookmark-gt-create-url~ and the other
+  typed creators reaches the tag reader as its seed.  It was
+  passed as a record property and the reader was seeded with
+  nothing, so with the prompt on — the default — the tags were
+  not offered for editing and the record ended up with two
+  ~tags~ entries, the caller\='s unreachable behind the one the
+  reader produced.
 - A browser-tab refresh no longer stops at a repeated tab title.
   Titles repeat routinely — two windows on one site, a page open
   twice — so a refusal skips that tab and the refresh reports how

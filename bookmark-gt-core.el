@@ -742,7 +742,7 @@ Returns the stripped name."
 
 ;;;; Public: elisp API
 
-(defun bookmark-gt--create-record (name data &optional no-notify no-current)
+(defun bookmark-gt--create-record (name data &optional tags no-notify no-current)
   "Store a new record named NAME with alist DATA, and return it.
 
 The single creation path.  Applies the name-reader hook, then
@@ -755,14 +755,23 @@ Reports when the stored name differs from the one asked for, or
 when it repeats an existing name: either way the user typed one
 thing and got another.
 
+TAGS seeds the tag pipeline.  When it is nil the seed comes from
+a `tags' key in DATA, which is how the typed creators pass theirs.
+Either way the key is removed from DATA first: the pipeline
+re-attaches the final list, and leaving the original in place
+would put two `tags' cells on the record, the stale one
+unreachable behind the new.
+
 NO-NOTIFY skips the UI refresh and the change hook, for a caller
 mutating many records that will notify once at the end.
 NO-CURRENT leaves `bookmark-current-bookmark' alone; see
 `bookmark-gt--push-record'."
-  (let* ((refined (bookmark-gt--refine-name name data))
+  (let* ((seed (or tags (alist-get 'tags data)))
+         (data (assq-delete-all 'tags (copy-sequence data)))
+         (refined (bookmark-gt--refine-name name data))
          (shared (bookmark-gt--records-named refined))
          (stored-name (bookmark-gt--check-name-available refined data))
-         (tags (bookmark-gt--collect-tags data nil))
+         (tags (bookmark-gt--collect-tags data seed))
          (final-data (bookmark-gt--with-tags data tags))
          (final-name (bookmark-gt--push-record stored-name final-data
                                                no-current))
@@ -787,7 +796,7 @@ and so on).  NO-NOTIFY and NO-CURRENT are passed to
 `bookmark-gt--create-record'.  Returns the stored record."
   (bookmark-gt--create-record name
                               (cons (cons 'handler handler) props)
-                              no-notify no-current))
+                              nil no-notify no-current))
 
 ;;;; Session-only record properties
 ;;
@@ -1663,7 +1672,7 @@ puts it onto an existing one."
               (buffer-name)))))
 
 ;;;###autoload
-(defun bookmark-gt-create (&optional name)
+(defun bookmark-gt-create (&optional name tags)
   "Create a bookmark at the current location.
 
 Always creates.  To change where an existing bookmark points,
@@ -1676,9 +1685,13 @@ existing names so a repeat is visible while typing.  Lisp callers
 pass a name string, or nil to accept the suggested name without
 prompting.
 
+TAGS is an optional initial tag list, seeding the tag reader the
+same way it does in `bookmark-gt-create-url' and the other typed
+creators.  When omitted, the tag pipeline decides on its own.
+
 `bookmark-gt-allow-same-name-bookmarks' decides what happens when
 the name is already in use.  Returns the stored record."
-  (interactive (list bookmark-gt--prompt-name))
+  (interactive (list bookmark-gt--prompt-name nil))
   (bookmark-maybe-load-default-file)
   (pcase-let* ((`(,data . ,suggested) (bookmark-gt--capture-here))
                (refined (bookmark-gt--refine-name suggested data))
@@ -1698,7 +1711,7 @@ the name is already in use.  Returns the stored record."
                    nil nil refined 'bookmark-history refined))
                  (name name)
                  (t refined))))
-    (bookmark-gt--create-record chosen data)))
+    (bookmark-gt--create-record chosen data tags)))
 
 ;;;; Update
 ;;

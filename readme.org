@@ -721,6 +721,12 @@ Any non-empty ~RET~ accepts the current tag and prompts for
 another.  The running accumulator is shown in the prompt as
 ~Tags [foo,bar] (M-RET or empty RET to finish): ~.
 
+Every create command takes an optional TAGS list —
+~bookmark-gt-create~, ~bookmark-gt-create-url~, and the rest —
+which seeds the reader rather than replacing it: the tags are
+offered for editing, and what the reader returns is what is
+stored.
+
 The reader is invoked by ~bookmark-gt-create~ when
 ~bookmark-gt-prompt-for-tags-flag~ is non-nil (default) and
 seeds itself with any tags provided by

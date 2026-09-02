@@ -919,6 +919,11 @@ a plain ‘completing-read’ against every tag that currently appears in
 The running accumulator is shown in the prompt as ~Tags [foo,bar] (M-RET
 or empty RET to finish): ~.
 
+   Every create command takes an optional TAGS list —
+‘bookmark-gt-create’, ‘bookmark-gt-create-url’, and the rest — which
+seeds the reader rather than replacing it: the tags are offered for
+editing, and what the reader returns is what is stored.
+
    The reader is invoked by ‘bookmark-gt-create’ when
 ‘bookmark-gt-prompt-for-tags-flag’ is non-nil (default) and seeds itself
 with any tags provided by ‘bookmark-gt-default-tags-mode’ or another
@@ -1733,35 +1738,35 @@ Node: File-type handlers — override the file-jump path per pattern35319
 Node: View bookmarks — save the list buffer's current view36695
 Node: Setting bookmarks37863
 Node: Tag reader38119
-Node: Bookmarks that share a name39141
-Node: Telling them apart on screen40814
-Node: Loading a file that breaks the setting41471
-Node: If you expected two records and see one42975
-Node: Which command reaches which record44763
-Node: Record identity46721
-Node: Changing an existing bookmark47714
-Node: bookmark-gt-update — point it at where I am48765
-Node: bookmark-gt-relocate — point it somewhere I name49751
-Node: bookmark-gt-rename50914
-Node: Deleting51396
-Node: In-file behaviors51891
-Node: In-buffer cycling52120
-Node: Per-bookmark highlighting53120
-Node: Region bookmarks55083
-Node: Trackers56607
-Node: Visit tracker56783
-Node: File-rename tracker57527
-Node: Extension API58514
-Node: Handler registry58715
-Node: Group registry60912
-Node: Extension points62565
-Node: Compatibility65689
-Node: Data compat with bookmark+65890
-Node: Migrating from bookmark+67233
-Node: Reference69577
-Node: Selected customization69740
-Node: Acknowledgements75006
-Node: License77340
+Node: Bookmarks that share a name39401
+Node: Telling them apart on screen41074
+Node: Loading a file that breaks the setting41731
+Node: If you expected two records and see one43235
+Node: Which command reaches which record45023
+Node: Record identity46981
+Node: Changing an existing bookmark47974
+Node: bookmark-gt-update — point it at where I am49025
+Node: bookmark-gt-relocate — point it somewhere I name50011
+Node: bookmark-gt-rename51174
+Node: Deleting51656
+Node: In-file behaviors52151
+Node: In-buffer cycling52380
+Node: Per-bookmark highlighting53380
+Node: Region bookmarks55343
+Node: Trackers56867
+Node: Visit tracker57043
+Node: File-rename tracker57787
+Node: Extension API58774
+Node: Handler registry58975
+Node: Group registry61172
+Node: Extension points62825
+Node: Compatibility65949
+Node: Data compat with bookmark+66150
+Node: Migrating from bookmark+67493
+Node: Reference69837
+Node: Selected customization70000
+Node: Acknowledgements75266
+Node: License77600
 
 End Tag Table
 

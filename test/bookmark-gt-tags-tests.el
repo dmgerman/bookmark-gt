@@ -139,5 +139,46 @@
       (should (equal (bookmark-gt-tags-of (car bookmark-alist))
                      '("proj" "urgent"))))))
 
+;;;; TAGS passed to a create command seeds the reader
+
+(ert-deftest bookmark-gt-tags-test-create-seeds-the-reader ()
+  "The TAGS argument reaches the tag reader as its seed."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((bookmark-gt-prompt-for-tags-flag t)
+          seen)
+      (cl-letf (((symbol-function 'bookmark-gt-tags-read)
+                 (lambda (_prompt seed) (setq seen seed) seed)))
+        (bookmark-gt-create-url "https://example.org" "site"
+                                (list "web" "reference")))
+      (should (equal seen '("web" "reference"))))))
+
+(ert-deftest bookmark-gt-tags-test-create-stores-one-tags-cell ()
+  "The pipeline replaces the seed rather than shadowing it.
+Two `tags' cells would leave the caller's list on the record but
+unreachable, since `bookmark-prop-get' takes the first."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((bookmark-gt-prompt-for-tags-flag t))
+      (cl-letf (((symbol-function 'bookmark-gt-tags-read)
+                 (lambda (_prompt _seed) '("chosen"))))
+        (bookmark-gt-create-url "https://example.org" "site"
+                                (list "web"))))
+    (let ((record (bookmark-get-bookmark "site")))
+      (should (equal (bookmark-gt-tags-of record) '("chosen")))
+      (should (= 1 (seq-count (lambda (cell) (eq (car-safe cell) 'tags))
+                              (cdr record)))))))
+
+(ert-deftest bookmark-gt-tags-test-create-accepts-tags ()
+  "`bookmark-gt-create' takes TAGS like the typed creators do."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((bookmark-gt-prompt-for-tags-flag nil)
+          (tmp (make-temp-file "bookmark-gt-tags-")))
+      (unwind-protect
+          (with-current-buffer (find-file-noselect tmp)
+            (unwind-protect
+                (let ((record (bookmark-gt-create "here" (list "work"))))
+                  (should (equal (bookmark-gt-tags-of record) '("work"))))
+              (kill-buffer)))
+        (delete-file tmp)))))
+
 (provide 'bookmark-gt-tags-tests)
 ;;; bookmark-gt-tags-tests.el ends here
