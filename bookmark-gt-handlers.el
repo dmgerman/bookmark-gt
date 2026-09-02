@@ -40,7 +40,7 @@
 ;; type name without requiring the user to register anything.
 ;;
 ;; Also ships the URL handler bookmark-gt owns end-to-end
-;; (`bookmark-gt-handler-url-jump' + `bookmark-gt-set-url').
+;; (`bookmark-gt-handler-url-jump' + `bookmark-gt-create-url').
 
 ;;; Acknowledgements:
 ;;
@@ -444,7 +444,7 @@ predicate is unqualified for discoverability."
 Setting a bookmark from a `dired-virtual-mode' buffer captures
 the buffer's textual listing under the `dired-listing' key so
 the jump handler can recreate the buffer exactly.  When the
-listing exceeds this limit, `bookmark-gt-set' signals a
+listing exceeds this limit, `bookmark-gt-create' signals a
 `user-error' rather than embedding a large payload in the
 bookmark file — raise this value to allow the bookmark, or
 lower it to be more conservative.  The bookmark file is
@@ -624,7 +624,7 @@ Opens the URL via `browse-url'."
     (browse-url url)))
 
 ;;;###autoload
-(defun bookmark-gt-set-url (url &optional name tags)
+(defun bookmark-gt-create-url (url &optional name tags)
   "Store a URL bookmark for URL under NAME.
 Interactive: prompts for URL (defaulting to any URL at point)
 and NAME (defaulting to URL).  TAGS is an optional initial tag
@@ -641,7 +641,7 @@ Returns the stored (NAME . DATA) pair."
   (let ((props (list (cons 'url url))))
     (when tags
       (push (cons 'tags tags) props))
-    (bookmark-gt-set-non-file (or name url)
+    (bookmark-gt-create-non-file (or name url)
                               'bookmark-gt-handler-url-jump
                               props)))
 
@@ -781,7 +781,7 @@ current; if the record has an annotation, it pops up as usual."
     (funcall fn)))
 
 ;;;###autoload
-(defun bookmark-gt-set-function (name fn &optional tags)
+(defun bookmark-gt-create-function (name fn &optional tags)
   "Store a function bookmark called NAME whose jump invokes FN.
 Interactive: prompts for NAME and a command via `read-command'.
 FN is any callable (a symbol or lambda).  TAGS is an optional
@@ -795,7 +795,7 @@ Returns the stored (NAME . DATA) pair."
   (let ((props (list (cons 'function fn))))
     (when tags
       (push (cons 'tags tags) props))
-    (bookmark-gt-set-non-file
+    (bookmark-gt-create-non-file
      name 'bookmark-gt-handler-function-jump props)))
 
 ;;;; Keyboard-macro bookmarks — jump replays the recorded key vector
@@ -899,7 +899,7 @@ there is nothing to pick."
         (intern pick)))))
 
 ;;;###autoload
-(defun bookmark-gt-set-kmacro (name macro &optional tags)
+(defun bookmark-gt-create-kmacro (name macro &optional tags)
   "Store a keyboard-macro bookmark called NAME whose jump replays MACRO.
 Interactive: prompts for the macro via a single completion over
 the current named keyboard macros plus a `[last-kbd-macro]'
@@ -927,7 +927,7 @@ Returns the stored (NAME . DATA) pair."
          (props (list (cons 'kmacro vec))))
     (when tags
       (push (cons 'tags tags) props))
-    (bookmark-gt-set-non-file
+    (bookmark-gt-create-non-file
      name 'bookmark-gt-handler-kmacro-jump props)))
 
 ;;;; Sequence bookmarks — jump each of a list of bookmarks in order
@@ -950,7 +950,7 @@ half finished."
         (bookmark-gt-jump-record record)))))
 
 ;;;###autoload
-(defun bookmark-gt-set-sequence (name bookmarks &optional tags)
+(defun bookmark-gt-create-sequence (name bookmarks &optional tags)
   "Store a sequence bookmark called NAME that jumps BOOKMARKS in order.
 Interactive: prompts for NAME then reads bookmark names one at
 a time (empty input ends the list).  BOOKMARKS must be a
@@ -979,7 +979,7 @@ Returns the stored (NAME . DATA) pair."
   (let ((props (list (cons 'sequence bookmarks))))
     (when tags
       (push (cons 'tags tags) props))
-    (bookmark-gt-set-non-file
+    (bookmark-gt-create-non-file
      name 'bookmark-gt-handler-sequence-jump props)))
 
 (provide 'bookmark-gt-handlers)

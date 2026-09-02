@@ -24,7 +24,7 @@
 
 (ert-deftest bookmark-gt-test-classify-url ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file
+    (bookmark-gt-create-non-file
      "example" 'bookmark-gt-handler-url-jump
      '((url . "https://example.org")))
     (let ((record (car bookmark-alist)))
@@ -34,7 +34,7 @@
 (ert-deftest bookmark-gt-test-classify-file-null-handler ()
   "A record with no `handler' classifies as file."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "built-in" nil
+    (bookmark-gt-create-non-file "built-in" nil
                               '((filename . "/tmp/foo")
                                 (position . 1)))
     (should (eq (bookmark-gt-handler-type (car bookmark-alist)) 'file))))
@@ -42,14 +42,14 @@
 (ert-deftest bookmark-gt-test-classify-file-explicit-default ()
   "`bookmark-default-handler' also classifies as file (alias)."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file
+    (bookmark-gt-create-non-file
      "built-in" 'bookmark-default-handler
      '((filename . "/tmp/foo") (position . 1)))
     (should (eq (bookmark-gt-handler-type (car bookmark-alist)) 'file))))
 
 (ert-deftest bookmark-gt-test-classify-eww ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "page" 'eww-bookmark-jump nil)
+    (bookmark-gt-create-non-file "page" 'eww-bookmark-jump nil)
     (should (eq (bookmark-gt-handler-type (car bookmark-alist)) 'eww))))
 
 ;;;; Registry classification — alias handler symbols share a type
@@ -57,21 +57,21 @@
 (ert-deftest bookmark-gt-test-classify-bookmark-plus-url-alias ()
   "bookmark+'s `bmkp-jump-url-browse' classifies as :type url."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "u" 'bmkp-jump-url-browse
+    (bookmark-gt-create-non-file "u" 'bmkp-jump-url-browse
                               '((location . "https://example.org")))
     (should (eq (bookmark-gt-handler-type (car bookmark-alist)) 'url))
     (should (bookmark-gt-handler-url-p (car bookmark-alist)))))
 
 (ert-deftest bookmark-gt-test-classify-bookmark-plus-dired-alias ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "d" 'bmkp-jump-dired nil)
+    (bookmark-gt-create-non-file "d" 'bmkp-jump-dired nil)
     (should (eq (bookmark-gt-handler-type (car bookmark-alist)) 'dired))
     (should (bookmark-gt-handler-dired-p (car bookmark-alist)))))
 
 (ert-deftest bookmark-gt-test-classify-browser-gt-tab-manager-alias ()
   "`browser-gt-tab-manager-bookmark-jump' classifies as browser-tab."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "t" 'browser-gt-tab-manager-bookmark-jump nil)
+    (bookmark-gt-create-non-file "t" 'browser-gt-tab-manager-bookmark-jump nil)
     (should (eq (bookmark-gt-handler-type (car bookmark-alist))
                 'browser-tab))
     (should (bookmark-gt-handler-browser-tab-p (car bookmark-alist)))))
@@ -96,7 +96,7 @@
 (ert-deftest bookmark-gt-test-classify-unknown-falls-back ()
   "An unregistered handler still classifies (via derive)."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "x" 'brand-new-bookmark-jump nil)
+    (bookmark-gt-create-non-file "x" 'brand-new-bookmark-jump nil)
     (should (equal (bookmark-gt-handler-name (car bookmark-alist))
                    "Brand"))))
 
@@ -104,14 +104,14 @@
 
 (ert-deftest bookmark-gt-test-url-p-recognizes ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file
+    (bookmark-gt-create-non-file
      "u" 'bookmark-gt-handler-url-jump
      '((url . "https://example.org")))
     (should (bookmark-gt-handler-url-p (car bookmark-alist)))))
 
 (ert-deftest bookmark-gt-test-file-p-recognizes ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "f" nil
+    (bookmark-gt-create-non-file "f" nil
                               '((filename . "/tmp/f") (position . 1)))
     (should (bookmark-gt-handler-file-p (car bookmark-alist)))))
 
@@ -142,7 +142,7 @@ is added alongside it."
                     (function-p bookmark-gt-handler-function-jump)
                     (sequence-p bookmark-gt-handler-sequence-jump)))
       (let ((bookmark-alist nil))
-        (bookmark-gt-set-non-file (symbol-name (car case)) (cadr case) nil)
+        (bookmark-gt-create-non-file (symbol-name (car case)) (cadr case) nil)
         (should (funcall (intern (format "bookmark-gt-handler-%s"
                                          (car case)))
                          (car bookmark-alist)))))))
@@ -152,7 +152,7 @@ is added alongside it."
 (ert-deftest bookmark-gt-test-url-jump-invokes-browse-url ()
   "The URL handler calls `browse-url' with the record's URL."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file
+    (bookmark-gt-create-non-file
      "u" 'bookmark-gt-handler-url-jump
      '((url . "https://example.org")))
     (let (seen)
@@ -164,7 +164,7 @@ is added alongside it."
 (ert-deftest bookmark-gt-test-url-jump-reads-location-fallback ()
   "The URL handler falls back on the `location' prop (bookmark+ compat)."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file
+    (bookmark-gt-create-non-file
      "u" 'bookmark-gt-handler-url-jump
      '((location . "https://legacy.example")))
     (let (seen)
@@ -175,7 +175,7 @@ is added alongside it."
 
 (ert-deftest bookmark-gt-test-url-jump-missing-url-errors ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "u" 'bookmark-gt-handler-url-jump nil)
+    (bookmark-gt-create-non-file "u" 'bookmark-gt-handler-url-jump nil)
     (should-error (bookmark-gt-handler-url-jump (car bookmark-alist))
                   :type 'user-error)))
 
@@ -183,7 +183,7 @@ is added alongside it."
 
 (ert-deftest bookmark-gt-test-url-survives-save-load ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file
+    (bookmark-gt-create-non-file
      "u" 'bookmark-gt-handler-url-jump
      '((url . "https://example.org")))
     (bookmark-save)
@@ -199,7 +199,7 @@ is added alongside it."
 (ert-deftest bookmark-gt-test-filename-of-skips-placeholder ()
   "`bookmark-gt-filename-of' treats the bookmark+ placeholder as absent."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file
+    (bookmark-gt-create-non-file
      "legacy" 'bmkp-jump-url-browse
      `((filename . ,bookmark-gt-non-file-placeholder)
        (location . "https://example.org")))
@@ -213,7 +213,7 @@ is added alongside it."
   "Jumping a function bookmark invokes the stored callable."
   (bookmark-gt-test-with-clean-bookmarks
     (let ((called 0))
-      (bookmark-gt-set-function "fn" (lambda () (setq called (1+ called))))
+      (bookmark-gt-create-function "fn" (lambda () (setq called (1+ called))))
       (condition-case _err
           (bookmark-gt-handler-function-jump (car bookmark-alist))
         (no-catch nil))
@@ -222,7 +222,7 @@ is added alongside it."
 (ert-deftest bookmark-gt-handlers-test-function-classify ()
   "Function bookmarks classify as `function' via the registry."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-function "fn" (function ignore))
+    (bookmark-gt-create-function "fn" (function ignore))
     (should (eq (bookmark-gt-handler-type (car bookmark-alist)) 'function))
     (should (equal (bookmark-gt-handler-name (car bookmark-alist))
                    "Function"))))
@@ -230,7 +230,7 @@ is added alongside it."
 (ert-deftest bookmark-gt-handlers-test-function-missing-signals ()
   "A function bookmark with no callable signals a user error."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "fn" (quote bookmark-gt-handler-function-jump) nil)
+    (bookmark-gt-create-non-file "fn" (quote bookmark-gt-handler-function-jump) nil)
     (should-error
      (condition-case err
          (bookmark-gt-handler-function-jump (car bookmark-alist))
@@ -245,8 +245,8 @@ is added alongside it."
     (let (jumped)
       ;; Create three placeholder bookmarks the sequence will reference.
       (dolist (n '("a" "b" "c"))
-        (bookmark-gt-set-non-file n (function ignore) nil))
-      (bookmark-gt-set-sequence "seq" (list "a" "b" "c"))
+        (bookmark-gt-create-non-file n (function ignore) nil))
+      (bookmark-gt-create-sequence "seq" (list "a" "b" "c"))
       (cl-letf (((symbol-function 'bookmark-gt-jump-record)
                  (lambda (record &rest _)
                    (push (bookmark-name-from-full-record record) jumped))))
@@ -260,8 +260,8 @@ is added alongside it."
   "Members stored as names are converted to ids by the id scan."
   (bookmark-gt-test-with-clean-bookmarks
     (dolist (n '("a" "b"))
-      (bookmark-gt-set-non-file n (function ignore) nil))
-    (bookmark-gt-set-sequence "seq" (list "a" "b"))
+      (bookmark-gt-create-non-file n (function ignore) nil))
+    (bookmark-gt-create-sequence "seq" (list "a" "b"))
     (let ((seq (assoc "seq" bookmark-alist)))
       ;; Written as names, converted on the next scan.
       (bookmark-prop-set seq 'sequence (list "a" "b"))
@@ -273,8 +273,8 @@ is added alongside it."
 (ert-deftest bookmark-gt-handlers-test-sequence-member-survives-rename ()
   "A member referenced by id still resolves after the member is renamed."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" (function ignore) nil)
-    (bookmark-gt-set-sequence "seq" (list "a"))
+    (bookmark-gt-create-non-file "a" (function ignore) nil)
+    (bookmark-gt-create-sequence "seq" (list "a"))
     (bookmark-gt-ensure-ids)
     (let ((member (bookmark-get-bookmark "a"))
           (seq (assoc "seq" bookmark-alist)))
@@ -285,8 +285,8 @@ is added alongside it."
 
 (ert-deftest bookmark-gt-handlers-test-sequence-classify ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "x" (function ignore) nil)
-    (bookmark-gt-set-sequence "seq" '("x"))
+    (bookmark-gt-create-non-file "x" (function ignore) nil)
+    (bookmark-gt-create-sequence "seq" '("x"))
     (should (eq (bookmark-gt-handler-type (assoc "seq" bookmark-alist))
                 'sequence))))
 

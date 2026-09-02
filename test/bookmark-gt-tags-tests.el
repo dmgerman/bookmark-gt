@@ -16,7 +16,7 @@
 
 (defun bookmark-gt-test--make (name handler tags)
   "Create a non-file bookmark NAME with HANDLER and TAGS."
-  (bookmark-gt-set-non-file
+  (bookmark-gt-create-non-file
    name handler
    (if tags (list (cons 'tags tags)) nil)))
 

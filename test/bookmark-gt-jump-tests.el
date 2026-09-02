@@ -20,7 +20,7 @@
 
 (ert-deftest bookmark-gt-jump-test-candidate-name-property ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "u" 'bookmark-gt-handler-url-jump
+    (bookmark-gt-create-non-file "u" 'bookmark-gt-handler-url-jump
                               '((url . "https://example.org")))
     (let ((cand (bookmark-gt-jump-candidate-default (car bookmark-alist))))
       (should (equal (get-text-property 0 'bookmark-gt-name cand) "u")))))
@@ -29,7 +29,7 @@
   "A name wider than the cap is truncated; the property keeps it whole."
   (bookmark-gt-test-with-clean-bookmarks
     (let ((long (make-string (* 2 bookmark-gt-jump-name-max-width) ?x)))
-      (bookmark-gt-set-non-file long 'bookmark-gt-handler-url-jump
+      (bookmark-gt-create-non-file long 'bookmark-gt-handler-url-jump
                                 '((url . "https://x")))
       (let ((cand (bookmark-gt-jump-candidate-default (car bookmark-alist))))
         (should (<= (string-width cand) bookmark-gt-jump-name-max-width))
@@ -45,7 +45,7 @@ for the aligning space."
 (ert-deftest bookmark-gt-jump-test-candidate-particles ()
   "The particle string carries both `@Type' and `;tag' tokens."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "u" 'bookmark-gt-handler-url-jump
+    (bookmark-gt-create-non-file "u" 'bookmark-gt-handler-url-jump
                               '((url . "https://x")
                                 (tags . ("proj" "urgent"))))
     (let* ((cand (bookmark-gt-jump-candidate-default (car bookmark-alist)))
@@ -57,7 +57,7 @@ for the aligning space."
 (ert-deftest bookmark-gt-jump-test-candidate-type-char ()
   "The narrow char comes from the record's GROUP (not type) now."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "u" 'bookmark-gt-handler-url-jump
+    (bookmark-gt-create-non-file "u" 'bookmark-gt-handler-url-jump
                               '((url . "https://x")))
     (let ((cand (bookmark-gt-jump-candidate-default (car bookmark-alist))))
       ;; URL is in the `web' group whose narrow-char is ?w.
@@ -67,9 +67,9 @@ for the aligning space."
 
 (ert-deftest bookmark-gt-jump-test-orderless-type-matches ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "u" 'bookmark-gt-handler-url-jump
+    (bookmark-gt-create-non-file "u" 'bookmark-gt-handler-url-jump
                               '((url . "https://x")))
-    (bookmark-gt-set-non-file "e" 'eww-bookmark-jump nil)
+    (bookmark-gt-create-non-file "e" 'eww-bookmark-jump nil)
     (let* ((cands (mapcar #'bookmark-gt-jump-candidate-default bookmark-alist))
            (matcher (bookmark-gt-jump-type-dispatch "URL")))
       (should (= (length (seq-filter matcher cands)) 1))
@@ -79,8 +79,8 @@ for the aligning space."
 
 (ert-deftest bookmark-gt-jump-test-orderless-tag-matches ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h '((tags . ("proj"))))
-    (bookmark-gt-set-non-file "b" 'h '((tags . ("other"))))
+    (bookmark-gt-create-non-file "a" 'h '((tags . ("proj"))))
+    (bookmark-gt-create-non-file "b" 'h '((tags . ("other"))))
     (let* ((cands (mapcar #'bookmark-gt-jump-candidate-default bookmark-alist))
            (matcher (bookmark-gt-jump-tag-dispatch "proj")))
       (should (= (length (seq-filter matcher cands)) 1)))))
@@ -110,7 +110,7 @@ for the aligning space."
 (ert-deftest bookmark-gt-jump-test-plain-reader-dispatches ()
   "Without consult, `bookmark-gt-jump' still dispatches through `bookmark-jump'."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "u" 'bookmark-gt-handler-url-jump
+    (bookmark-gt-create-non-file "u" 'bookmark-gt-handler-url-jump
                               '((url . "https://example.org")))
     (let (seen)
       (cl-letf
@@ -130,9 +130,9 @@ for the aligning space."
 (ert-deftest bookmark-gt-jump-test-filter-narrows-candidates ()
   "`bookmark-gt-jump--filter-alist' returns only records carrying all filters."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h '((tags . ("proj" "urgent"))))
-    (bookmark-gt-set-non-file "b" 'h '((tags . ("proj"))))
-    (bookmark-gt-set-non-file "c" 'h '((tags . ("other"))))
+    (bookmark-gt-create-non-file "a" 'h '((tags . ("proj" "urgent"))))
+    (bookmark-gt-create-non-file "b" 'h '((tags . ("proj"))))
+    (bookmark-gt-create-non-file "c" 'h '((tags . ("other"))))
     (let ((bookmark-gt-jump--active-filters '("proj")))
       (should (= (length (bookmark-gt-jump--filter-alist bookmark-alist))
                  2)))
@@ -145,26 +145,26 @@ for the aligning space."
 (ert-deftest bookmark-gt-jump-test-sort-by-mru ()
   "`--sort-records' with `mru' puts higher `last-visited' first."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "old" 'h '((last-visited . (100 0))))
-    (bookmark-gt-set-non-file "new" 'h '((last-visited . (200 0))))
-    (bookmark-gt-set-non-file "none" 'h nil)
+    (bookmark-gt-create-non-file "old" 'h '((last-visited . (100 0))))
+    (bookmark-gt-create-non-file "new" 'h '((last-visited . (200 0))))
+    (bookmark-gt-create-non-file "none" 'h nil)
     (let* ((bookmark-gt-jump--sort-by 'mru)
            (sorted (bookmark-gt-jump--sort-records bookmark-alist)))
       (should (equal (mapcar #'car sorted) '("new" "old" "none"))))))
 
 (ert-deftest bookmark-gt-jump-test-sort-by-visits ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "one"  'h '((visits . 1)))
-    (bookmark-gt-set-non-file "ten"  'h '((visits . 10)))
-    (bookmark-gt-set-non-file "none" 'h nil)
+    (bookmark-gt-create-non-file "one"  'h '((visits . 1)))
+    (bookmark-gt-create-non-file "ten"  'h '((visits . 10)))
+    (bookmark-gt-create-non-file "none" 'h nil)
     (let* ((bookmark-gt-jump--sort-by 'visits)
            (sorted (bookmark-gt-jump--sort-records bookmark-alist)))
       (should (equal (mapcar #'car sorted) '("ten" "one" "none"))))))
 
 (ert-deftest bookmark-gt-jump-test-sort-by-nil-preserves-order ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (let* ((bookmark-gt-jump--sort-by nil)
            (sorted (bookmark-gt-jump--sort-records bookmark-alist)))
       (should (equal sorted bookmark-alist)))))
@@ -174,7 +174,7 @@ for the aligning space."
 (ert-deftest bookmark-gt-jump-test-format-function-override ()
   "The reader uses `bookmark-gt-jump-candidate-format-function'."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "x" 'h nil)
+    (bookmark-gt-create-non-file "x" 'h nil)
     (let* ((called nil)
            (bookmark-gt-jump-candidate-format-function
             (lambda (rec) (setq called t) (car rec))))
@@ -193,7 +193,7 @@ for the aligning space."
   "`bookmark-gt-jump--read' installs our marginalia annotator lazily."
   (skip-unless (featurep 'marginalia))
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "u" 'bookmark-gt-handler-url-jump
+    (bookmark-gt-create-non-file "u" 'bookmark-gt-handler-url-jump
                               '((url . "https://example.org")))
     (let ((marginalia-annotators nil))
       (cl-letf (((symbol-function 'bookmark-gt-jump--read-once)
@@ -207,7 +207,7 @@ for the aligning space."
 (ert-deftest bookmark-gt-jump-test-before-read-hook-fires-once ()
   "`bookmark-gt-jump-before-read-hook' runs once per outer read call."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "u" 'bookmark-gt-handler-url-jump
+    (bookmark-gt-create-non-file "u" 'bookmark-gt-handler-url-jump
                               '((url . "https://example.org")))
     (let* ((count 0)
            (bookmark-gt-jump-before-read-hook

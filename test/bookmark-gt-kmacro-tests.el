@@ -23,7 +23,7 @@
 
 (ert-deftest bookmark-gt-kmacro-test-classifies-as-kmacro ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file
+    (bookmark-gt-create-non-file
      "km" 'bookmark-gt-handler-kmacro-jump
      '((kmacro . [?a])))
     (should (eq (bookmark-gt-handler-type (car bookmark-alist)) 'kmacro))
@@ -36,7 +36,7 @@
 (ert-deftest bookmark-gt-kmacro-test-set-stores-vector ()
   "Passing a vector directly writes it under the `kmacro' key."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-kmacro "km-vec" [?x ?y])
+    (bookmark-gt-create-kmacro "km-vec" [?x ?y])
     (let ((rec (car bookmark-alist)))
       (should (equal (bookmark-prop-get rec 'handler)
                      'bookmark-gt-handler-kmacro-jump))
@@ -45,7 +45,7 @@
 (ert-deftest bookmark-gt-kmacro-test-set-converts-string ()
   "A string macro is normalized to a vector via `read-kbd-macro'."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-kmacro "km-str" "abc")
+    (bookmark-gt-create-kmacro "km-str" "abc")
     (let ((v (bookmark-prop-get (car bookmark-alist) 'kmacro)))
       (should (vectorp v))
       (should (equal v (read-kbd-macro "abc" 'need-vector))))))
@@ -56,7 +56,7 @@
   "Jumping runs `execute-kbd-macro' on the stored vector.
 Observable via the text the macro inserts."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-kmacro "km-run" [?h ?i])
+    (bookmark-gt-create-kmacro "km-run" [?h ?i])
     (with-temp-buffer
       (bookmark-jump "km-run")
       (should (equal (buffer-string) "hi")))))

@@ -189,10 +189,17 @@ tracks browser activity rather than bookmark-gt jump history."
             props))
     (when (and (stringp browser) (not (string-empty-p browser)))
       (push (cons 'tags (list browser)) props))
-    (bookmark-gt-set-non-file base
-                              'bookmark-gt-handler-url-jump
-                              props
-                              t t)))
+    ;; Tab titles repeat across windows and sessions, and these
+    ;; records are rebuilt wholesale on every refresh, so the
+    ;; same-name policy that governs deliberate creation does not
+    ;; apply: it would signal partway through a refresh nobody
+    ;; asked for.  What should govern tab records is a separate
+    ;; question; until it is answered they are stored as named.
+    (let ((bookmark-gt-allow-same-name-bookmarks 'always))
+      (bookmark-gt-create-non-file base
+                                   'bookmark-gt-handler-url-jump
+                                   props
+                                   t t))))
 
 (defun bookmark-gt-browser-tabs--clear ()
   "Remove every browser-gt-owned record from `bookmark-alist'.

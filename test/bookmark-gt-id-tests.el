@@ -50,13 +50,13 @@
 
 (ert-deftest bookmark-gt-id-test-assigned-on-create ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
     (should (bookmark-gt-id-of (bookmark-get-bookmark "a")))))
 
 (ert-deftest bookmark-gt-id-test-scan-fills-missing ()
   "Records arriving without an id get one on the next scan."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
     (let ((record (bookmark-get-bookmark "a")))
       (bookmark-prop-set record 'bookmark-gt-id nil)
       (should-not (bookmark-gt-id-of record))
@@ -66,7 +66,7 @@
 (ert-deftest bookmark-gt-id-test-scan-is-idempotent ()
   "A second scan assigns nothing and leaves ids unchanged."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
     (bookmark-gt-ensure-ids)
     (let ((before (bookmark-gt-id-of (bookmark-get-bookmark "a"))))
       (should (= 0 (bookmark-gt-ensure-ids)))
@@ -77,8 +77,8 @@
   (bookmark-gt-test-with-clean-bookmarks
     (let* ((ids '(dup dup dup fresh))
            (bookmark-gt-id-generator-function (lambda () (pop ids))))
-      (bookmark-gt-set-non-file "a" 'h nil)   ; takes `dup'
-      (bookmark-gt-set-non-file "b" 'h nil)   ; takes `dup' again
+      (bookmark-gt-create-non-file "a" 'h nil)   ; takes `dup'
+      (bookmark-gt-create-non-file "b" 'h nil)   ; takes `dup' again
       (let ((a (bookmark-get-bookmark "a"))
             (b (seq-find (lambda (r) (equal (car r) "b")) bookmark-alist)))
         ;; Creation does not check, so both hold `dup' here.
@@ -93,7 +93,7 @@
 (ert-deftest bookmark-gt-id-test-scan-preserves-last-modified ()
   "Assigning ids must not restamp records: it would erase their history."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
     (let* ((record (bookmark-get-bookmark "a"))
            (stamp '(100 200 0 0)))
       (bookmark-prop-set record 'bookmark-gt-id nil)
@@ -104,10 +104,10 @@
 (ert-deftest bookmark-gt-id-test-scan-does-not-run-observers ()
   "The scan must not run the change hook once per record."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
     (let ((calls 0))
       (bookmark-prop-set (bookmark-get-bookmark "a") 'bookmark-gt-id nil)
-      (let ((bookmark-gt-set-after-hook
+      (let ((bookmark-gt-record-changed-hook
              (list (lambda (&rest _) (cl-incf calls)))))
         (bookmark-gt-ensure-ids))
       (should (= calls 0)))))
@@ -115,7 +115,7 @@
 (ert-deftest bookmark-gt-id-test-temp-records-do-not-count ()
   "Ids on temporary records do not mark the bookmark file as changed."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "t" 'h (list (cons bookmark-gt-temp-key t)))
+    (bookmark-gt-create-non-file "t" 'h (list (cons bookmark-gt-temp-key t)))
     (bookmark-prop-set (bookmark-get-bookmark "t") 'bookmark-gt-id nil)
     (let ((bookmark-alist-modification-count 0))
       (bookmark-gt-ensure-ids)
@@ -125,7 +125,7 @@
   "Assigning ids to several records counts one change, not one each."
   (bookmark-gt-test-with-clean-bookmarks
     (dolist (n '("a" "b" "c"))
-      (bookmark-gt-set-non-file n 'h nil)
+      (bookmark-gt-create-non-file n 'h nil)
       (bookmark-prop-set (bookmark-get-bookmark n) 'bookmark-gt-id nil))
     (let ((bookmark-alist-modification-count 0))
       (bookmark-gt-ensure-ids)
@@ -135,18 +135,18 @@
 
 (ert-deftest bookmark-gt-id-test-resolve-record ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
     (let ((record (bookmark-get-bookmark "a")))
       (should (eq (bookmark-gt--resolve record) record)))))
 
 (ert-deftest bookmark-gt-id-test-resolve-unique-name ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
     (should (eq (bookmark-gt--resolve "a") (bookmark-get-bookmark "a")))))
 
 (ert-deftest bookmark-gt-id-test-resolve-id ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
     (let* ((record (bookmark-get-bookmark "a"))
            (id (bookmark-gt-id-of record)))
       (should (eq (bookmark-gt--resolve id) record)))))
@@ -154,8 +154,9 @@
 (ert-deftest bookmark-gt-id-test-resolve-ambiguous-name-signals ()
   "Two records sharing a name is not an answer; batch mode cannot ask."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "dup" 'h-a nil)
-    (bookmark-gt-set-non-file "dup" 'h-b nil)
+    (let ((bookmark-gt-allow-same-name-bookmarks 'always))
+      (bookmark-gt-create-non-file "dup" 'h-a nil)
+      (bookmark-gt-create-non-file "dup" 'h-b nil))
     (should-error (bookmark-gt--resolve "dup"))))
 
 (ert-deftest bookmark-gt-id-test-resolve-unknown-signals ()
@@ -166,8 +167,8 @@
 (ert-deftest bookmark-gt-id-test-resolve-duplicate-id-signals ()
   "Two records carrying one id is a broken reference, not a match."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (let ((id (bookmark-gt-id-of (bookmark-get-bookmark "a"))))
       (bookmark-prop-set (bookmark-get-bookmark "b") 'bookmark-gt-id id)
       (should-error (bookmark-gt--resolve id)))))
@@ -176,26 +177,6 @@
   "Nil means no bookmark given; batch mode cannot prompt for one."
   (bookmark-gt-test-with-clean-bookmarks
     (should-error (bookmark-gt--resolve nil))))
-
-;;;; Display names
-
-(ert-deftest bookmark-gt-id-test-display-name-plain-when-unique ()
-  (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "solo" 'h nil)
-    (should (equal (bookmark-gt-display-name-of (bookmark-get-bookmark "solo"))
-                   "solo"))))
-
-(ert-deftest bookmark-gt-id-test-display-name-suffixes-namesakes ()
-  "Records sharing a name get distinct display names; nothing is stored."
-  (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "dup" 'h-a nil)
-    (bookmark-gt-set-non-file "dup" 'h-b nil)
-    (let* ((records (bookmark-gt--records-named "dup"))
-           (shown (mapcar #'bookmark-gt-display-name-of records)))
-      (should (equal shown '("dup" "dup<2>")))
-      ;; The suffix is computed: the stored names are untouched.
-      (should (equal (mapcar #'bookmark-name-from-full-record records)
-                     '("dup" "dup"))))))
 
 (provide 'bookmark-gt-id-tests)
 

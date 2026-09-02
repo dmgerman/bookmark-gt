@@ -22,7 +22,7 @@
 
 (ert-deftest bookmark-gt-visit-test-record-increments-visits ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (should-not (bookmark-prop-get "b" 'visits))
     (bookmark-gt-record-visit "b")
     (should (= (bookmark-prop-get "b" 'visits) 1))
@@ -31,7 +31,7 @@
 
 (ert-deftest bookmark-gt-visit-test-record-sets-last-visited ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (should-not (bookmark-prop-get "b" 'last-visited))
     (bookmark-gt-record-visit "b")
     (should (bookmark-prop-get "b" 'last-visited))))
@@ -39,7 +39,7 @@
 (ert-deftest bookmark-gt-visit-test-record-accepts-record ()
   "`bookmark-gt-record-visit' also accepts a full record cons."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (bookmark-gt-record-visit (car bookmark-alist))
     (should (= (bookmark-prop-get "b" 'visits) 1))))
 
@@ -47,14 +47,14 @@
 
 (ert-deftest bookmark-gt-visit-test-hook-uses-current-bookmark ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (let ((bookmark-gt-current-bookmark (bookmark-get-bookmark "b")))
       (bookmark-gt--on-jump-record-visit)
       (should (= (bookmark-prop-get "b" 'visits) 1)))))
 
 (ert-deftest bookmark-gt-visit-test-hook-no-current-is-noop ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (let ((bookmark-gt-current-bookmark nil))
       (bookmark-gt--on-jump-record-visit))
     (should-not (bookmark-prop-get "b" 'visits))))
@@ -66,7 +66,7 @@
 `bookmark-alist-modification-count' stays unchanged so
 `bookmark-save-flag' numeric thresholds are not crossed per jump."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (let ((before bookmark-alist-modification-count))
       (bookmark-gt-record-visit "b")
       (should (= bookmark-alist-modification-count before)))))
@@ -94,7 +94,7 @@ Verifies the after-jump-hook path: with `bookmark-gt-mode' on,
 `bookmark-after-jump-hook' runs even when the URL handler
 throws `bookmark-gt-skip-post-handler'."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file
+    (bookmark-gt-create-non-file
      "u" 'bookmark-gt-handler-url-jump
      '((url . "https://example.org")))
     (let ((was-enabled bookmark-gt-mode))

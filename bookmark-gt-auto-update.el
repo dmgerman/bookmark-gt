@@ -75,7 +75,7 @@ Every other field returned by the buffer's
 ;;;###autoload
 (defun bookmark-gt-auto-update-toggle (name)
   "Toggle the `auto-update' property on the bookmark called NAME.
-Fires `bookmark-gt-set-after-hook' with the updated record so
+Fires `bookmark-gt-record-changed-hook' with the updated record so
 the list buffer and any other observers refresh."
   (interactive
    (list (bookmark-completing-read "Toggle auto-update"
@@ -94,7 +94,7 @@ the list buffer and any other observers refresh."
 RECORD is a `(NAME . DATA)' pair or a bookmark name.  FLAG
 non-nil sets the property; nil removes it.  When NO-NOTIFY is
 non-nil, skip UI refresh and the external
-`bookmark-gt-set-after-hook' — the caller is expected to notify
+`bookmark-gt-record-changed-hook' — the caller is expected to notify
 once at end of a batch.  Returns the mutated record."
   (let ((entry (bookmark-get-bookmark record)))
     (unless entry
@@ -105,7 +105,7 @@ once at end of a batch.  Returns the mutated record."
       (setcdr entry (assq-delete-all 'auto-update (cdr entry))))
     (if no-notify
         (bookmark-gt--stamp-modified entry)
-      (bookmark-gt--after-mutation entry))
+      (bookmark-gt--after-mutation entry 'auto-update))
     entry))
 
 ;;;; Refresh

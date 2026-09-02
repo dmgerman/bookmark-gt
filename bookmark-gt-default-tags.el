@@ -25,8 +25,8 @@
 
 ;;; Commentary:
 ;;
-;; A hook into `bookmark-gt-set-tag-reader-hook' that computes
-;; context-appropriate default tags on `bookmark-gt-set'.  The
+;; A hook into `bookmark-gt-create-tag-reader-hook' that computes
+;; context-appropriate default tags on `bookmark-gt-create'.  The
 ;; interactive tag reader (registered at hook depth 90 by
 ;; `bookmark-gt-tags-enable') uses the return value as the seed;
 ;; the user is free to accept, edit, or clear.
@@ -59,7 +59,7 @@
 ;;;; Customization
 
 (defcustom bookmark-gt-default-tags nil
-  "Default tag list to seed the tag reader on `bookmark-gt-set'.
+  "Default tag list to seed the tag reader on `bookmark-gt-create'.
 
 Value shape:
 

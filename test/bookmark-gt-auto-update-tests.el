@@ -22,7 +22,7 @@
 
 (ert-deftest bookmark-gt-auto-update-test-toggle-adds-and-removes ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (should-not (bookmark-gt-auto-update-p (car bookmark-alist)))
     (bookmark-gt-auto-update-toggle "b")
     (should (bookmark-gt-auto-update-p (car bookmark-alist)))
@@ -31,10 +31,10 @@
 
 (ert-deftest bookmark-gt-auto-update-test-toggle-fires-after-hook ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (let (seen)
-      (add-hook 'bookmark-gt-set-after-hook
-                (lambda (entry) (push entry seen)))
+      (add-hook 'bookmark-gt-record-changed-hook
+                (lambda (entry &optional _op) (push entry seen)))
       (bookmark-gt-auto-update-toggle "b")
       (should (= (length seen) 1))
       (should (bookmark-gt-auto-update-p (car seen))))))
@@ -49,7 +49,7 @@
       (unwind-protect
           (with-current-buffer (find-file-noselect tmp)
             (goto-char (point-min))
-            (bookmark-gt-set "orig")
+            (bookmark-gt-create "orig")
             (let ((record (assoc "orig" bookmark-alist)))
               (bookmark-gt-auto-update-toggle "orig")
               (goto-char (point-max))
@@ -65,7 +65,7 @@
     (let ((tmp (make-temp-file "bookmark-gt-au-" nil ".txt" "hello\n")))
       (unwind-protect
           (with-current-buffer (find-file-noselect tmp)
-            (bookmark-gt-set "orig")
+            (bookmark-gt-create "orig")
             (bookmark-gt-tags-set "orig" '("keep"))
             (let ((record (assoc "orig" bookmark-alist)))
               (bookmark-gt-auto-update-toggle "orig")
@@ -82,7 +82,7 @@
     (let ((tmp (make-temp-file "bookmark-gt-au-" nil ".txt" "hello\n")))
       (unwind-protect
           (with-current-buffer (find-file-noselect tmp)
-            (bookmark-gt-set "no-au")
+            (bookmark-gt-create "no-au")
             (let* ((record (assoc "no-au" bookmark-alist))
                    (orig-pos (bookmark-prop-get record 'position)))
               (goto-char (point-max))
@@ -117,8 +117,8 @@
 
 (ert-deftest bookmark-gt-auto-update-test-list-column-shows-caret ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "au"  'h '((auto-update . t)))
-    (bookmark-gt-set-non-file "off" 'h nil)
+    (bookmark-gt-create-non-file "au"  'h '((auto-update . t)))
+    (bookmark-gt-create-non-file "off" 'h nil)
     (bookmark-gt-au-test--in-buffer
       (goto-char (point-min))
       (let (caret-count)

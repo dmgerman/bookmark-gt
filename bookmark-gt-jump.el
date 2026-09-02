@@ -508,8 +508,9 @@ scans `bookmark-alist'."
   (let* ((source (or bookmark-gt-jump--pool bookmark-alist))
          (records (bookmark-gt-jump--filter-alist source))
          (records (bookmark-gt-jump--sort-records records))
-         (candidates (mapcar bookmark-gt-jump-candidate-format-function
-                             records))
+         (candidates (bookmark-gt-with-name-index
+                       (mapcar bookmark-gt-jump-candidate-format-function
+                               records)))
          ;; Scope the orderless dispatcher to this read only.
          (orderless-style-dispatchers
           (if (and (featurep 'orderless)

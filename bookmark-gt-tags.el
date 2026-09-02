@@ -36,7 +36,7 @@
 ;;
 ;; The reader is called directly by `bookmark-gt--collect-tags' when
 ;; `bookmark-gt-prompt-for-tags-flag' is non-nil.  It is not added to
-;; `bookmark-gt-set-tag-reader-hook' — that hook is external surface
+;; `bookmark-gt-create-tag-reader-hook' — that hook is external surface
 ;; and ships empty.
 
 ;;; Code:
@@ -95,7 +95,7 @@ COUNT is the number of bookmarks that carry TAG."
 
 ;;;; Mutation API
 ;;
-;; Each mutator fires `bookmark-gt-set-after-hook' with the updated
+;; Each mutator fires `bookmark-gt-record-changed-hook' with the updated
 ;; (NAME . DATA) pair so observers refresh.  Direct mutation of the
 ;; tag list is discouraged; go through these functions.
 
@@ -116,14 +116,14 @@ cons)."
 (defun bookmark-gt-tags-set (record tags &optional no-notify)
   "Replace RECORD's tag list with TAGS (normalized).
 When NO-NOTIFY is non-nil, skip UI refresh and the external
-`bookmark-gt-set-after-hook' — the caller is expected to notify
+`bookmark-gt-record-changed-hook' — the caller is expected to notify
 once at end of a batch.  The record is stamped `last-modified'
 either way."
   (let* ((normalized (bookmark-gt--normalize-tags tags))
          (entry (bookmark-gt--set-tags-property record normalized)))
     (if no-notify
         (bookmark-gt--stamp-modified entry)
-      (bookmark-gt--after-mutation entry))
+      (bookmark-gt--after-mutation entry 'tags))
     entry))
 
 (defun bookmark-gt-tags-add (record tags &optional no-notify)
@@ -221,7 +221,7 @@ list."
 
 ;;;; Tag-reader hook integration
 ;;
-;; Registered into `bookmark-gt-set-tag-reader-hook' when a
+;; Registered into `bookmark-gt-create-tag-reader-hook' when a
 ;; bookmark-gt session is active.  The hook receives (RECORD
 ;; SEED-TAGS); we ignore RECORD and read from the user, using
 ;; SEED-TAGS as initial input so default-tags rules chain
@@ -233,11 +233,11 @@ list."
 ;; nil around their loops.  Previously this check was
 ;; `called-interactively-p 'any', which is unreliable when the
 ;; hook is invoked via funcall through seq-reduce (the
-;; interactive frame of `bookmark-gt-set' does not always reach
+;; interactive frame of `bookmark-gt-create' does not always reach
 ;; the check).
 
 (defcustom bookmark-gt-prompt-for-tags-flag t
-  "Non-nil means the tag reader prompts on `bookmark-gt-set'.
+  "Non-nil means the tag reader prompts on `bookmark-gt-create'.
 Set to nil to suppress the prompt globally, or let-bind around
 a batch operation that stores many records without user
 interaction."

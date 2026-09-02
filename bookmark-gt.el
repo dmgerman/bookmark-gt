@@ -101,10 +101,30 @@ own variable."
 (require 'bookmark-gt-browser-tabs)
 
 ;;;###autoload
+(defvar-keymap bookmark-gt-mode-map
+  :doc "Keymap for `bookmark-gt-mode'.
+
+Remaps the built-in bookmark commands to bookmark-gt\='s, so an
+existing binding — the stock `C-x r m\=', or one a user set years
+ago — reaches the bookmark-gt command without being rebound, and
+goes back to the built-in when the mode is off.
+
+Only the *commands* are remapped.  The functions behind them keep
+their own semantics for Lisp callers, which is what packages that
+store bookmarks programmatically depend on."
+  "<remap> <bookmark-set>"               #'bookmark-gt-create
+  "<remap> <bookmark-set-no-overwrite>"  #'bookmark-gt-create
+  "<remap> <bookmark-jump>"              #'bookmark-gt-jump
+  "<remap> <bookmark-delete>"            #'bookmark-gt-delete
+  "<remap> <bookmark-rename>"            #'bookmark-gt-rename
+  "<remap> <bookmark-bmenu-list>"        #'bookmark-gt-list)
+
+;;;###autoload
 (define-minor-mode bookmark-gt-mode
   "Toggle the bookmark-gt integrations globally."
   :global t
   :group 'bookmark-gt
+  :keymap bookmark-gt-mode-map
   (cond
    (bookmark-gt-mode
     (advice-add 'bookmark-save     :around #'bookmark-gt--save-filter-advice)
@@ -113,6 +133,7 @@ own variable."
     (advice-add 'bookmark-default-handler
                 :around #'bookmark-gt--file-type-handler-advice)
     (advice-add 'bookmark-store    :after  #'bookmark-gt--auto-temp-advice)
+    (advice-add 'bookmark-store    :around #'bookmark-gt--store-preserve-advice)
     (advice-add 'bookmark-load     :after  #'bookmark-gt--ensure-ids-advice)
     (advice-add 'tabulated-list-sort :after
                 #'bookmark-gt-list--tabulated-sort-observer)
@@ -130,6 +151,7 @@ own variable."
     (advice-remove 'bookmark-default-handler
                    #'bookmark-gt--file-type-handler-advice)
     (advice-remove 'bookmark-store    #'bookmark-gt--auto-temp-advice)
+    (advice-remove 'bookmark-store    #'bookmark-gt--store-preserve-advice)
     (advice-remove 'bookmark-load     #'bookmark-gt--ensure-ids-advice)
     (advice-remove 'tabulated-list-sort
                    #'bookmark-gt-list--tabulated-sort-observer)

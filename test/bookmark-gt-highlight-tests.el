@@ -41,7 +41,7 @@
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-highlight-test--with-file "abcdefghij"
       (let ((bookmark-gt-highlight-enable t))
-        (bookmark-gt-set-non-file
+        (bookmark-gt-create-non-file
          "b" nil
          (list (cons 'filename (buffer-file-name)) (cons 'position 3)))
         (bookmark-gt-highlight--refresh-buffer)
@@ -49,7 +49,7 @@
 
 (ert-deftest bookmark-gt-highlight-test-non-file-does-not-highlight ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "u" 'bookmark-gt-handler-url-jump
+    (bookmark-gt-create-non-file "u" 'bookmark-gt-handler-url-jump
                               '((url . "https://example.org")))
     (bookmark-gt-highlight-test--with-file "abcdefghij"
       (bookmark-gt-highlight--refresh-buffer)
@@ -60,7 +60,7 @@
 (ert-deftest bookmark-gt-highlight-test-flag-off-clears ()
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-highlight-test--with-file "abcdefghij"
-      (bookmark-gt-set-non-file
+      (bookmark-gt-create-non-file
        "b" nil
        (list (cons 'filename (buffer-file-name)) (cons 'position 3)))
       (let ((bookmark-gt-highlight-enable nil))
@@ -72,7 +72,7 @@
 (ert-deftest bookmark-gt-highlight-test-clear-removes-overlays ()
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-highlight-test--with-file "abcdefghij"
-      (bookmark-gt-set-non-file
+      (bookmark-gt-create-non-file
        "b" nil
        (list (cons 'filename (buffer-file-name)) (cons 'position 3)))
       (let ((bookmark-gt-highlight-enable t))
@@ -88,7 +88,7 @@
 through end-of-line at end-position."
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-highlight-test--with-file "line1\nline2\nline3\n"
-      (bookmark-gt-set-non-file
+      (bookmark-gt-create-non-file
        "b" nil
        (list (cons 'filename (buffer-file-name))
              (cons 'position 3)
@@ -111,7 +111,7 @@ records the landed point."
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-highlight-test--with-file "line1\nline2\nline3\n"
       ;; Record without `position' — mimics an org-heading bookmark.
-      (bookmark-gt-set-non-file
+      (bookmark-gt-create-non-file
        "b" nil
        (list (cons 'filename (buffer-file-name))))
       (let ((bookmark-gt-highlight-enable t))

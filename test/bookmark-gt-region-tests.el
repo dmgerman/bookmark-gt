@@ -6,7 +6,7 @@
 
 ;;; Commentary:
 ;;
-;; Tests for region-bookmark capture on `bookmark-gt-set' and
+;; Tests for region-bookmark capture on `bookmark-gt-create' and
 ;; region restoration via `bookmark-gt--on-jump-restore-region'.
 ;; Each test uses a temp file — built-in `bookmark-make-record'
 ;; refuses to run in a buffer with no `buffer-file-name'.
@@ -43,7 +43,7 @@ so `bookmark-make-record' has a real `buffer-file-name' to use."
       (set-mark 15)
       (activate-mark)
       (let ((bookmark-gt-use-region t))
-        (bookmark-gt-set "sel")))
+        (bookmark-gt-create "sel")))
     (let ((rec (car bookmark-alist)))
       (should (= (bookmark-prop-get rec 'position) 5))
       (should (= (bookmark-prop-get rec 'end-position) 15))
@@ -57,7 +57,7 @@ so `bookmark-make-record' has a real `buffer-file-name' to use."
       (set-mark 7)
       (activate-mark)
       (let ((bookmark-gt-use-region nil))
-        (bookmark-gt-set "no-flag")))
+        (bookmark-gt-create "no-flag")))
     (should-not (bookmark-prop-get (car bookmark-alist) 'end-position))))
 
 (ert-deftest bookmark-gt-region-test-no-capture-without-region ()
@@ -66,7 +66,7 @@ so `bookmark-make-record' has a real `buffer-file-name' to use."
       (goto-char 3)
       (deactivate-mark)
       (let ((bookmark-gt-use-region t))
-        (bookmark-gt-set "no-region")))
+        (bookmark-gt-create "no-region")))
     (should-not (bookmark-prop-get (car bookmark-alist) 'end-position))))
 
 ;;;; Restore
@@ -78,7 +78,7 @@ so `bookmark-make-record' has a real `buffer-file-name' to use."
       (goto-char 5)
       (set-mark 15)
       (activate-mark)
-      (bookmark-gt-set "sel"))
+      (bookmark-gt-create "sel"))
     (with-temp-buffer
       (insert "abcdefghijklmnopqrstuvwxyz")
       (goto-char 5)
@@ -92,7 +92,7 @@ so `bookmark-make-record' has a real `buffer-file-name' to use."
 
 (ert-deftest bookmark-gt-region-test-restore-noop-without-end-position ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "plain" 'ignore nil)
+    (bookmark-gt-create-non-file "plain" 'ignore nil)
     (with-temp-buffer
       (deactivate-mark)
       (let ((bookmark-gt-current-bookmark (bookmark-get-bookmark "plain"))
@@ -106,7 +106,7 @@ so `bookmark-make-record' has a real `buffer-file-name' to use."
       (goto-char 3)
       (set-mark 7)
       (activate-mark)
-      (bookmark-gt-set "sel"))
+      (bookmark-gt-create "sel"))
     (with-temp-buffer
       (insert "abcdefghij")
       (goto-char 3)
@@ -139,7 +139,7 @@ so `bookmark-make-record' has a real `buffer-file-name' to use."
       (goto-char 5)
       (set-mark 15)
       (activate-mark)
-      (bookmark-gt-set "sel"))
+      (bookmark-gt-create "sel"))
     (with-temp-buffer
       (insert "abcdefghijklmnopqrstuvwxyz")
       (goto-char 8)  ; simulate re-anchor shifted start by +3
@@ -157,7 +157,7 @@ so `bookmark-make-record' has a real `buffer-file-name' to use."
       (goto-char 5)
       (set-mark 15)
       (activate-mark)
-      (bookmark-gt-set "sel"))
+      (bookmark-gt-create "sel"))
     (bookmark-save)
     (let ((bookmark-alist nil))
       (bookmark-load bookmark-default-file t t nil)

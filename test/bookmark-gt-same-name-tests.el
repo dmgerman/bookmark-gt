@@ -33,9 +33,9 @@ resolves \"todo\" to B, the most recently stored one."
   ;; Fresh conses, not quoted literals: relocate mutates the
   ;; `filename' cell in place, which would rewrite a literal
   ;; constant and change what later calls return.
-  (bookmark-gt-set-non-file "todo" 'h-a
+  (bookmark-gt-create-non-file "todo" 'h-a
                             (list (cons 'filename "/tmp/a/notes.org")))
-  (bookmark-gt-set-non-file "todo" 'h-b
+  (bookmark-gt-create-non-file "todo" 'h-b
                             (list (cons 'filename "/tmp/b/notes.org")))
   (let ((a (seq-find (lambda (r)
                        (equal (bookmark-gt-filename-of r) "/tmp/a/notes.org"))
@@ -114,9 +114,9 @@ resolves \"todo\" to B, the most recently stored one."
           (progn
             (with-temp-file src (insert "x\n"))
             ;; Two records share a name; only one points at SRC.
-            (bookmark-gt-set-non-file "todo" 'h-a
+            (bookmark-gt-create-non-file "todo" 'h-a
                                       (list (cons 'filename src)))
-            (bookmark-gt-set-non-file "todo" 'h-b
+            (bookmark-gt-create-non-file "todo" 'h-b
                                       (list (cons 'filename
                                                   "/tmp/elsewhere.txt")))
             (let* ((tracked (seq-find (lambda (r)
@@ -136,7 +136,7 @@ resolves \"todo\" to B, the most recently stored one."
 (ert-deftest bookmark-gt-same-name-test-record-api-rejects-names ()
   "The record-taking helpers signal rather than resolve a name."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "solo" 'h nil)
+    (bookmark-gt-create-non-file "solo" 'h nil)
     (should-error (bookmark-gt-delete-record "solo"))
     (should-error (bookmark-gt-rename-record "solo" "other"))
     (should-error (bookmark-gt-jump-record "solo"))))

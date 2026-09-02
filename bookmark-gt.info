@@ -142,12 +142,25 @@ Using use-package with a local directory
      (use-package bookmark-gt
        :straight nil
        :load-path "~/.emacs.d/modules/bookmark-gt"
-       :bind (("C-x r m" . bookmark-gt-set)         ; supersede built-in bookmark-set
-              ("C-x r l" . bookmark-gt-list)        ; supersede bookmark-bmenu-list
-              ("C-x r b" . bookmark-gt-jump)        ; fuzzy jump reader
-              ("C-x r u" . bookmark-gt-set-url))    ; new: bookmark a URL
+       :bind (("C-x r u" . bookmark-gt-create-url)  ; new: bookmark a URL
+              ("C-x r U" . bookmark-gt-update))     ; new: move a bookmark here
        :config
        (bookmark-gt-mode 1))
+
+   While ‘bookmark-gt-mode’ is on it remaps the built-in bookmark
+commands, so the standard keys reach bookmark-gt without being rebound:
+
+Key         Built-in                Reaches
+-----------------------------------------------------------
+‘C-x r m’   ‘bookmark-set’          ‘bookmark-gt-create’
+‘C-x r b’   ‘bookmark-jump’         ‘bookmark-gt-jump’
+‘C-x r l’   ‘bookmark-bmenu-list’   ‘bookmark-gt-list’
+‘M-x’       ‘bookmark-delete’       ‘bookmark-gt-delete’
+‘M-x’       ‘bookmark-rename’       ‘bookmark-gt-rename’
+
+   Turning the mode off restores the built-ins.  Only the *commands* are
+remapped; the functions behind them are unchanged, so a package that
+stores bookmarks from Lisp keeps the behavior it expects.
 
    Requires Emacs 30.1+.  Soft-deps (loaded when present, package works
 without them):
@@ -1630,56 +1643,56 @@ GPL-3.0-or-later.  See ‘LICENSE’.
 Tag Table:
 Node: Top205
 Node: Install3175
-Node: Which version is installed4767
-Node: Getting started5309
-Node: Master switch bookmark-gt-mode5507
-Node: Opt-in modes8526
-Node: bookmark-gt-auto-update-mode8877
-Node: bookmark-gt-default-tags-mode9863
-Node: bookmark-gt-browser-tabs-mode10891
-Node: User interface14302
-Node: The *Bookmarks-gt List* buffer14559
-Node: Columns15132
-Node: Keys16370
-Node: Acting on several bookmarks at once18258
-Node: Persisting view state22114
-Node: Jump to a bookmark bookmark-gt-jump23073
-Node: Elisp signatures24481
-Node: Non-file bookmark types27244
-Node: URL bookmarks — bookmark-gt-set-url27817
-Node: Dired bookmarks — bookmark-gt-handler-dired-jump28604
-Ref: Virtual dired30174
-Node: Function bookmarks — bookmark-gt-set-function31387
-Node: Keyboard-macro bookmarks — bookmark-gt-set-kmacro32200
-Node: Sequence bookmarks — bookmark-gt-set-sequence33858
-Node: File-type handlers — override the file-jump path per pattern34614
-Node: View bookmarks — save the list buffer's current view35987
-Node: Setting bookmarks37149
-Node: Tag reader37387
-Node: Same-name policy38392
-Node: Worked scenario the same name in two projects40746
-Node: If you expected two records and see one42118
-Node: Name-based commands reach only the first match44101
-Node: Record identity47369
-Node: Relocate change a bookmark's target48363
-Node: In-file behaviors49512
-Node: In-buffer cycling49741
-Node: Per-bookmark highlighting50741
-Node: Region bookmarks52698
-Node: Trackers54219
-Node: Visit tracker54395
-Node: File-rename tracker55139
-Node: Extension API56126
-Node: Handler registry56327
-Node: Group registry58524
-Node: Extension points60177
-Node: Compatibility63096
-Node: Data compat with bookmark+63297
-Node: Migrating from bookmark+64427
-Node: Reference66771
-Node: Selected customization66934
-Node: Acknowledgements72316
-Node: License74650
+Node: Which version is installed5395
+Node: Getting started5937
+Node: Master switch bookmark-gt-mode6135
+Node: Opt-in modes9154
+Node: bookmark-gt-auto-update-mode9505
+Node: bookmark-gt-default-tags-mode10491
+Node: bookmark-gt-browser-tabs-mode11519
+Node: User interface14930
+Node: The *Bookmarks-gt List* buffer15187
+Node: Columns15760
+Node: Keys16998
+Node: Acting on several bookmarks at once18886
+Node: Persisting view state22742
+Node: Jump to a bookmark bookmark-gt-jump23701
+Node: Elisp signatures25109
+Node: Non-file bookmark types27872
+Node: URL bookmarks — bookmark-gt-set-url28445
+Node: Dired bookmarks — bookmark-gt-handler-dired-jump29232
+Ref: Virtual dired30802
+Node: Function bookmarks — bookmark-gt-set-function32015
+Node: Keyboard-macro bookmarks — bookmark-gt-set-kmacro32828
+Node: Sequence bookmarks — bookmark-gt-set-sequence34486
+Node: File-type handlers — override the file-jump path per pattern35242
+Node: View bookmarks — save the list buffer's current view36615
+Node: Setting bookmarks37777
+Node: Tag reader38015
+Node: Same-name policy39020
+Node: Worked scenario the same name in two projects41374
+Node: If you expected two records and see one42746
+Node: Name-based commands reach only the first match44729
+Node: Record identity47997
+Node: Relocate change a bookmark's target48991
+Node: In-file behaviors50140
+Node: In-buffer cycling50369
+Node: Per-bookmark highlighting51369
+Node: Region bookmarks53326
+Node: Trackers54847
+Node: Visit tracker55023
+Node: File-rename tracker55767
+Node: Extension API56754
+Node: Handler registry56955
+Node: Group registry59152
+Node: Extension points60805
+Node: Compatibility63724
+Node: Data compat with bookmark+63925
+Node: Migrating from bookmark+65055
+Node: Reference67399
+Node: Selected customization67562
+Node: Acknowledgements72944
+Node: License75278
 
 End Tag Table
 

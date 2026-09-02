@@ -45,9 +45,9 @@
 
 (ert-deftest bookmark-gt-list-test-buffer-shows-entries ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "one" 'bookmark-gt-handler-url-jump
+    (bookmark-gt-create-non-file "one" 'bookmark-gt-handler-url-jump
                               '((url . "https://one.example/")))
-    (bookmark-gt-set-non-file "two" 'bookmark-gt-handler-url-jump
+    (bookmark-gt-create-non-file "two" 'bookmark-gt-handler-url-jump
                               '((url . "https://two.example/")))
     (bookmark-gt-list-test--in-buffer
       (should (= (bookmark-gt-list-test--row-count) 2))
@@ -56,7 +56,7 @@
 
 (ert-deftest bookmark-gt-list-test-type-column-uses-registry ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "u" 'bookmark-gt-handler-url-jump
+    (bookmark-gt-create-non-file "u" 'bookmark-gt-handler-url-jump
                               '((url . "https://x.example/")))
     (bookmark-gt-list-test--in-buffer
       (goto-char (point-min))
@@ -65,7 +65,7 @@
 
 (ert-deftest bookmark-gt-list-test-tags-column-joins ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "u" 'h
+    (bookmark-gt-create-non-file "u" 'h
                               '((tags . ("proj" "urgent"))))
     (bookmark-gt-list-test--in-buffer
       (goto-char (point-min))
@@ -74,11 +74,11 @@
 ;;;; Revert observer
 
 (ert-deftest bookmark-gt-list-test-after-hook-refreshes-buffer ()
-  "Mutating the alist via `bookmark-gt-set-non-file' triggers refresh."
+  "Mutating the alist via `bookmark-gt-create-non-file' triggers refresh."
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-list-test--in-buffer
       (should (= (bookmark-gt-list-test--row-count) 0))
-      (bookmark-gt-set-non-file "new" 'h nil)
+      (bookmark-gt-create-non-file "new" 'h nil)
       (should (= (bookmark-gt-list-test--row-count) 1)))))
 
 (ert-deftest bookmark-gt-list-test-revert-picks-up-external-changes ()
@@ -93,8 +93,8 @@
 
 (ert-deftest bookmark-gt-list-test-mark-and-collect ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (bookmark-gt-list-test--in-buffer
       (goto-char (point-min))
       (bookmark-gt-list-mark 1)
@@ -106,7 +106,7 @@
 
 (ert-deftest bookmark-gt-list-test-unmark ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
     (bookmark-gt-list-test--in-buffer
       (goto-char (point-min))
       (bookmark-gt-list-mark 1)
@@ -119,8 +119,8 @@
 
 (ert-deftest bookmark-gt-list-test-flag-and-execute ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "keep" 'h nil)
-    (bookmark-gt-set-non-file "drop" 'h nil)
+    (bookmark-gt-create-non-file "keep" 'h nil)
+    (bookmark-gt-create-non-file "drop" 'h nil)
     (bookmark-gt-list-test--in-buffer
       (goto-char (point-min))
       ;; Find the "drop" line and flag it.
@@ -137,7 +137,7 @@
 
 (ert-deftest bookmark-gt-list-test-jump-dispatches ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "u" 'bookmark-gt-handler-url-jump
+    (bookmark-gt-create-non-file "u" 'bookmark-gt-handler-url-jump
                               '((url . "https://example.org")))
     (let (seen)
       (cl-letf (((symbol-function 'browse-url)
@@ -151,9 +151,9 @@
 
 (ert-deftest bookmark-gt-list-test-filter-by-type-narrows ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "u" 'bookmark-gt-handler-url-jump
+    (bookmark-gt-create-non-file "u" 'bookmark-gt-handler-url-jump
                               '((url . "https://a")))
-    (bookmark-gt-set-non-file "e" 'eww-bookmark-jump nil)
+    (bookmark-gt-create-non-file "e" 'eww-bookmark-jump nil)
     (bookmark-gt-list-test--in-buffer
       (setq bookmark-gt-list--filters '((by-type . url)))
       (revert-buffer)
@@ -163,8 +163,8 @@
 
 (ert-deftest bookmark-gt-list-test-filter-by-tag-narrows ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h '((tags . ("proj"))))
-    (bookmark-gt-set-non-file "b" 'h '((tags . ("other"))))
+    (bookmark-gt-create-non-file "a" 'h '((tags . ("proj"))))
+    (bookmark-gt-create-non-file "b" 'h '((tags . ("other"))))
     (bookmark-gt-list-test--in-buffer
       (setq bookmark-gt-list--filters '((by-tag . "proj")))
       (revert-buffer)
@@ -174,8 +174,8 @@
 
 (ert-deftest bookmark-gt-list-test-filter-unfilter-restores ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (bookmark-gt-list-test--in-buffer
       (setq bookmark-gt-list--filters '((by-name-regexp . "\\`a")))
       (revert-buffer)
@@ -188,7 +188,7 @@
 
 (ert-deftest bookmark-gt-list-test-rename-mutates-and-refreshes ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "old" 'h nil)
+    (bookmark-gt-create-non-file "old" 'h nil)
     (bookmark-gt-list-test--in-buffer
       (goto-char (point-min))
       (bookmark-gt-list-rename "new")
@@ -200,7 +200,7 @@
 (ert-deftest bookmark-gt-list-test-edit-tags-replaces ()
   "Editing the CSV replaces the tag list with the parsed result."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "b" 'h '((tags . ("old" "keep"))))
+    (bookmark-gt-create-non-file "b" 'h '((tags . ("old" "keep"))))
     (cl-letf (((symbol-function 'read-from-minibuffer)
                (lambda (&rest _) "new, keep")))
       (bookmark-gt-list-test--in-buffer
@@ -212,7 +212,7 @@
 (ert-deftest bookmark-gt-list-test-edit-tags-removes-all ()
   "Emptying the CSV clears the record's tag list."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "b" 'h '((tags . ("gone"))))
+    (bookmark-gt-create-non-file "b" 'h '((tags . ("gone"))))
     (cl-letf (((symbol-function 'read-from-minibuffer)
                (lambda (&rest _) "")))
       (bookmark-gt-list-test--in-buffer
@@ -223,7 +223,7 @@
 (ert-deftest bookmark-gt-list-test-edit-tags-removes-one ()
   "Deleting one tag from the CSV drops just that tag."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "b" 'h '((tags . ("a" "b" "c"))))
+    (bookmark-gt-create-non-file "b" 'h '((tags . ("a" "b" "c"))))
     (cl-letf (((symbol-function 'read-from-minibuffer)
                (lambda (&rest _) "a, c")))
       (bookmark-gt-list-test--in-buffer
@@ -258,8 +258,8 @@
 (ert-deftest bookmark-gt-list-test-records-to-act-on-defaults-to-point ()
   "With no marks, the acted-on set is the single row at point."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (bookmark-gt-list-test--in-buffer
       (goto-char (point-min))
       (let ((records (bookmark-gt-list--records-to-act-on)))
@@ -269,8 +269,8 @@
 (ert-deftest bookmark-gt-list-test-records-to-act-on-uses-marks ()
   "Marked rows take precedence over the row at point, in row order."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (bookmark-gt-list-test--in-buffer
       (bookmark-gt-list-test--mark-all)
       ;; Point deliberately parked on the first row; both rows must
@@ -283,8 +283,8 @@
 (ert-deftest bookmark-gt-list-test-add-tags-applies-to-all-marked ()
   "Adding a tag with several rows marked tags every marked record."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h '((tags . ("keep"))))
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h '((tags . ("keep"))))
+    (bookmark-gt-create-non-file "b" 'h nil)
     (cl-letf (((symbol-function 'bookmark-gt-tags-read)
                (lambda (&rest _) '("new"))))
       (bookmark-gt-list-test--in-buffer
@@ -300,8 +300,8 @@
 (ert-deftest bookmark-gt-list-test-remove-tags-offers-union ()
   "Removal completion covers the union of the marked records' tags."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h '((tags . ("only-a"))))
-    (bookmark-gt-set-non-file "b" 'h '((tags . ("only-b"))))
+    (bookmark-gt-create-non-file "a" 'h '((tags . ("only-a"))))
+    (bookmark-gt-create-non-file "b" 'h '((tags . ("only-b"))))
     (let (offered)
       (cl-letf (((symbol-function 'bookmark-gt-tags-read)
                  (lambda (_prompt _initial candidates)
@@ -320,8 +320,8 @@
 (ert-deftest bookmark-gt-list-test-edit-tags-replaces-on-all-marked ()
   "The edited CSV replaces the tag list on every marked record."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h '((tags . ("old"))))
-    (bookmark-gt-set-non-file "b" 'h '((tags . ("other"))))
+    (bookmark-gt-create-non-file "a" 'h '((tags . ("old"))))
+    (bookmark-gt-create-non-file "b" 'h '((tags . ("other"))))
     (let (seeded)
       (cl-letf (((symbol-function 'read-from-minibuffer)
                  (lambda (_prompt initial &rest _)
@@ -340,9 +340,9 @@
 (ert-deftest bookmark-gt-list-test-toggle-temp-makes-selection-uniform ()
   "A mixed selection goes uniformly on, then uniformly off."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
-    (bookmark-gt-set-non-file "b" 'h nil)
-    (bookmark-gt-set-temp (bookmark-get-bookmark "a") t)
+    (bookmark-gt-create-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
+    (bookmark-gt-temp-set (bookmark-get-bookmark "a") t)
     (bookmark-gt-list-test--in-buffer
       (bookmark-gt-list-test--mark-all)
       ;; Mixed: "a" temp, "b" not.  First press turns both on.
@@ -358,7 +358,7 @@
 (ert-deftest bookmark-gt-list-test-toggle-temp-unmarked-negates-point ()
   "With no marks, the toggle still negates the record at point."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
     (bookmark-gt-list-test--in-buffer
       (goto-char (point-min))
       (bookmark-gt-list-toggle-temp)
@@ -370,8 +370,8 @@
 (ert-deftest bookmark-gt-list-test-toggle-auto-update-marked ()
   "The auto-update toggle applies one value to the whole selection."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h '((auto-update . t)))
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h '((auto-update . t)))
+    (bookmark-gt-create-non-file "b" 'h nil)
     (bookmark-gt-list-test--in-buffer
       (bookmark-gt-list-test--mark-all)
       (bookmark-gt-list-toggle-auto-update)
@@ -381,8 +381,8 @@
 (ert-deftest bookmark-gt-list-test-marks-ignore-unmarked-rows ()
   "Only marked rows are acted on; unmarked rows are left alone."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (cl-letf (((symbol-function 'bookmark-gt-tags-read)
                (lambda (&rest _) '("new"))))
       (bookmark-gt-list-test--in-buffer
@@ -398,8 +398,8 @@
 (ert-deftest bookmark-gt-list-test-deletion-flags-are-not-a-selection ()
   "Rows flagged `D' are not acted on by selection-scoped commands."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (cl-letf (((symbol-function 'bookmark-gt-tags-read)
                (lambda (&rest _) '("new"))))
       (bookmark-gt-list-test--in-buffer
@@ -417,8 +417,8 @@
 (ert-deftest bookmark-gt-list-test-completed-command-deselects ()
   "Completing a selection-scoped command clears the marks."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (cl-letf (((symbol-function 'bookmark-gt-tags-read)
                (lambda (&rest _) '("new"))))
       (bookmark-gt-list-test--in-buffer
@@ -433,8 +433,8 @@
 (ert-deftest bookmark-gt-list-test-toggle-deselects ()
   "A completed toggle clears the marks too."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (bookmark-gt-list-test--in-buffer
       (bookmark-gt-list-test--mark-all)
       (bookmark-gt-list-toggle-temp)
@@ -449,8 +449,8 @@
 (ert-deftest bookmark-gt-list-test-empty-reader-keeps-selection ()
   "Ending the tag reader without input changes and clears nothing."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (cl-letf (((symbol-function 'bookmark-gt-tags-read)
                (lambda (&rest _) nil)))
       (bookmark-gt-list-test--in-buffer
@@ -461,8 +461,8 @@
 (ert-deftest bookmark-gt-list-test-deselect-keeps-deletion-flags ()
   "Deselecting after a command leaves `D' flags for `x' to consume."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (cl-letf (((symbol-function 'bookmark-gt-tags-read)
                (lambda (&rest _) '("new"))))
       (bookmark-gt-list-test--in-buffer
@@ -483,8 +483,8 @@
 (ert-deftest bookmark-gt-list-test-execute-deletions-skips-hidden ()
   "Deletion is bounded by the view: hidden flagged rows survive."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (bookmark-gt-list-test--in-buffer
       ;; Flag both, then narrow to "a".
       (goto-char (point-min))
@@ -506,8 +506,8 @@
 (ert-deftest bookmark-gt-list-test-execute-deletions-counts-visible-only ()
   "The confirmation prompt counts only the rows that will be deleted."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (bookmark-gt-list-test--in-buffer
       (goto-char (point-min))
       (bookmark-gt-list-flag-for-deletion 2)
@@ -522,8 +522,8 @@
 (ert-deftest bookmark-gt-list-test-execute-deletions-all-hidden-signals ()
   "With every flagged row hidden, deletion refuses and deletes nothing."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (bookmark-gt-list-test--in-buffer
       ;; Flag "b" alone, then narrow to "a".
       (goto-char (point-min))
@@ -547,8 +547,8 @@
 (ert-deftest bookmark-gt-list-test-filter-excludes-hidden-from-selection ()
   "A command acts only on marked rows the filter leaves visible."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (cl-letf (((symbol-function 'bookmark-gt-tags-read)
                (lambda (&rest _) '("new"))))
       (bookmark-gt-list-test--in-buffer
@@ -566,8 +566,8 @@
 (ert-deftest bookmark-gt-list-test-filter-preserves-hidden-marks ()
   "Deselecting after a command leaves marks on filtered-out rows."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (cl-letf (((symbol-function 'bookmark-gt-tags-read)
                (lambda (&rest _) '("new"))))
       (bookmark-gt-list-test--in-buffer
@@ -586,8 +586,8 @@
   "With every marked row hidden, the command refuses rather than
 falling back to the row at point."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (let ((prompted nil))
       (cl-letf (((symbol-function 'bookmark-gt-tags-read)
                  (lambda (&rest _) (setq prompted t) '("new"))))
@@ -613,8 +613,8 @@ falling back to the row at point."
 (ert-deftest bookmark-gt-list-test-hidden-marks-signal-for-every-command ()
   "Every selection-scoped command refuses when the selection is hidden."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h '((tags . ("t"))))
-    (bookmark-gt-set-non-file "b" 'h '((tags . ("t"))))
+    (bookmark-gt-create-non-file "a" 'h '((tags . ("t"))))
+    (bookmark-gt-create-non-file "b" 'h '((tags . ("t"))))
     (cl-letf (((symbol-function 'bookmark-gt-tags-read)
                (lambda (&rest _) '("new")))
               ((symbol-function 'read-from-minibuffer)
@@ -638,8 +638,8 @@ falling back to the row at point."
 (ert-deftest bookmark-gt-list-test-no-marks-still-uses-point ()
   "With nothing marked anywhere, a filter does not block the fallback."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (cl-letf (((symbol-function 'bookmark-gt-tags-read)
                (lambda (&rest _) '("new"))))
       (bookmark-gt-list-test--in-buffer
@@ -653,12 +653,12 @@ falling back to the row at point."
 (ert-deftest bookmark-gt-list-test-filter-scopes-toggle-target ()
   "The toggle's uniform value is computed over visible rows only."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     ;; "b" is already temp, "a" is not.  Were the hidden "b" counted,
     ;; the selection would read as mixed either way; what matters is
     ;; that only "a" is considered and only "a" changes.
-    (bookmark-gt-set-temp (bookmark-get-bookmark "b") t)
+    (bookmark-gt-temp-set (bookmark-get-bookmark "b") t)
     (bookmark-gt-list-test--in-buffer
       (bookmark-gt-list-test--mark-all)
       (setq bookmark-gt-list--filters '((by-name-regexp . "\\`a")))
@@ -671,13 +671,13 @@ falling back to the row at point."
 (ert-deftest bookmark-gt-list-test-show-temp-hidden-rows-excluded ()
   "Rows hidden by the `show-temp' toggle are outside the selection."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'h nil)
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "a" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (cl-letf (((symbol-function 'bookmark-gt-tags-read)
                (lambda (&rest _) '("new"))))
       (bookmark-gt-list-test--in-buffer
         (bookmark-gt-list-test--mark-all)
-        (bookmark-gt-set-temp (bookmark-get-bookmark "b") t)
+        (bookmark-gt-temp-set (bookmark-get-bookmark "b") t)
         (setq bookmark-gt-list--show-temp nil)
         (tabulated-list-print t)
         (bookmark-gt-list-add-tags)
@@ -690,12 +690,12 @@ falling back to the row at point."
 (ert-deftest bookmark-gt-list-test-save-view-captures-state ()
   "Calling `bookmark-gt-set' in the list buffer stores a view record."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'ignore nil)
+    (bookmark-gt-create-non-file "a" 'ignore nil)
     (bookmark-gt-list-test--in-buffer
       (setq bookmark-gt-list--filters '((by-tag . "work")))
       (setq tabulated-list-sort-key '("Name" . nil))
       (setq bookmark-gt-list--show-temp nil)
-      (bookmark-gt-set "my-view"))
+      (bookmark-gt-create "my-view"))
     (let ((rec (assoc "my-view" bookmark-alist)))
       (should rec)
       (should (eq (bookmark-prop-get rec 'handler)
@@ -709,10 +709,10 @@ falling back to the row at point."
 (ert-deftest bookmark-gt-list-test-view-jump-restores-state ()
   "Jumping a view record applies its saved state to the list buffer."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "a" 'ignore nil)
+    (bookmark-gt-create-non-file "a" 'ignore nil)
     ;; Store a view record by hand (skip the save-view command so
     ;; the test doesn't depend on the list buffer's live state).
-    (bookmark-gt-set-non-file
+    (bookmark-gt-create-non-file
      "v" 'bookmark-gt-handler-view-jump
      '((filters   . ((by-tag . "urgent")))
        (sort-key  . ("Type" . nil))
@@ -733,7 +733,7 @@ falling back to the row at point."
 (ert-deftest bookmark-gt-list-test-view-classifies-as-view ()
   "View records classify as type `view' via the registry."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file
+    (bookmark-gt-create-non-file
      "v" 'bookmark-gt-handler-view-jump
      '((filters . nil) (sort-key . nil) (show-temp . t)))
     (let ((rec (assoc "v" bookmark-alist)))

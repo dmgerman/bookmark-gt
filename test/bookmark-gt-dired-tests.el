@@ -8,7 +8,7 @@
 ;;
 ;; Covers the Dired-specific setter and jump paths:
 ;;   - state capture (dired-directory, marks, subdirs, hidden dirs,
-;;     switches) when `bookmark-gt-set' fires in a Dired buffer;
+;;     switches) when `bookmark-gt-create' runs in a Dired buffer;
 ;;   - state restoration on jump (marks re-applied, subdirs inserted);
 ;;   - wildcard and explicit-file-list forms of `dired-directory'
 ;;     round-trip;
@@ -69,7 +69,7 @@ directory bound to DIR-VAR.  DIR-VAR ends with a slash."
       (unwind-protect
           (let ((buf (dired dir)))
             (with-current-buffer buf
-              (bookmark-gt-set "d1"))
+              (bookmark-gt-create "d1"))
             (let ((rec (car bookmark-alist)))
               (should (equal (bookmark-prop-get rec 'handler)
                              'bookmark-gt-handler-dired-jump))
@@ -88,7 +88,7 @@ directory bound to DIR-VAR.  DIR-VAR ends with a slash."
               (dired-mark 1)
               (dired-goto-file (expand-file-name "c.txt" dir))
               (dired-mark 1)
-              (bookmark-gt-set "d2"))
+              (bookmark-gt-create "d2"))
             (let* ((rec (car bookmark-alist))
                    (marks (bookmark-prop-get rec 'dired-marked))
                    (files (mapcar #'car marks)))
@@ -107,7 +107,7 @@ directory bound to DIR-VAR.  DIR-VAR ends with a slash."
             (with-current-buffer buf
               (dired-maybe-insert-subdir
                (expand-file-name "sub" dir))
-              (bookmark-gt-set "d3"))
+              (bookmark-gt-create "d3"))
             (let* ((rec (car bookmark-alist))
                    (subs (bookmark-prop-get rec 'dired-subdirs)))
               ;; Shape is ((DIR) (DIR) ...) — same as bookmark+ and
@@ -128,7 +128,7 @@ directory bound to DIR-VAR.  DIR-VAR ends with a slash."
           (let* ((pattern (concat dir "*.el"))
                  (buf (dired pattern)))
             (with-current-buffer buf
-              (bookmark-gt-set "d4"))
+              (bookmark-gt-create "d4"))
             (let ((rec (car bookmark-alist)))
               ;; `dired-noselect' normalizes its input with
               ;; `abbreviate-file-name' + `expand-file-name'
@@ -148,7 +148,7 @@ directory bound to DIR-VAR.  DIR-VAR ends with a slash."
                               (expand-file-name "y" dir)))
                  (buf (dired files)))
             (with-current-buffer buf
-              (bookmark-gt-set "d5"))
+              (bookmark-gt-create "d5"))
             (let ((rec (car bookmark-alist)))
               (should (consp (bookmark-prop-get rec 'dired-directory)))
               (should (equal (cdr (bookmark-prop-get rec 'dired-directory))
@@ -168,7 +168,7 @@ directory bound to DIR-VAR.  DIR-VAR ends with a slash."
               (with-current-buffer buf
                 (dired-goto-file (expand-file-name "b.txt" dir))
                 (dired-mark 1)
-                (bookmark-gt-set "d-marks-jump"))
+                (bookmark-gt-create "d-marks-jump"))
               (kill-buffer buf))
             (bookmark-jump "d-marks-jump")
             (let ((remembered (dired-remember-marks (point-min) (point-max))))
@@ -187,7 +187,7 @@ directory bound to DIR-VAR.  DIR-VAR ends with a slash."
               (with-current-buffer buf
                 (dired-maybe-insert-subdir
                  (expand-file-name "sub" dir))
-                (bookmark-gt-set "d-sub-jump"))
+                (bookmark-gt-create "d-sub-jump"))
               (kill-buffer buf))
             (bookmark-jump "d-sub-jump")
             (let ((sub (file-name-as-directory
@@ -211,7 +211,7 @@ directory bound to DIR-VAR.  DIR-VAR ends with a slash."
                         "  total used in directory 0\n"
                         "  -rw-r--r-- 1 u g 0 Jan  1 00:00 a.txt\n")
                 (dired-virtual dir)
-                (bookmark-gt-set "d-virt"))
+                (bookmark-gt-create "d-virt"))
               (let ((rec (car bookmark-alist)))
                 (should (eq (bookmark-prop-get rec 'dired-virtual) t))
                 (should (stringp (bookmark-prop-get rec 'dired-listing)))
@@ -234,7 +234,7 @@ directory bound to DIR-VAR.  DIR-VAR ends with a slash."
                         "  total used in directory 0\n"
                         (make-string 200 ?x) "\n")
                 (dired-virtual dir)
-                (should-error (bookmark-gt-set "d-virt-big")
+                (should-error (bookmark-gt-create "d-virt-big")
                               :type 'user-error)))
           (when (buffer-live-p buf) (kill-buffer buf)))))))
 
@@ -251,7 +251,7 @@ directory bound to DIR-VAR.  DIR-VAR ends with a slash."
                         "  total used in directory 0\n"
                         "  -rw-r--r-- 1 u g 0 Jan  1 00:00 unique-marker.txt\n")
                 (dired-virtual dir)
-                (bookmark-gt-set "d-virt-restore"))
+                (bookmark-gt-create "d-virt-restore"))
               (kill-buffer buf)
               (bookmark-jump "d-virt-restore")
               (should (derived-mode-p 'dired-mode))

@@ -42,9 +42,9 @@
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-cycle-test--with-file "abcdefghijklmnop"
       (let ((path (buffer-file-name)))
-        (bookmark-gt-set-non-file
+        (bookmark-gt-create-non-file
          "a" nil (list (cons 'filename path) (cons 'position 3)))
-        (bookmark-gt-set-non-file
+        (bookmark-gt-create-non-file
          "b" nil (list (cons 'filename path) (cons 'position 8)))
         (goto-char 1)
         (bookmark-gt-cycle-next)
@@ -56,9 +56,9 @@
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-cycle-test--with-file "abcdefghijklmnop"
       (let ((path (buffer-file-name)))
-        (bookmark-gt-set-non-file
+        (bookmark-gt-create-non-file
          "a" nil (list (cons 'filename path) (cons 'position 3)))
-        (bookmark-gt-set-non-file
+        (bookmark-gt-create-non-file
          "b" nil (list (cons 'filename path) (cons 'position 8)))
         (goto-char 15)  ; past all bookmarks
         (bookmark-gt-cycle-next)
@@ -70,9 +70,9 @@
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-cycle-test--with-file "abcdefghijklmnop"
       (let ((path (buffer-file-name)))
-        (bookmark-gt-set-non-file
+        (bookmark-gt-create-non-file
          "a" nil (list (cons 'filename path) (cons 'position 3)))
-        (bookmark-gt-set-non-file
+        (bookmark-gt-create-non-file
          "b" nil (list (cons 'filename path) (cons 'position 8)))
         (goto-char 10)
         (bookmark-gt-cycle-prev)
@@ -84,9 +84,9 @@
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-cycle-test--with-file "abcdefghijklmnop"
       (let ((path (buffer-file-name)))
-        (bookmark-gt-set-non-file
+        (bookmark-gt-create-non-file
          "a" nil (list (cons 'filename path) (cons 'position 3)))
-        (bookmark-gt-set-non-file
+        (bookmark-gt-create-non-file
          "b" nil (list (cons 'filename path) (cons 'position 8)))
         (goto-char 1)  ; before all bookmarks
         (bookmark-gt-cycle-prev)
@@ -98,10 +98,10 @@
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-cycle-test--with-file "aaaaaaaaaa"
       (let ((path (buffer-file-name)))
-        (bookmark-gt-set-non-file
+        (bookmark-gt-create-non-file
          "here" nil (list (cons 'filename path) (cons 'position 3)))
         ;; Bookmark for a DIFFERENT file
-        (bookmark-gt-set-non-file
+        (bookmark-gt-create-non-file
          "elsewhere" nil (list (cons 'filename "/tmp/other-file-xyz")
                                (cons 'position 5)))
         (goto-char 1)
@@ -117,9 +117,9 @@
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-cycle-test--with-file "aaaaaaaaaa"
       (let ((path (buffer-file-name)))
-        (bookmark-gt-set-non-file
+        (bookmark-gt-create-non-file
          "no-pos" nil (list (cons 'filename path)))  ; no position
-        (bookmark-gt-set-non-file
+        (bookmark-gt-create-non-file
          "yes-pos" nil (list (cons 'filename path) (cons 'position 4)))
         (goto-char 1)
         (bookmark-gt-cycle-next)

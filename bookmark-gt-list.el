@@ -317,9 +317,13 @@ sorting."
   (let ((records (bookmark-gt-list--apply-filters bookmark-alist)))
     (unless bookmark-gt-list--show-temp
       (setq records (seq-remove #'bookmark-gt-temp-p records)))
-    (mapcar (lambda (record)
-              (list record (bookmark-gt-list--entry-vector record)))
-            records)))
+    ;; One index for the whole render: each row asks for its
+    ;; display name, and answering that by scanning the alist per
+    ;; row would be quadratic in the number of bookmarks.
+    (bookmark-gt-with-name-index
+      (mapcar (lambda (record)
+                (list record (bookmark-gt-list--entry-vector record)))
+              records))))
 
 ;;;; State-file persistence
 
@@ -578,7 +582,7 @@ replaced, and restores the row's visual offset from
 (defun bookmark-gt-list-refresh (&rest _)
   "Redraw every live `bookmark-gt-list-mode' buffer.
 Callable directly, and used as the observer on
-`bookmark-gt-set-after-hook' (extra hook arguments are ignored)."
+`bookmark-gt-record-changed-hook' (extra hook arguments are ignored)."
   (dolist (buf (buffer-list))
     (with-current-buffer buf
       (when (derived-mode-p 'bookmark-gt-list-mode)
@@ -817,7 +821,7 @@ than reporting that there is nothing to delete."
     (dolist (record flagged)
       (bookmark-gt-delete-record record)
       (remhash record bookmark-gt-list--marks))
-    (bookmark-gt--after-mutation (car flagged))
+    (bookmark-gt--after-mutation (car flagged) 'delete)
     (message "Deleted %d bookmark(s)" (length flagged))))
 
 ;;;; Jump
@@ -861,9 +865,12 @@ characters rather than retype the whole name."
             "Rename to: "
             (bookmark-gt-display-name-of record))))
    bookmark-gt-list-mode)
-  (let* ((record (bookmark-gt-list--require-record))
-         (unique (bookmark-gt-disambiguate-name new-name)))
-    (bookmark-gt-rename-record record unique)))
+  (let ((record (bookmark-gt-list--require-record)))
+    ;; Renaming into a name already in use follows the same policy
+    ;; as creating one: refused, rather than silently suffixed.
+    (unless (equal new-name (bookmark-name-from-full-record record))
+      (bookmark-gt--check-name-available new-name (cdr record)))
+    (bookmark-gt-rename-record record new-name)))
 
 (defun bookmark-gt-list-relocate ()
   "Relocate the bookmark on the current line.
@@ -1004,7 +1011,7 @@ case all are made permanent."
          (flag (bookmark-gt-list--toggle-target
                 records #'bookmark-gt-temp-p)))
     (dolist (record records)
-      (bookmark-gt-set-temp record flag t))
+      (bookmark-gt-temp-set record flag t))
     (bookmark-gt-list--finish records)
     ;; The loop counts each state change but suppresses the
     ;; auto-save; one save covers the whole batch.
@@ -1084,8 +1091,8 @@ hash, not in the record."
   (let* ((ga (bookmark-gt-group-name (bookmark-gt-handler-group (car a))))
          (gb (bookmark-gt-group-name (bookmark-gt-handler-group (car b)))))
     (if (equal ga gb)
-        (string< (bookmark-gt-display-name-of (car a))
-                 (bookmark-gt-display-name-of (car b)))
+        (string< (bookmark-name-from-full-record (car a))
+                 (bookmark-name-from-full-record (car b)))
       (string< (or ga "") (or gb "")))))
 
 (defun bookmark-gt-list--sort-by-record-flag (prop)
@@ -1300,7 +1307,7 @@ redraws."
 (defun bookmark-gt-list--make-record ()
   "Return a bookmark record describing the current list-buffer view.
 Installed as `bookmark-make-record-function' by
-`bookmark-gt-list-mode', so `M-x bookmark-gt-set' in the list
+`bookmark-gt-list-mode', so `M-x bookmark-gt-create' in the list
 buffer stores a view bookmark that restores the current
 filters, sort, and show-temp when jumped."
   `("View"

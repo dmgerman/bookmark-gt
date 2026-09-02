@@ -20,14 +20,14 @@
 
 (ert-deftest bookmark-gt-temp-test-p ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "plain" 'h nil)
-    (bookmark-gt-set-non-file "temp"  'h (list (cons bookmark-gt-temp-key t)))
+    (bookmark-gt-create-non-file "plain" 'h nil)
+    (bookmark-gt-create-non-file "temp"  'h (list (cons bookmark-gt-temp-key t)))
     (should-not (bookmark-gt-temp-p (assoc "plain" bookmark-alist)))
     (should     (bookmark-gt-temp-p (assoc "temp" bookmark-alist)))))
 
 (ert-deftest bookmark-gt-temp-test-toggle-adds-and-removes ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (bookmark-gt-toggle-temp "b")
     (should (bookmark-gt-temp-p (assoc "b" bookmark-alist)))
     (bookmark-gt-toggle-temp "b")
@@ -35,10 +35,10 @@
 
 (ert-deftest bookmark-gt-temp-test-toggle-fires-after-hook ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (let (seen)
-      (add-hook 'bookmark-gt-set-after-hook
-                (lambda (entry) (push entry seen)))
+      (add-hook 'bookmark-gt-record-changed-hook
+                (lambda (entry &optional _op) (push entry seen)))
       (bookmark-gt-toggle-temp "b")
       (should (= (length seen) 1)))))
 
@@ -53,7 +53,7 @@
   "Storing a temp record leaves the modification count alone."
   (bookmark-gt-test-with-clean-bookmarks
     (let ((before bookmark-alist-modification-count))
-      (bookmark-gt-set-non-file "temp" 'h
+      (bookmark-gt-create-non-file "temp" 'h
                                 (list (cons bookmark-gt-temp-key t)))
       (should (= bookmark-alist-modification-count before)))))
 
@@ -61,13 +61,13 @@
   "Storing an ordinary record still raises the modification count."
   (bookmark-gt-test-with-clean-bookmarks
     (let ((before bookmark-alist-modification-count))
-      (bookmark-gt-set-non-file "plain" 'h nil)
+      (bookmark-gt-create-non-file "plain" 'h nil)
       (should (= bookmark-alist-modification-count (1+ before))))))
 
 (ert-deftest bookmark-gt-temp-test-toggle-counts-both-directions ()
   "Setting and clearing the temp flag each count as one change."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "b" 'h nil)
+    (bookmark-gt-create-non-file "b" 'h nil)
     (let ((before bookmark-alist-modification-count))
       (bookmark-gt-toggle-temp "b")
       (should (= bookmark-alist-modification-count (1+ before)))
@@ -77,10 +77,10 @@
 (ert-deftest bookmark-gt-temp-test-set-temp-no-op-does-not-count ()
   "Setting the flag on a record that already carries it is not a change."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "temp" 'h
+    (bookmark-gt-create-non-file "temp" 'h
                               (list (cons bookmark-gt-temp-key t)))
     (let ((before bookmark-alist-modification-count))
-      (bookmark-gt-set-temp (assoc "temp" bookmark-alist) t)
+      (bookmark-gt-temp-set (assoc "temp" bookmark-alist) t)
       (should (= bookmark-alist-modification-count before)))))
 
 ;;;; Save filter
@@ -88,8 +88,8 @@
 (ert-deftest bookmark-gt-temp-test-save-filter-drops-temp ()
   "With the filter installed, `bookmark-save' omits temp records."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "keep" 'h nil)
-    (bookmark-gt-set-non-file "temp" 'h (list (cons bookmark-gt-temp-key t)))
+    (bookmark-gt-create-non-file "keep" 'h nil)
+    (bookmark-gt-create-non-file "temp" 'h (list (cons bookmark-gt-temp-key t)))
     (advice-add (quote bookmark-save) :around (function bookmark-gt--save-filter-advice))
     (unwind-protect
         (progn
@@ -103,8 +103,8 @@
 (ert-deftest bookmark-gt-temp-test-save-filter-preserves-live-alist ()
   "The filter must not mutate the live `bookmark-alist' after save."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "keep" 'h nil)
-    (bookmark-gt-set-non-file "temp" 'h (list (cons bookmark-gt-temp-key t)))
+    (bookmark-gt-create-non-file "keep" 'h nil)
+    (bookmark-gt-create-non-file "temp" 'h (list (cons bookmark-gt-temp-key t)))
     (advice-add (quote bookmark-save) :around (function bookmark-gt--save-filter-advice))
     (unwind-protect
         (progn
@@ -115,8 +115,8 @@
 
 (ert-deftest bookmark-gt-temp-test-uninstall-restores-built-in ()
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "keep" 'h nil)
-    (bookmark-gt-set-non-file "temp" 'h (list (cons bookmark-gt-temp-key t)))
+    (bookmark-gt-create-non-file "keep" 'h nil)
+    (bookmark-gt-create-non-file "temp" 'h (list (cons bookmark-gt-temp-key t)))
     (advice-add (quote bookmark-save) :around (function bookmark-gt--save-filter-advice))
     (advice-remove (quote bookmark-save) (function bookmark-gt--save-filter-advice))
     (bookmark-save)

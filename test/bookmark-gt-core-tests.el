@@ -18,46 +18,56 @@
 
 ;;;; Same-name disambiguation
 ;;
-;; bookmark-gt uses the same "<N>" suffix convention as `bookmark.el' for
-;; collisions (see the design note in bookmark-gt-core.el).  The
-;; visible name of the second colliding bookmark is NAME<2>, the
-;; third is NAME<3>, etc.
+;; Names may repeat.  `bookmark-gt-allow-same-name-bookmarks'
+;; decides when `bookmark-gt-create' may reuse one, and refuses
+;; rather than appending a suffix: a stored `<N>' would make every
+;; name unique, which is what allowing repeats exists to avoid.
+;; The suffix users see is computed by
+;; `bookmark-gt-display-name-of'.
 
-(ert-deftest bookmark-gt-test-disambiguate-no-collision ()
-  "With no existing bookmarks, disambig is a no-op."
+(ert-deftest bookmark-gt-test-same-name-never-refuses ()
+  "With `never', a name already in use is refused."
   (bookmark-gt-test-with-clean-bookmarks
-    (should (equal (bookmark-gt-disambiguate-name "foo") "foo"))))
+    (let ((bookmark-gt-allow-same-name-bookmarks 'never))
+      (bookmark-gt-create-non-file "foo" 'ignore nil)
+      (should-error (bookmark-gt-create-non-file "foo" 'ignore nil)
+                    :type 'user-error))))
 
-(ert-deftest bookmark-gt-test-disambiguate-single-collision ()
-  "Second bookmark with the same name is renamed to NAME<2>."
+(ert-deftest bookmark-gt-test-same-name-always-allows ()
+  "With `always', the name is stored as typed."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "foo" 'ignore nil)
-    (should (equal (bookmark-gt-disambiguate-name "foo") "foo<2>"))))
+    (let ((bookmark-gt-allow-same-name-bookmarks 'always))
+      (bookmark-gt-create-non-file "foo" 'ignore nil)
+      (bookmark-gt-create-non-file "foo" 'ignore nil)
+      (should (= 2 (length (bookmark-gt--records-named "foo")))))))
 
-(ert-deftest bookmark-gt-test-disambiguate-multiple-collisions ()
-  "Third bookmark with the same name is renamed to NAME<3>.
-Rebinds both `bookmark-gt-same-name-overwrite' and
-`bookmark-gt-allow-duplicate-names' to nil so the store path
-runs through the `<N>' disambiguation branch."
+(ert-deftest bookmark-gt-test-same-name-different-destination ()
+  "The default reuses a name for another destination, refuses for the same."
   (bookmark-gt-test-with-clean-bookmarks
-    (let ((bookmark-gt-same-name-overwrite nil)
-          (bookmark-gt-allow-duplicate-names nil))
-      (bookmark-gt-set-non-file "foo" 'ignore nil)
-      (bookmark-gt-set-non-file "foo" 'ignore nil)
-      (should (equal (bookmark-gt-disambiguate-name "foo") "foo<3>")))))
+    (let ((bookmark-gt-allow-same-name-bookmarks 'different-destination))
+      (bookmark-gt-create-non-file
+       "todo" 'h (list (cons 'filename "/tmp/a/notes.org")))
+      ;; Different file: allowed.
+      (bookmark-gt-create-non-file
+       "todo" 'h (list (cons 'filename "/tmp/b/notes.org")))
+      (should (= 2 (length (bookmark-gt--records-named "todo"))))
+      ;; Same file again: refused.
+      (should-error
+       (bookmark-gt-create-non-file
+        "todo" 'h (list (cons 'filename "/tmp/a/notes.org")))
+       :type 'user-error))))
 
-(ert-deftest bookmark-gt-test-disambiguated-names-coexist ()
-  "Both same-named bookmarks are present in `bookmark-alist' after store.
-Both overwrite AND allow-duplicate-names are disabled here so
-the test exercises the pure `<N>' disambiguation path."
+(ert-deftest bookmark-gt-test-display-name-distinguishes-namesakes ()
+  "Namesakes are shown apart without their stored names changing."
   (bookmark-gt-test-with-clean-bookmarks
-    (let ((bookmark-gt-same-name-overwrite nil)
-          (bookmark-gt-allow-duplicate-names nil))
-      (bookmark-gt-set-non-file "foo" 'ignore nil)
-      (bookmark-gt-set-non-file "foo" 'ignore nil)
-      (should (= (length bookmark-alist) 2))
-      (should (equal (sort (mapcar #'car bookmark-alist) #'string<)
-                     '("foo" "foo<2>"))))))
+    (let ((bookmark-gt-allow-same-name-bookmarks 'always))
+      (bookmark-gt-create-non-file "dup" 'h nil)
+      (bookmark-gt-create-non-file "dup" 'h nil)
+      (let ((records (bookmark-gt--records-named "dup")))
+        (should (equal (mapcar #'bookmark-gt-display-name-of records)
+                       '("dup" "dup<2>")))
+        (should (equal (mapcar #'bookmark-name-from-full-record records)
+                       '("dup" "dup")))))))
 
 ;;;; Same-name overwrite policy
 ;;
@@ -65,85 +75,47 @@ the test exercises the pure `<N>' disambiguation path."
 ;; place; anything else (different handler, different file, or the
 ;; NO-OVERWRITE arg to `bookmark-gt-set') disambiguates.
 
-(ert-deftest bookmark-gt-test-overwrite-same-name-same-handler ()
-  "Same-name same-handler collision replaces the existing record."
+(ert-deftest bookmark-gt-test-same-name-different-handler-coexists ()
+  "Same name, different destinations: both records are stored as typed."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "foo" 'my-h '((url . "https://a.example")))
-    (bookmark-gt-set-non-file "foo" 'my-h '((url . "https://b.example")))
-    (should (= (length bookmark-alist) 1))
-    (should (equal (bookmark-prop-get (car bookmark-alist) 'url)
-                   "https://b.example"))))
-
-(ert-deftest bookmark-gt-test-overwrite-different-handler-coexists ()
-  "Same name but different handler: two literal records coexist by default."
-  (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "foo" 'h-a '((url . "https://a")))
-    (bookmark-gt-set-non-file "foo" 'h-b '((url . "https://b")))
+    (bookmark-gt-create-non-file "foo" 'h-a '((url . "https://a")))
+    (bookmark-gt-create-non-file "foo" 'h-b '((url . "https://b")))
     (should (= (length bookmark-alist) 2))
     (should (equal (mapcar #'car bookmark-alist) '("foo" "foo")))))
 
-(ert-deftest bookmark-gt-test-overwrite-different-handler-disambigs-when-off ()
-  "With `bookmark-gt-allow-duplicate-names' nil, different-handler collision
-still disambiguates with `<N>'."
+(ert-deftest bookmark-gt-test-same-name-different-filename-coexists ()
+  "Same name, different files: both stored literally.
+The case shared names exist for — `todo\=' in each of several
+projects."
   (bookmark-gt-test-with-clean-bookmarks
-    (let ((bookmark-gt-allow-duplicate-names nil))
-      (bookmark-gt-set-non-file "foo" 'h-a '((url . "https://a")))
-      (bookmark-gt-set-non-file "foo" 'h-b '((url . "https://b")))
-      (should (equal (sort (mapcar #'car bookmark-alist) #'string<)
-                     '("foo" "foo<2>"))))))
-
-(ert-deftest bookmark-gt-test-overwrite-different-filename-coexists ()
-  "Same name + same handler but different filenames: both stored literally.
-That is the primary use case for `bookmark-gt-allow-duplicate-names'."
-  (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "foo" 'h
+    (bookmark-gt-create-non-file "foo" 'h
                               '((filename . "/tmp/a") (position . 1)))
-    (bookmark-gt-set-non-file "foo" 'h
+    (bookmark-gt-create-non-file "foo" 'h
                               '((filename . "/tmp/b") (position . 1)))
     (should (= (length bookmark-alist) 2))
     (should (equal (mapcar #'car bookmark-alist) '("foo" "foo")))))
-
-(ert-deftest bookmark-gt-test-overwrite-flag-off-allows-duplicates ()
-  "With `bookmark-gt-same-name-overwrite' nil (but allow-duplicate-names
-default t), same-file collisions produce two records with the same name."
-  (bookmark-gt-test-with-clean-bookmarks
-    (let ((bookmark-gt-same-name-overwrite nil))
-      (bookmark-gt-set-non-file "foo" 'my-h '((url . "https://a")))
-      (bookmark-gt-set-non-file "foo" 'my-h '((url . "https://b")))
-      (should (= (length bookmark-alist) 2))
-      (should (equal (mapcar #'car bookmark-alist) '("foo" "foo"))))))
-
-(ert-deftest bookmark-gt-test-no-overwrite-forces-disambig ()
-  "The NO-OVERWRITE arg forces `<N>' disambiguation even with the
-default policy (both flags on)."
-  (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "foo" 'h '((filename . "/tmp/a")))
-    ;; Interactive-style: pass NAME + NO-OVERWRITE (non-nil).
-    (let ((chosen (bookmark-gt--resolve-collision
-                   "foo" '((filename . "/tmp/b") (handler . h)) t)))
-      (should (equal chosen "foo<2>")))))
 
 ;;;; Hook chain
 
 (ert-deftest bookmark-gt-test-name-reader-hook-refines ()
   "First non-nil return from the name-reader hook chain wins."
   (bookmark-gt-test-with-clean-bookmarks
-    (add-hook 'bookmark-gt-set-name-reader-hook
+    (add-hook 'bookmark-gt-create-name-reader-hook
               (lambda (_default _ctx) nil))
-    (add-hook 'bookmark-gt-set-name-reader-hook
+    (add-hook 'bookmark-gt-create-name-reader-hook
               (lambda (default _ctx) (concat default "-refined")) 90)
-    (let ((result (bookmark-gt-set-non-file "seed" 'ignore nil)))
+    (let ((result (bookmark-gt-create-non-file "seed" 'ignore nil)))
       (should (equal (car result)
                      "seed-refined")))))
 
 (ert-deftest bookmark-gt-test-tag-reader-hook-folds ()
   "Tag-reader hooks fold: each hook receives the previous hook's output."
   (bookmark-gt-test-with-clean-bookmarks
-    (add-hook 'bookmark-gt-set-tag-reader-hook
+    (add-hook 'bookmark-gt-create-tag-reader-hook
               (lambda (_rec _seed) (list "one")))
-    (add-hook 'bookmark-gt-set-tag-reader-hook
+    (add-hook 'bookmark-gt-create-tag-reader-hook
               (lambda (_rec seed) (append seed (list "two"))) 90)
-    (let* ((result (bookmark-gt-set-non-file "foo" 'ignore nil))
+    (let* ((result (bookmark-gt-create-non-file "foo" 'ignore nil))
            (data (cdr result)))
       (should (equal (alist-get 'tags data) '("one" "two"))))))
 
@@ -151,9 +123,9 @@ default policy (both flags on)."
   "After-hook receives the (NAME . DATA) pair actually stored."
   (bookmark-gt-test-with-clean-bookmarks
     (let (seen)
-      (add-hook 'bookmark-gt-set-after-hook
-                (lambda (entry) (push entry seen)))
-      (let ((result (bookmark-gt-set-non-file "foo" 'ignore nil)))
+      (add-hook 'bookmark-gt-record-changed-hook
+                (lambda (entry &optional _op) (push entry seen)))
+      (let ((result (bookmark-gt-create-non-file "foo" 'ignore nil)))
         (should (= (length seen) 1))
         (should (eq (car seen) result))))))
 
@@ -162,7 +134,7 @@ default policy (both flags on)."
 (ert-deftest bookmark-gt-test-save-load-plain-record ()
   "A stored non-file bookmark survives `bookmark-save' + `bookmark-load'."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "foo" 'my-handler '((url . "https://example.org")))
+    (bookmark-gt-create-non-file "foo" 'my-handler '((url . "https://example.org")))
     (bookmark-save)
     (let ((bookmark-alist nil))
       (bookmark-load bookmark-default-file t t nil)
@@ -172,29 +144,26 @@ default policy (both flags on)."
       (should (eq (bookmark-prop-get (car bookmark-alist) 'handler)
                   'my-handler)))))
 
-(ert-deftest bookmark-gt-test-save-load-disambig-names ()
-  "Disambiguated `<N>' names survive save/load.
-Both overwrite and allow-duplicate-names are disabled here so
-the pure `<N>' path runs and produces two distinctly-named
-records for the round-trip."
+(ert-deftest bookmark-gt-test-save-load-keeps-shared-names ()
+  "Records sharing a name survive save and load with their names intact.
+Nothing appends a suffix on the way to disk or back: the display
+suffix is computed, and the file holds the names as typed."
   (bookmark-gt-test-with-clean-bookmarks
-    (let ((bookmark-gt-same-name-overwrite nil)
-          (bookmark-gt-allow-duplicate-names nil))
-      (bookmark-gt-set-non-file "foo" 'ignore nil)
-      (bookmark-gt-set-non-file "foo" 'ignore nil)
+    (let ((bookmark-gt-allow-same-name-bookmarks 'always))
+      (bookmark-gt-create-non-file "foo" 'ignore nil)
+      (bookmark-gt-create-non-file "foo" 'ignore nil)
       (bookmark-save)
       (let ((bookmark-alist nil))
         (bookmark-load bookmark-default-file t t nil)
         (should (= (length bookmark-alist) 2))
-        (should (equal (sort (mapcar #'car bookmark-alist) #'string<)
-                       '("foo" "foo<2>")))))))
+        (should (equal (mapcar #'car bookmark-alist) '("foo" "foo")))))))
 
 ;;;; Relocate
 
 (ert-deftest bookmark-gt-test-relocate-file-updates-filename ()
   "File bookmark relocation swaps `filename' and preserves `position'."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file
+    (bookmark-gt-create-non-file
      "f" nil (list (cons 'filename "/tmp/a.txt") (cons 'position 42)))
     (cl-letf (((symbol-function 'read-file-name)
                (lambda (&rest _) "/tmp/b.txt")))
@@ -206,7 +175,7 @@ records for the round-trip."
 (ert-deftest bookmark-gt-test-relocate-url-updates-url ()
   "URL bookmark relocation swaps the `url' key."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file
+    (bookmark-gt-create-non-file
      "u" 'my-h (list (cons 'url "https://old.example")))
     (cl-letf (((symbol-function 'read-string)
                (lambda (&rest _) "https://new.example")))
@@ -217,17 +186,17 @@ records for the round-trip."
 (ert-deftest bookmark-gt-test-relocate-no-location-errors ()
   "Records with neither `filename' nor `url' signal `user-error'."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "x" 'my-h nil)
+    (bookmark-gt-create-non-file "x" 'my-h nil)
     (should-error (bookmark-gt-relocate "x") :type 'user-error)))
 
 (ert-deftest bookmark-gt-test-relocate-fires-after-hook ()
-  "Relocation fires `bookmark-gt-set-after-hook' with the updated entry."
+  "Relocation fires `bookmark-gt-record-changed-hook' with the updated entry."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file
+    (bookmark-gt-create-non-file
      "f" nil (list (cons 'filename "/tmp/a.txt") (cons 'position 1)))
     (let (seen)
-      (add-hook 'bookmark-gt-set-after-hook
-                (lambda (entry) (push entry seen)))
+      (add-hook 'bookmark-gt-record-changed-hook
+                (lambda (entry &optional _op) (push entry seen)))
       (cl-letf (((symbol-function 'read-file-name)
                  (lambda (&rest _) "/tmp/b.txt")))
         (bookmark-gt-relocate "f"))
@@ -240,7 +209,7 @@ records for the round-trip."
 (ert-deftest bookmark-gt-file-type-handler-test-dispatches-on-match ()
   "On regexp match, the mapped function is called with the record."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file
+    (bookmark-gt-create-non-file
      "f" nil (list (cons 'filename "/tmp/report.pdf")))
     (let* ((called nil)
            (bookmark-gt-file-type-handlers
@@ -255,7 +224,7 @@ records for the round-trip."
 (ert-deftest bookmark-gt-file-type-handler-test-delegates-when-no-match ()
   "When no regexp matches, the original handler is invoked."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file
+    (bookmark-gt-create-non-file
      "f" nil (list (cons 'filename "/tmp/report.txt")))
     (let* ((delegated nil)
            (bookmark-gt-file-type-handlers
@@ -270,7 +239,7 @@ records for the round-trip."
 (ert-deftest bookmark-gt-file-type-handler-test-empty-list-delegates ()
   "With `bookmark-gt-file-type-handlers' nil, the advice is a no-op."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file
+    (bookmark-gt-create-non-file
      "f" nil (list (cons 'filename "/tmp/anything")))
     (let* ((delegated nil)
            (bookmark-gt-file-type-handlers nil))
@@ -282,7 +251,7 @@ records for the round-trip."
 (ert-deftest bookmark-gt-file-type-handler-test-first-match-wins ()
   "Regexps are tried in list order; earlier entry wins."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file
+    (bookmark-gt-create-non-file
      "f" nil (list (cons 'filename "/tmp/report.pdf")))
     (let* ((first-called nil)
            (second-called nil)
@@ -300,7 +269,7 @@ records for the round-trip."
 (ert-deftest bookmark-gt-timestamps-test-created-set-on-store ()
   "`created' and `last-modified' are stamped on the initial store."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "t" 'ignore nil)
+    (bookmark-gt-create-non-file "t" 'ignore nil)
     (let ((rec (assoc "t" bookmark-alist)))
       (should (bookmark-prop-get rec 'created))
       (should (bookmark-prop-get rec 'last-modified)))))
@@ -309,7 +278,7 @@ records for the round-trip."
   "Callers that pass their own `created' keep it (migration case)."
   (bookmark-gt-test-with-clean-bookmarks
     (let ((preserved '(27221 38352 0 0)))
-      (bookmark-gt-set-non-file
+      (bookmark-gt-create-non-file
        "t" 'ignore (list (cons 'created preserved)))
       (should (equal (bookmark-prop-get (assoc "t" bookmark-alist) 'created)
                      preserved)))))
@@ -317,7 +286,7 @@ records for the round-trip."
 (ert-deftest bookmark-gt-timestamps-test-last-modified-bumped-on-mutation ()
   "`last-modified' advances when a mutation fires `--after-mutation'."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "t" 'ignore nil)
+    (bookmark-gt-create-non-file "t" 'ignore nil)
     (let* ((rec (assoc "t" bookmark-alist))
            (initial (bookmark-prop-get rec 'last-modified)))
       ;; Ensure a distinguishable time delta by sleeping briefly.
@@ -390,7 +359,7 @@ that ran `find-file' did open the target Dired buffer but the
 buffer was never displayed because the throw jumped out of
 `bookmark--jump-via' before `funcall display-function' ran."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file
+    (bookmark-gt-create-non-file
      "bg-throw" 'bookmark-gt-core-tests--handler-that-opens-buffer nil)
     (let ((was-enabled bookmark-gt-mode))
       (unwind-protect
@@ -408,7 +377,7 @@ buffer was never displayed because the throw jumped out of
 (ert-deftest bookmark-gt-jump-via-override-runs-after-jump-hook-after-throw ()
   "The override's throw must not skip `bookmark-after-jump-hook'."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file
+    (bookmark-gt-create-non-file
      "bg-throw-hook"
      'bookmark-gt-core-tests--handler-that-opens-buffer nil)
     (let ((was-enabled bookmark-gt-mode)
@@ -436,7 +405,7 @@ was jumped to or stored in this buffer last."
       (unwind-protect
           (with-current-buffer (find-file-noselect tmp)
             (setq-local bookmark-current-bookmark "Some Browser Tab Title")
-            (let ((stored (bookmark-gt-set nil)))
+            (let ((stored (bookmark-gt-create nil)))
               (should (equal (car stored)
                              (file-name-nondirectory tmp))))
             (kill-buffer))
@@ -449,7 +418,7 @@ was jumped to or stored in this buffer last."
       (unwind-protect
           (with-current-buffer (find-file-noselect tmp)
             (setq-local bookmark-current-bookmark "stale")
-            (bookmark-gt-set "fresh")
+            (bookmark-gt-create "fresh")
             (should (equal bookmark-current-bookmark "fresh"))
             (kill-buffer))
         (delete-file tmp)))))
@@ -459,9 +428,9 @@ was jumped to or stored in this buffer last."
   (bookmark-gt-test-with-clean-bookmarks
     (with-temp-buffer
       (setq-local bookmark-current-bookmark "untouched")
-      (bookmark-gt-set-non-file "batch" 'ignore nil t t)
+      (bookmark-gt-create-non-file "batch" 'ignore nil t t)
       (should (equal bookmark-current-bookmark "untouched"))
-      (bookmark-gt-set-non-file "single" 'ignore nil)
+      (bookmark-gt-create-non-file "single" 'ignore nil)
       (should (equal bookmark-current-bookmark "single")))))
 
 (ert-deftest bookmark-gt-test-set-prompt-offers-editable-name ()
@@ -475,7 +444,7 @@ was jumped to or stored in this buffer last."
                        (lambda (_prompt &optional init &rest _)
                          (setq initial init)
                          "typed")))
-              (bookmark-gt-set bookmark-gt--prompt-name))
+              (bookmark-gt-create bookmark-gt--prompt-name))
             (should (equal initial (file-name-nondirectory tmp)))
             (should (assoc "typed" bookmark-alist))
             (kill-buffer))

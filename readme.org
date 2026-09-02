@@ -41,13 +41,28 @@ Using use-package with a local directory
 (use-package bookmark-gt
   :straight nil
   :load-path "~/.emacs.d/modules/bookmark-gt"
-  :bind (("C-x r m" . bookmark-gt-set)         ; supersede built-in bookmark-set
-         ("C-x r l" . bookmark-gt-list)        ; supersede bookmark-bmenu-list
-         ("C-x r b" . bookmark-gt-jump)        ; fuzzy jump reader
-         ("C-x r u" . bookmark-gt-set-url))    ; new: bookmark a URL
+  :bind (("C-x r u" . bookmark-gt-create-url)  ; new: bookmark a URL
+         ("C-x r U" . bookmark-gt-update))     ; new: move a bookmark here
   :config
   (bookmark-gt-mode 1))
 #+end_src
+
+While ~bookmark-gt-mode~ is on it remaps the built-in bookmark
+commands, so the standard keys reach bookmark-gt without being
+rebound:
+
+| Key     | Built-in            | Reaches            |
+|---------+---------------------+--------------------|
+| ~C-x r m~ | ~bookmark-set~        | ~bookmark-gt-create~ |
+| ~C-x r b~ | ~bookmark-jump~       | ~bookmark-gt-jump~   |
+| ~C-x r l~ | ~bookmark-bmenu-list~ | ~bookmark-gt-list~   |
+| ~M-x~     | ~bookmark-delete~     | ~bookmark-gt-delete~ |
+| ~M-x~     | ~bookmark-rename~     | ~bookmark-gt-rename~ |
+
+Turning the mode off restores the built-ins.  Only the
+*commands* are remapped; the functions behind them are
+unchanged, so a package that stores bookmarks from Lisp keeps
+the behavior it expects.
 
 Requires Emacs 30.1+.  Soft-deps (loaded when present, package works
 without them):

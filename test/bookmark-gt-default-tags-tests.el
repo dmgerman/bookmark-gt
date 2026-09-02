@@ -84,14 +84,14 @@
     (should (equal (bookmark-gt-default-tags--hook nil '("dup"))
                    '("dup")))))
 
-;;;; End-to-end via bookmark-gt-set-non-file
+;;;; End-to-end via bookmark-gt-create-non-file
 
 (ert-deftest bookmark-gt-default-tags-test-applied-during-set ()
-  "With the mode on, `bookmark-gt-set-non-file' applies defaults."
+  "With the mode on, `bookmark-gt-create-non-file' applies defaults."
   (bookmark-gt-test-with-clean-bookmarks
     (let ((bookmark-gt-default-tags '("auto"))
           (bookmark-gt-default-tags-mode t))
-      (bookmark-gt-set-non-file "x" 'h nil)
+      (bookmark-gt-create-non-file "x" 'h nil)
       (should (equal (bookmark-gt-tags-of (car bookmark-alist))
                      '("auto"))))))
 
@@ -100,12 +100,12 @@
   (bookmark-gt-test-with-clean-bookmarks
     (let ((bookmark-gt-default-tags '("auto"))
           (bookmark-gt-default-tags-mode t)
-          (bookmark-gt-set-tag-reader-hook
+          (bookmark-gt-create-tag-reader-hook
            ;; Third-party contributor that appends "manual"; the
            ;; default-tags contribution runs first and returns
            ;; ("auto"), then this appends.
            (list (lambda (_rec seed) (append seed '("manual"))))))
-      (bookmark-gt-set-non-file "x" 'h nil)
+      (bookmark-gt-create-non-file "x" 'h nil)
       (should (equal (bookmark-gt-tags-of (car bookmark-alist))
                      '("auto" "manual"))))))
 

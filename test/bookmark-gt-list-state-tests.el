@@ -37,9 +37,9 @@ Cleans up the buffer and file on exit."
 
 (defun bookmark-gt-list-state-test--seed-two ()
   "Insert two URL bookmarks so the list buffer has rows."
-  (bookmark-gt-set-non-file "alpha" 'bookmark-gt-handler-url-jump
+  (bookmark-gt-create-non-file "alpha" 'bookmark-gt-handler-url-jump
                             '((url . "https://a.example/")))
-  (bookmark-gt-set-non-file "beta" 'bookmark-gt-handler-url-jump
+  (bookmark-gt-create-non-file "beta" 'bookmark-gt-handler-url-jump
                             '((url . "https://b.example/"))))
 
 ;;;; Wipe fix: mode not re-entered on re-invocation

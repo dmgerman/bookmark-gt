@@ -58,7 +58,7 @@ to the full temp path inside BODY."
                                     temporary-file-directory))))
         (unwind-protect
             (progn
-              (bookmark-gt-set-non-file
+              (bookmark-gt-create-non-file
                "b" nil (list (cons 'filename orig)))
               (let ((bookmark-gt-track-renames t))
                 (bookmark-gt-rename-test--simulate-rename orig new))
@@ -75,7 +75,7 @@ to the full temp path inside BODY."
       (let ((backup (concat orig "~")))
         (unwind-protect
             (progn
-              (bookmark-gt-set-non-file
+              (bookmark-gt-create-non-file
                "b" nil (list (cons 'filename orig)))
               (let ((bookmark-gt-track-renames t))
                 (bookmark-gt-rename-test--simulate-rename orig backup))
@@ -93,7 +93,7 @@ to the full temp path inside BODY."
                                     temporary-file-directory))))
         (unwind-protect
             (progn
-              (bookmark-gt-set-non-file
+              (bookmark-gt-create-non-file
                "b" nil (list (cons 'filename orig)))
               (let ((bookmark-gt-track-renames nil))
                 (bookmark-gt-rename-test--simulate-rename orig new))
@@ -111,9 +111,9 @@ to the full temp path inside BODY."
                                     temporary-file-directory))))
         (unwind-protect
             (progn
-              (bookmark-gt-set-non-file
+              (bookmark-gt-create-non-file
                "target" nil (list (cons 'filename orig)))
-              (bookmark-gt-set-non-file
+              (bookmark-gt-create-non-file
                "keep" nil (list (cons 'filename other)))
               (let ((bookmark-gt-track-renames t))
                 (bookmark-gt-rename-test--simulate-rename orig new))

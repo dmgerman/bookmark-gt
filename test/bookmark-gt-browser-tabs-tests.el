@@ -39,8 +39,8 @@
 (ert-deftest bookmark-gt-browser-gt-test-predicate ()
   "External browser-tab handlers still classify as `browser-tab'."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "external" 'browser-gt-tab-manager-bookmark-jump nil)
-    (bookmark-gt-set-non-file "url"      'bookmark-gt-handler-url-jump nil)
+    (bookmark-gt-create-non-file "external" 'browser-gt-tab-manager-bookmark-jump nil)
+    (bookmark-gt-create-non-file "url"      'bookmark-gt-handler-url-jump nil)
     (should (bookmark-gt-handler-browser-tab-p
              (assoc "external" bookmark-alist)))
     (should-not (bookmark-gt-handler-browser-tab-p
@@ -125,7 +125,7 @@
 (ert-deftest bookmark-gt-browser-gt-test-clear-removes-only-marked ()
   "`--clear' removes only records carrying the module's marker."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-set-non-file "keep" 'bookmark-gt-handler-url-jump
+    (bookmark-gt-create-non-file "keep" 'bookmark-gt-handler-url-jump
                               '((url . "https://example.org")))
     (bookmark-gt-browser-tabs--store
      (list :url "https://tab.example"

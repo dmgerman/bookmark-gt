@@ -3,6 +3,64 @@
 
 * Unreleased
 
+** Breaking
+
+- ~bookmark-gt-set~ is removed: it conflated creating a bookmark
+  with changing one.  ~bookmark-gt-create~ creates,
+  ~bookmark-gt-update~ points an existing bookmark at the current
+  location, and ~bookmark-gt-relocate~ retargets one by typing a
+  path.  ~bookmark-gt-mode~ now remaps the built-in commands, so
+  a stock ~C-x r m~ reaches ~bookmark-gt-create~ without being
+  rebound — but an explicit binding to ~bookmark-gt-set~, as
+  earlier versions of this manual advised, must be removed or
+  init will fail.
+- The commands that create non-file bookmarks are renamed to
+  match: ~bookmark-gt-set-url~ → ~bookmark-gt-create-url~, and
+  likewise ~-set-function~, ~-set-kmacro~, ~-set-sequence~ and
+  ~-set-non-file~.  ~bookmark-gt-set-temp~ →
+  ~bookmark-gt-temp-set~.
+- ~bookmark-gt-set-after-hook~ → ~bookmark-gt-record-changed-hook~,
+  now called with two arguments: the record, and a symbol naming
+  the operation.  ~bookmark-gt-set-name-reader-hook~ and
+  ~bookmark-gt-set-tag-reader-hook~ → ~bookmark-gt-create-*~;
+  they run only while creating.
+- ~bookmark-gt-same-name-overwrite~ is removed, and
+  ~bookmark-gt-allow-duplicate-names~ becomes
+  ~bookmark-gt-allow-same-name-bookmarks~, taking ~never~,
+  ~different-destination~ (the default) or ~always~.  A name
+  already in use is now refused with an error rather than stored
+  with a ~<N>~ suffix: a stored suffix made names unique behind
+  the user\='s back.  ~C-u~ on create no longer forces a suffix.
+
+** Added
+
+- ~bookmark-gt-update~ — points a bookmark at the current
+  location, keeping its name, id, tags, annotation, creation time
+  and visit history, and replacing everything that describes
+  where it points.  Confirms when the type would change; signals
+  for URL, function, kmacro and sequence bookmarks, which have no
+  buffer location.
+- ~bookmark-gt-delete~ and ~bookmark-gt-rename~ act on the
+  bookmark given rather than the first record sharing its name.
+  Deleting reports any sequence bookmark that referenced it.
+- ~bookmark-gt-mode~ remaps ~bookmark-set~, ~bookmark-jump~,
+  ~bookmark-delete~, ~bookmark-rename~ and ~bookmark-bmenu-list~
+  to bookmark-gt\='s commands while the mode is on.  Only the
+  commands are remapped; the functions keep their own behavior
+  for Lisp callers.
+
+** Fixed
+
+- A bookmark stored onto an existing name by another package
+  keeps its bookmark-gt properties.  The built-in
+  ~bookmark-store~ replaces such a record wholesale, discarding
+  its id, tags, annotation and visit history — which happened on
+  every ~org-capture~ and ~org-refile~, since both store onto a
+  fixed name.
+- ~bookmark-gt-relocate~ refuses a target whose type differs from
+  the record\='s, instead of leaving, say, a PDF handler pointing
+  at an org file.
+
 ** Added
 
 - Every record carries a ~bookmark-gt-id~: a symbol, assigned on
@@ -44,48 +102,10 @@
 
 Not implemented; see =ai/bookmark-identity.org=.
 
-** Breaking
-
-- ~bookmark-gt-set~ removed — it conflated creating with
-  updating.  Use ~bookmark-gt-create~ or ~bookmark-gt-update~.
-  Rebind ~C-x r m~, or ~use-package :bind~ fails at init.
-- ~bookmark-gt-set-url~, ~-set-function~, ~-set-kmacro~,
-  ~-set-sequence~ → ~bookmark-gt-create-*~.  Rebind ~C-x r u~.
-- ~bookmark-gt-set-non-file~ → ~bookmark-gt-create-non-file~.
-- ~bookmark-gt-set-temp~ → ~bookmark-gt-temp-set~.
-- ~bookmark-gt-set-after-hook~ →
-  ~bookmark-gt-record-changed-hook~, now called with the record
-  and a symbol naming the operation.
-- ~bookmark-gt-set-name-reader-hook~ and
-  ~bookmark-gt-set-tag-reader-hook~ →
-  ~bookmark-gt-create-*-reader-hook~; they run only on create.
-- ~bookmark-gt-same-name-overwrite~ removed.
-- ~bookmark-gt-allow-duplicate-names~ →
-  ~bookmark-gt-allow-same-name-bookmarks~, now a symbol.  Old
-  ~t~ and ~nil~ map to ~always~ and ~never~ with a warning.
-- ~C-u~ on create no longer forces a ~<N>~ suffix.
-
-** Added
-
-- ~bookmark-gt-create~ — always creates.  The name prompt
-  completes over existing names.
-- ~bookmark-gt-update~ — points a bookmark at the current
-  location, keeping its name, id, tags, annotation, creation
-  time and visit history.  Confirms when the type would change;
-  signals for URL, function, kmacro and sequence bookmarks.
-- ~bookmark-gt-delete~ — deletes the record given, and reports
-  any sequence bookmark referencing it.
-
-** Fixed
-
-- Updating a bookmark keeps its tags and annotation.
-
 ** Changed
 
-- ~bookmark-gt-allow-same-name-bookmarks~ decides only whether
-  ~create~ may reuse an existing name: ~never~,
-  ~different-destination~ (default, allowing one ~todo~ per
-  file), or ~always~.  The stored name is reported when it
-  differs from the one typed.
-- ~bookmark-gt-relocate~ refuses a target of a different type;
-  ~bookmark-gt-update~ is what changes type.
+- The version becomes 0.3.0 and =readme.org= is rewritten around
+  create, update and relocate.
+- Browser-tab records are exempt from the same-name policy while
+  what should govern them is decided; tab titles repeat and the
+  records are rebuilt on every refresh.
