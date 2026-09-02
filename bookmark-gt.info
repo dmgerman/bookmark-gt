@@ -22,8 +22,17 @@ types, temporary bookmarks, bookmark highlighting, and others.
    ‘bookmark-gt’ is integrated with consult, marginalia, and orderless.
 
    Bookmark files created with ‘bookmark-gt’ can be read by the built-in
-bookmark package and by ‘bookmark+’.  ‘bookmark-gt’ can also read files
-created by either of those.
+bookmark package: bookmark-gt's own record keys are ordinary alist
+entries, which ‘bookmark.el’ ignores.
+
+   ‘bookmark-gt’ reads files created by ‘bookmark+’, and
+‘bookmark-gt-migrate’ converts ‘bookmark+’ records to bookmark-gt's
+conventions.  Migration is one-way.  A file that bookmark-gt has written
+is not guaranteed to round-trip back into ‘bookmark+’ with all of that
+package's own metadata intact — in particular, bookmark-gt strips text
+properties from bookmark names when storing (as ‘bookmark.el’ does),
+which removes the ‘bmkp-full-record’ property ‘bookmark+’ attaches
+there.
 
 * Menu:
 
@@ -1597,56 +1606,56 @@ GPL-3.0-or-later.  See ‘LICENSE’.
 
 Tag Table:
 Node: Top205
-Node: Install2639
-Node: Which version is installed4231
-Node: Getting started4773
-Node: Master switch bookmark-gt-mode4971
-Node: Opt-in modes7990
-Node: bookmark-gt-auto-update-mode8341
-Node: bookmark-gt-default-tags-mode9327
-Node: bookmark-gt-browser-tabs-mode10355
-Node: User interface13766
-Node: The *Bookmarks-gt List* buffer14023
-Node: Columns14596
-Node: Keys15834
-Node: Acting on several bookmarks at once17722
-Node: Persisting view state21578
-Node: Jump to a bookmark bookmark-gt-jump22537
-Node: Elisp signatures23945
-Node: Non-file bookmark types26708
-Node: URL bookmarks — bookmark-gt-set-url27281
-Node: Dired bookmarks — bookmark-gt-handler-dired-jump28068
-Ref: Virtual dired29638
-Node: Function bookmarks — bookmark-gt-set-function30851
-Node: Keyboard-macro bookmarks — bookmark-gt-set-kmacro31664
-Node: Sequence bookmarks — bookmark-gt-set-sequence33322
-Node: File-type handlers — override the file-jump path per pattern34078
-Node: View bookmarks — save the list buffer's current view35451
-Node: Setting bookmarks36613
-Node: Tag reader36851
-Node: Same-name policy37856
-Node: Worked scenario the same name in two projects40193
-Node: If you expected two records and see one41565
-Node: Warning only the list buffer addresses duplicates43551
-Node: Relocate change a bookmark's target47127
-Node: In-file behaviors48276
-Node: In-buffer cycling48505
-Node: Per-bookmark highlighting49505
-Node: Region bookmarks51462
-Node: Trackers52983
-Node: Visit tracker53159
-Node: File-rename tracker53903
-Node: Extension API54890
-Node: Handler registry55091
-Node: Group registry57288
-Node: Extension points58941
-Node: Compatibility61860
-Node: Data compat with bookmark+62061
-Node: Migrating from bookmark+63191
-Node: Reference65535
-Node: Selected customization65698
-Node: Acknowledgements71080
-Node: License73414
+Node: Install3158
+Node: Which version is installed4750
+Node: Getting started5292
+Node: Master switch bookmark-gt-mode5490
+Node: Opt-in modes8509
+Node: bookmark-gt-auto-update-mode8860
+Node: bookmark-gt-default-tags-mode9846
+Node: bookmark-gt-browser-tabs-mode10874
+Node: User interface14285
+Node: The *Bookmarks-gt List* buffer14542
+Node: Columns15115
+Node: Keys16353
+Node: Acting on several bookmarks at once18241
+Node: Persisting view state22097
+Node: Jump to a bookmark bookmark-gt-jump23056
+Node: Elisp signatures24464
+Node: Non-file bookmark types27227
+Node: URL bookmarks — bookmark-gt-set-url27800
+Node: Dired bookmarks — bookmark-gt-handler-dired-jump28587
+Ref: Virtual dired30157
+Node: Function bookmarks — bookmark-gt-set-function31370
+Node: Keyboard-macro bookmarks — bookmark-gt-set-kmacro32183
+Node: Sequence bookmarks — bookmark-gt-set-sequence33841
+Node: File-type handlers — override the file-jump path per pattern34597
+Node: View bookmarks — save the list buffer's current view35970
+Node: Setting bookmarks37132
+Node: Tag reader37370
+Node: Same-name policy38375
+Node: Worked scenario the same name in two projects40712
+Node: If you expected two records and see one42084
+Node: Warning only the list buffer addresses duplicates44070
+Node: Relocate change a bookmark's target47646
+Node: In-file behaviors48795
+Node: In-buffer cycling49024
+Node: Per-bookmark highlighting50024
+Node: Region bookmarks51981
+Node: Trackers53502
+Node: Visit tracker53678
+Node: File-rename tracker54422
+Node: Extension API55409
+Node: Handler registry55610
+Node: Group registry57807
+Node: Extension points59460
+Node: Compatibility62379
+Node: Data compat with bookmark+62580
+Node: Migrating from bookmark+63710
+Node: Reference66054
+Node: Selected customization66217
+Node: Acknowledgements71599
+Node: License73933
 
 End Tag Table
 

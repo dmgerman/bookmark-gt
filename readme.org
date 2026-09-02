@@ -20,8 +20,18 @@ and others.
 orderless.
 
 Bookmark files created with =bookmark-gt= can be read by the
-built-in bookmark package and by =bookmark+=.  =bookmark-gt=
-can also read files created by either of those.
+built-in bookmark package: bookmark-gt's own record keys are
+ordinary alist entries, which =bookmark.el= ignores.
+
+=bookmark-gt= reads files created by =bookmark+=, and
+=bookmark-gt-migrate= converts =bookmark+= records to
+bookmark-gt's conventions.  Migration is one-way.  A file that
+bookmark-gt has written is not guaranteed to round-trip back
+into =bookmark+= with all of that package's own metadata
+intact — in particular, bookmark-gt strips text properties from
+bookmark names when storing (as =bookmark.el= does), which
+removes the =bmkp-full-record= property =bookmark+= attaches
+there.
 
 * Install
 
@@ -249,16 +259,16 @@ data columns.
 
 *** Columns
 
-| Col | Header | Meaning                                                                             |
-|-----+--------+-------------------------------------------------------------------------------------|
-| 0   | ~*~    | Selection: ~*~ if marked with =m=, ~D~ if flagged for deletion with =d=, blank else |
-| 1   | ~^~    | Auto-update: ~^~ if the record carries the ~auto-update~ prop, blank else           |
-| 2   | ~t~    | Temp: ~t~ if the record carries ~bmkp-temp~, blank else                             |
-| 3   | Name   | Truncated at ~bookmark-gt-list-name-width~ (default 32) with an ellipsis            |
-| 4   | Type   | From the handler registry — File, URL, EWW, Dired, Info, Org, PDF, BrowserTab, Function, Sequence, Kmacro, BkView, ... |
-| 5   | Group  | Aggregate category — Web, File, Doc, Code, Media, Other                             |
-| 6   | Tags   | ~,~-joined, truncated at ~bookmark-gt-list-tags-width~ (default 24)                  |
-| 7   | Loc    | ~filename~, or the URL if non-file                                                  |
+| Col | Header | Meaning                                                                                                                |
+|-----+--------+------------------------------------------------------------------------------------------------------------------------|
+|   0 | ~*~      | Selection: ~*~ if marked with =m=, ~D~ if flagged for deletion with =d=, blank else                                            |
+|   1 | ~^~      | Auto-update: ~^~ if the record carries the ~auto-update~ prop, blank else                                                  |
+|   2 | ~t~      | Temp: ~t~ if the record carries ~bmkp-temp~, blank else                                                                    |
+|   3 | Name   | Truncated at ~bookmark-gt-list-name-width~ (default 32) with an ellipsis                                                 |
+|   4 | Type   | From the handler registry — File, URL, EWW, Dired, Info, Org, PDF, BrowserTab, Function, Sequence, Kmacro, BkView, ... |
+|   5 | Group  | Aggregate category — Web, File, Doc, Code, Media, Other                                                                |
+|   6 | Tags   | ~,~-joined, truncated at ~bookmark-gt-list-tags-width~ (default 24)                                                        |
+|   7 | Loc    | ~filename~, or the URL if non-file                                                                                       |
 
 The Name of a bookmark whose file no longer exists on disk
 renders with a strikethrough (~bookmark-gt-face-missing-file~).
@@ -267,33 +277,33 @@ local only.
 
 *** Keys
 
-| Key   | Action                                                       |
-|-------+--------------------------------------------------------------|
-| ~RET~ | Jump                                                         |
-| ~o~   | Jump in another window                                       |
-| ~C-o~ | Same as ~o~                                                  |
-| ~TAB~ | Preview in another window (leaves point in the list)         |
-| ~m~   | Mark row (numeric prefix: mark N rows down)                  |
-| ~d~   | Flag row for deletion                                        |
-| ~x~   | Delete every flagged row (prompts for confirmation)          |
-| ~u~   | Unmark row                                                   |
-| ~U~   | Unmark every row                                             |
-| ~^~   | Toggle ~auto-update~ (selection-scoped)                      |
-| ~T~   | Toggle temp (selection-scoped)                               |
-| ~H~   | Toggle display of temporary bookmarks in this buffer         |
-| ~r~   | Rename bookmark                                              |
-| ~R~   | Relocate (change filename or URL)                            |
-| ~t e~ | Edit tags, selection-scoped (editable comma-separated list; add and remove in one prompt) |
-| ~t a~ | Add tags, selection-scoped (sequential reader with completion; empty RET / M-RET ends)    |
-| ~t r~ | Remove tags, selection-scoped (sequential reader; completion restricted to the tags present) |
-| ~a~   | Edit annotation                                              |
-| ~/~   | Filter (choose by-type / by-tag / by-name-regexp / unfilter) |
-| ~s~   | Cycle sort column                                            |
-| ~V~   | Reset view (sort → Name, clear filters, restore `bookmark-gt-list-default-show-temp`) |
-| ~g~   | Revert: refresh browser tabs and auto-update positions (if their modes are on), then redraw |
-| ~C-x C-s~ | Save the bookmark file (`bookmark-save`)                 |
-| ~i~   | Inspect record (pretty-print alist in a popup)               |
-| ~q~   | Quit                                                         |
+| Key     | Action                                                                                       |
+|---------+----------------------------------------------------------------------------------------------|
+| ~RET~     | Jump                                                                                         |
+| ~o~       | Jump in another window                                                                       |
+| ~C-o~     | Same as ~o~                                                                                    |
+| ~TAB~     | Preview in another window (leaves point in the list)                                         |
+| ~m~       | Mark row (numeric prefix: mark N rows down)                                                  |
+| ~d~       | Flag row for deletion                                                                        |
+| ~x~       | Delete every flagged row (prompts for confirmation)                                          |
+| ~u~       | Unmark row                                                                                   |
+| ~U~       | Unmark every row                                                                             |
+| ~^~       | Toggle ~auto-update~ (selection-scoped)                                                        |
+| ~T~       | Toggle temp (selection-scoped)                                                               |
+| ~H~       | Toggle display of temporary bookmarks in this buffer                                         |
+| ~r~       | Rename bookmark                                                                              |
+| ~R~       | Relocate (change filename or URL)                                                            |
+| ~t e~     | Edit tags, selection-scoped (editable comma-separated list; add and remove in one prompt)    |
+| ~t a~     | Add tags, selection-scoped (sequential reader with completion; empty RET / M-RET ends)       |
+| ~t r~     | Remove tags, selection-scoped (sequential reader; completion restricted to the tags present) |
+| ~a~       | Edit annotation                                                                              |
+| ~/~       | Filter (choose by-type / by-tag / by-name-regexp / unfilter)                                 |
+| ~s~       | Cycle sort column                                                                            |
+| ~V~       | Reset view (sort → Name, clear filters, restore `bookmark-gt-list-default-show-temp`)        |
+| ~g~       | Revert: refresh browser tabs and auto-update positions (if their modes are on), then redraw  |
+| ~C-x C-s~ | Save the bookmark file (`bookmark-save`)                                                     |
+| ~i~       | Inspect record (pretty-print alist in a popup)                                               |
+| ~q~       | Quit                                                                                         |
 
 Selection marks are stored in a buffer-local hash keyed by
 record cons identity — they survive sort, revert, and

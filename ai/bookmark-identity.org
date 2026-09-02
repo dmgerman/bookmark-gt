@@ -9,10 +9,10 @@ This is a *decision record*, not a description of the system.
 It exists to make one set of decisions reviewable on paper
 before any code is written, and it has an expiry.
 
-| Stage             | What happens                                    |
-|-------------------+-------------------------------------------------|
-| now               | decisions agreed, nothing implemented           |
-| during work       | this file is the reference                      |
+| Stage              | What happens                                   |
+|--------------------+------------------------------------------------|
+| now                | decisions agreed, nothing implemented          |
+| during work        | this file is the reference                     |
 | after implementing | durable content moves out; this file is ripped |
 
 On completion: the naming and reference rules move to
@@ -39,8 +39,8 @@ on its own:
   builds fresh conses, so a cons cannot be written to disk or
   survive a reload.
 - **The name.**  Persists across sessions, but is neither
-  unique (duplicates are legal, and bookmark-gt now supports
-  them deliberately) nor stable (~bookmark-rename~ changes it).
+  unique (duplicates are legal, and bookmark-gt allows them as
+  an opt-in) nor stable (~bookmark-rename~ changes it).
 
 Every defect in §Evidence is code that needed an identity which
 only existed in the form it could not use at that moment.
@@ -154,10 +154,13 @@ Resolution goes through one helper.  Parameter name stays
 simple (~bookmark~, as ~bookmark.el~ uses in ~bookmark-jump~);
 the contract lives in the docstring.
 
-~bookmark-gt-set~ is **not** part of this convention.  Its
+~bookmark-gt-create~ is **not** part of this convention.  Its
 ~NAME~ names a bookmark being created, not one being
-referenced, which is why ~bookmark-gt--prompt-name~
-(=bookmark-gt-core.el:1037=) exists and stays.
+referenced.  The sentinel that requests the interactive name
+prompt (~bookmark-gt--prompt-name~, =bookmark-gt-core.el:1037=)
+carries over to it: ~nil~ means "use the suggested name without
+prompting", which is a different contract from the ~nil~ of a
+reference parameter.
 
 ** An ambiguous name is an error
 
@@ -174,31 +177,110 @@ rather than growing a second formatter.
 
 Location and tags are not always enough.  Two records with the
 same name, in the same file, at the same position have
-identical values for both — and under ~set~-always-creates that
-is produced by pressing the set key twice in one spot, which is
-easy to do by accident.  In that case an id fragment is the
-only discriminator, so the formatter needs an id fallback,
-shown only when the other fields fail to separate two
-candidates.  This is the one place the id is user-visible by
-design; see §Visibility.
+identical values for both — reachable under ~always~, or by
+import.  The discriminator is the display name's ~<N>~ suffix
+(§Display names are computed, not stored), which is unique by
+construction and readable.  The id is not shown: ~todo<2>~
+distinguishes as well as ~todo<bgt-20260901T143012-a3f9c2>~ and
+reads better.
 
-** Duplicate names are supported, not configured
+** Duplicate names are opt-in; the update policy is gone
 
-Both defcustoms retire:
+~bookmark-gt-same-name-overwrite~ retires.  Every attempt to
+name it accurately failed because the variable should not
+exist: it selected an implicit update that is now an explicit
+command (§Create and update are separate commands).
 
-- ~bookmark-gt-allow-duplicate-names~ — duplicates are simply
-  supported, as ~bookmark.el~ already supports them via
-  ~bookmark-set-no-overwrite~.
-- ~bookmark-gt-same-name-overwrite~ — deleted rather than
-  renamed.  Every attempt to name it accurately failed because
-  the variable should not exist; it selected an implicit update
-  that is now an explicit command.
+~bookmark-gt-allow-same-name-bookmarks~ *stays*, with a narrowed
+contract.  It previously shared the collision decision with the
+overwrite flag, which is what made the pair unexplainable —
+which flag applied depended on a condition the user could not
+see.  Now it answers one question and nothing else consults it:
 
-Retiring with them: ~bookmark-gt--collision-record~,
-~bookmark-gt--resolve-collision~,
-~bookmark-gt-disambiguate-name~, and the ~NO-OVERWRITE~ /
-~C-u~ argument to ~bookmark-gt-set~ (which forced a duplicate;
-~set~ now always creates).
+  *When may ~bookmark-gt-create~ reuse a name that already
+  exists?*
+
+| Value                           | Creating with a name already in use                          |
+|---------------------------------+--------------------------------------------------------------|
+| ~never~                           | always stored as ~NAME<2>~                                     |
+| ~different-destination~ (default) | literal name when the destination differs, otherwise ~NAME<2>~ |
+| ~always~                          | always stored under the literal name                         |
+
+Refusal is always a ~<N>~ suffix, never an error: ~create~
+always succeeds and the user always gets a bookmark.  The
+result is reported in every case, because the user typed a name
+and got something they did not type — a suffix, or a second
+record under that name.
+
+*** Destination means the target, not the position
+
+The buffer or target being bookmarked: ~filename~ for file and
+Dired records, ~url~ for URL records.  Two bookmarks in the same
+file at different points share a destination.
+
+Compared the way ~bookmark-gt--collision-record~ did it —
+~string=~, then ~file-equal-p~ when both files exist — so paths
+differing only by a symlink count as the same destination.
+Types with neither field (function, kmacro, sequence) compare
+as the same destination, so a second one gets a suffix.
+
+Position deliberately does not count.  If it did, pressing the
+create key twice in one buffer at different points would read
+as two destinations and be permitted, which is the accident
+this value exists to catch.
+
+*** Why the default is ~different-destination~
+
+It permits the use case duplicates exist for — the same short
+name in each of several projects — and prevents the accidental
+duplicate from creating twice in one spot.
+
+It also narrows the blast radius of the redesign: a user who
+never wanted duplicates gets ~todo<2>~ rather than a second
+silent ~todo~, so both records stay addressable by name and
+none of the first-match hazards in §Evidence reach them.
+~always~ is there for anyone who wants same-name-same-file and
+accepts the consequences =readme.org= documents.
+
+*** This is not the old collision check returning
+
+Mechanically it is the same comparison.  The reason the old
+helper had to go does not transfer: ~same-name-overwrite~ was
+unnameable because its trigger was invisible *and* it selected
+between two intents, update or create, so the user could not
+tell which they would get.  Here the condition selects nothing
+about intent — ~create~ always creates — and the value states
+the condition in its own name.  The comparison returns as the
+implementation of a documented value rather than as a hidden
+policy.
+
+*** The create prompt completes over existing names
+
+The name prompt reads with completion over the current bookmark
+names, so a collision is visible while typing rather than
+reported afterwards.  The suggested name is still inserted as
+editable initial input, so ~RET~ on an untouched prompt creates
+immediately — the fast path must survive, since creating is the
+frequent operation.
+
+*** Why proliferation was a problem worth solving
+
+With ~create~ always creating and no flag, re-bookmarking the
+same spot silently accumulates records — clutter in the list
+buffer and the jump reader, and duplicates for users who never
+wanted them.  The flag plus the completion prompt plus the
+report make every duplicate a choice the user made and saw.
+
+Retiring with the overwrite flag: ~bookmark-gt--collision-record~
+and ~bookmark-gt--resolve-collision~ — both existed to decide
+between updating and creating, which is no longer a decision the
+code makes.  The ~NO-OVERWRITE~ / ~C-u~ argument goes with them:
+it forced a duplicate, and ~create~ is now the command that
+creates.
+
+~bookmark-gt-disambiguate-name~ *stays*.  It produces the
+~NAME<2>~ form, which is what ~create~ does when duplicate names
+are not allowed.
 
 *** Road not taken
 
@@ -208,35 +290,225 @@ duplicate names are a wanted feature (the same short name in
 each of several projects), and ~rename~ would still break
 references.
 
-** Update commands are separate from creation
+** Create and update are separate commands
 
-~bookmark-gt-set~ creates.  Changing an existing bookmark is an
-explicit command, one per property:
+~bookmark-gt-set~ is *removed*, not renamed.  It merged two
+intents, and every attempt to configure or name that merge
+failed: the policy variable was unnameable, and a prompt only
+relocated the ambiguity into a value name.  The user knows
+which intent they have; the command they invoke says it.
 
-| Command                  | Changes        | Status                      |
-|--------------------------+----------------+-----------------------------|
-| ~bookmark-gt-relocate~     | ~filename~ / ~url~ | exists                      |
-| ~bookmark-gt-position-set~ | ~position~       | new                         |
-| ~bookmark-gt-tags-set~     | ~tags~           | exists; needs ~(interactive)~ |
+| Command              | Meaning                             |
+|----------------------+-------------------------------------|
+| ~bookmark-gt-create~   | make a new bookmark here            |
+| ~bookmark-gt-update~   | this bookmark now lives where I am  |
+| ~bookmark-gt-relocate~ | this bookmark's target becomes *this* |
 
-~bookmark-gt-relocate~ keeps its name: ~bookmark-relocate~ is
-the built-in, and in ~bookmark.el~ the record-or-name contract
-is carried by the *parameter* name
-(~bookmark-name-or-record~, 24 uses; ~bookmark-name~, 5), never
-by the function name.  ~update-~ is foreign to that vocabulary
-(~bookmark-update-last-modified~ is the sole occurrence and is
-a timestamp helper).
+Why this beats a prompt: creating stays as fast as it is today
+(no candidate list to escape), the update path gets a reader
+where it earns its cost, and no variable decides anything.
 
-Not ~-location-set~: ~location~ already means the target — it
-is bookmark+'s key for a URL (read by ~bookmark-gt-url-of~),
-the built-in ~bookmark-location~ returns file-or-URL, and it
-is the list buffer's column heading.
+*** ~update~ is delete-and-create preserving identity
+
+Everything describing *where* is re-captured; everything
+describing *which bookmark this is* carries over:
+
+| Carried over                  | Re-captured                |
+|-------------------------------+----------------------------|
+| name, ~bookmark-gt-id~          | ~filename~, ~position~, ~url~    |
+| ~tags~, annotation              | front/rear context strings |
+| ~created~, ~visits~, ~last-visited~ | ~handler~                    |
+| ~auto-update~, temp flag        | all type-specific props    |
+
+Re-capturing the whole location side removes type-specific
+props that would otherwise go stale — a PDF record's page data,
+an org record's ~id~, a Dired record's marks and ls switches.
+
+Mechanically this is ~setcdr~ on the existing cons, not a
+delete and push, so ~eq~ identity survives for the list
+buffer's ~tabulated-list~ IDs and its ~eq~-keyed marks hash.
+That is also why it cannot repeat the tags loss (§Evidence):
+the preserved column is explicit.
+
+~update~ does not prompt for tags.  The defect being fixed is
+that updating destroyed them; not prompting makes preservation
+structural.  Editing tags is its own command, and update should
+be cheap — it is the frequent "I moved, point this here"
+operation.
+
+Confirm when the type would change (URL bookmark updated to a
+file location, say).  Same-type updates, the common case,
+proceed without asking.
+
+*** Why ~relocate~ still exists
+
+Not every type has a current location to capture.  URL,
+function, kmacro, and sequence bookmarks have no buffer
+position to stand in, so ~relocate~ — which reads the new
+target as text — is the only way to change them.  It also fixes
+a directory's worth of stale paths from the list buffer without
+visiting each file.
+
+~update~ signals on those types and names ~relocate~.
+~relocate~ edits the existing type's target field and therefore
+cannot retype a record; it refuses a target whose type differs,
+because ~update~ is where retyping happens deliberately.
+
+*** Naming
+
+~relocate~ keeps its name: ~bookmark-relocate~ is the built-in,
+and in ~bookmark.el~ the record-or-name contract is carried by
+the *parameter* name (~bookmark-name-or-record~, 24 uses;
+~bookmark-name~, 5), never by the function name.
+
+Not ~move~ for the update command — "move" and "relocate" are
+synonyms in English while meaning different things here, and
+nobody would reliably guess which is which.
+
+Not ~-location-set~ for anything: ~location~ already means the
+target — bookmark+'s key for a URL (read by
+~bookmark-gt-url-of~), the built-in ~bookmark-location~, and
+the list buffer's column heading.
+
+A separate ~-position-set~ is unnecessary: ~update~ covers
+position and filename together, which also handles the moved-to
+-a-different-file case that a position-only command could not.
 
 The existing ~-set~ names (~bookmark-gt-tags-set~,
 ~bookmark-gt-auto-update-set~) are Lisp APIs taking a record,
 not commands.  Under the polymorphic convention they become
 both, which closes a gap: tags are currently editable only from
 the list buffer or from Lisp.
+
+** The ~set~ prefix goes with the command
+
+~set~ named the create/update conflation, so every symbol
+carrying it is renamed.  There are more than the one command:
+
+| Now                      | Becomes                       |
+|--------------------------+-------------------------------|
+| ~bookmark-gt-set~          | removed (→ ~-create~ / ~-update~) |
+| ~bookmark-gt-set-url~      | ~bookmark-gt-create-url~        |
+| ~bookmark-gt-set-function~ | ~bookmark-gt-create-function~   |
+| ~bookmark-gt-set-kmacro~   | ~bookmark-gt-create-kmacro~     |
+| ~bookmark-gt-set-sequence~ | ~bookmark-gt-create-sequence~   |
+| ~bookmark-gt-set-non-file~ | ~bookmark-gt-create-non-file~   |
+| ~bookmark-gt-set-temp~     | ~bookmark-gt-temp-set~          |
+
+The four typed commands all create; keeping ~set-~ would name
+them after a removed command.  ~C-x r u~ breaks along with
+~C-x r m~, so the readme's install snippet changes in two
+places, not one.
+
+~set-temp~ moves to ~temp-set~ for consistency with the other
+property mutators, ~bookmark-gt-tags-set~ and
+~bookmark-gt-auto-update-set~, which already read
+~<property>-set~.
+
+*** One creation pipeline, not two
+
+~bookmark-gt-set~ and ~bookmark-gt-set-non-file~ are parallel
+implementations today.  Both run the same tail — refine name,
+resolve collision, collect tags, attach tags, push, notify —
+and differ only in where the record data comes from: buffer
+capture versus caller-supplied handler and props.
+
+Every rule being added (the three-value flag, id minting,
+reporting the stored name) would otherwise be implemented
+twice, and divergence between two copies is how the current
+inconsistencies arose.  Extract the tail:
+
+| Layer                                            | Responsibility                                   |
+|--------------------------------------------------+--------------------------------------------------|
+| ~bookmark-gt--create-record~ (NAME DATA)           | name policy, tags, mint id, push, report, notify |
+| ~bookmark-gt-create~                               | capture from buffer, prompt for name             |
+| ~bookmark-gt-create-non-file~ (NAME HANDLER PROPS) | build data from handler and props                |
+| the four typed commands                          | call ~create-non-file~                             |
+
+~create-non-file~ stays public: ~bookmark-gt-browser-tabs~ calls
+it.
+
+** Hooks
+
+*** One change hook, with the operation as an argument
+
+~bookmark-gt-set-after-hook~ is misnamed today independently of
+this redesign: ~bookmark-gt--after-mutation~ runs it on *every*
+change — tag edits and temp toggles included — from 13 call
+sites across four files, not on ~set~.
+
+It becomes:
+
+#+begin_src emacs-lisp
+bookmark-gt-record-changed-hook   ; called with (RECORD OPERATION)
+#+end_src
+
+OPERATION is one of ~create~, ~update~, ~relocate~, ~tags~,
+~temp~, ~auto-update~, ~delete~.  An observer interested in one
+operation filters on the symbol.
+
+Why one hook and not per-command hooks: an observer that wants
+*any* change would have to register into all of them, which is
+the situation the single notifier was introduced to end.
+Nothing external registers into these hooks today, so changing
+the arity costs nothing now and is awkward after publication.
+
+"Mutation" is not used in the name: it reads as in-place
+modification specifically, and this fires on creation too.
+
+*** The two readers are create-specific
+
+They only run while building a new bookmark, so they take the
+command's name:
+
+| Now                              | Becomes                             |
+|----------------------------------+-------------------------------------|
+| ~bookmark-gt-set-name-reader-hook~ | ~bookmark-gt-create-name-reader-hook~ |
+| ~bookmark-gt-set-tag-reader-hook~  | ~bookmark-gt-create-tag-reader-hook~  |
+
+~bookmark-gt-update~ runs neither: it keeps the record's
+existing name and tags (§Create and update are separate
+commands).
+
+** Display names are computed, not stored
+
+A stored name is what the user typed.  When two records share
+one, the *display* name distinguishes them with a ~<N>~ suffix
+— the same convention ~generate-new-buffer-name~ uses for
+buffers that uniquify cannot separate.
+
+~bookmark-gt-display-name~ is the single place this happens.
+It is the identity function today, and its docstring already
+says it is "retained as an API surface so future changes (e.g.
+hiding auto-generated =<N>= suffixes in the list buffer) have a
+single place to hook".  Six call sites already route through it
+— list buffer, jump reader, cycling, auto-update.
+
+Two properties follow:
+
+- *Nothing machine-generated is persisted by this layer.*  A
+  suffix that exists only for display cannot go stale when a
+  record is renamed, relocated, or deleted.
+- *Completion candidates are unique*, which is what makes two
+  same-named records addressable in the jump reader and in the
+  ~update~ prompt.  This replaces the earlier proposal to show
+  an id fragment as the discriminator: ~todo<2>~ is readable
+  where ~todo<bgt-20260901T143012-a3f9c2>~ is not.
+
+Display names are *not* a resolution namespace.  The completion
+table maps the display string back to its record directly, so
+nothing has to parse a suffix, and a string handed to the
+resolver is still a stored name (§Reference parameters are
+polymorphic).
+
+The persisted ~<N>~ that ~bookmark-gt-allow-same-name-bookmarks~
+writes under ~never~ is a different thing at a different layer:
+that one makes the *stored* names differ, so there is nothing
+left for the display layer to distinguish.  Uniquification still
+applies under ~never~, because duplicates arrive from outside
+~create~ — a bookmark+ import, a hand-edited file,
+~bookmark-set-no-overwrite~, or a file synced from a machine set
+to ~always~.
 
 * The identifier
 
@@ -378,7 +650,7 @@ The id is internal plumbing: minted by bookmark-gt, stored by
 bookmark-gt, resolved by bookmark-gt, never typed by a user.
 The user's query interface remains names.
 
-It is visible in exactly three places:
+It is visible in exactly two places:
 
 1. ~bookmark-gt-list-describe-record~, which pretty-prints the
    raw record.  Already true, no work required, and the right
@@ -386,13 +658,13 @@ It is visible in exactly three places:
    otherwise.
 2. The bookmark file, where every record gains a key.  Expected;
    worth an upgrade note.
-3. The disambiguation prompt, as a fallback discriminator when
-   location and tags cannot separate two candidates (see §An
-   ambiguous name is an error).
 
 Deliberately *not* visible: no list-buffer column, no
 marginalia annotation, no prompt that asks a user to supply an
-id.
+id, and not in the disambiguation prompt — candidates that
+location and tags cannot separate are distinguished by the
+display name's ~<N>~ suffix instead (§Display names are
+computed, not stored).
 
 ** Dangling and duplicate ids
 
@@ -664,59 +936,109 @@ discussion: two bookmarks stored and jumpable, one shown in the
 list.  Unrelated to identity, recorded here because it was
 found alongside.
 
-* Open question: what ~bookmark-gt-set~ does interactively
+* Resolved during design
 
-The only deliberately unresolved item.  It would be open even
-if every record had an id today.
+** How create and update are chosen
 
-With ~set~ creating and no policy variable, re-setting a name no
-longer moves the bookmark, and users must know
-~bookmark-gt-position-set~ exists.  The proposal is a completion
-prompt offering the existing bookmarks alongside a new-bookmark
-candidate, annotated with each one's tags and destination, so
-the create-or-update choice is explicit at the moment of
-action.  That makes the choice per-action instead of global
-configuration, and would leave this area with zero defcustoms.
+This was the open item — whether a single command should
+decide between creating and updating, and how.  It is settled
+by removing the single command (§Create and update are separate
+commands).  The user picks the intent by picking the command,
+so nothing has to infer it.
 
-Constraints identified:
+The rejected alternative was one command with a completion
+prompt offering existing bookmarks alongside a new-bookmark
+candidate.  It would have worked, but it puts a candidate list
+in front of the most frequent operation, and it makes a stray
+~RET~ under fuzzy matching move a bookmark the user did not
+mean to touch.  Two commands cost one keybinding and remove
+both problems.
 
-- ~completing-read~ cannot distinguish selecting an existing
-  name from typing the same text.  A synthetic
-  ~New bookmark: <suggested>~ candidate makes the two intents
-  different candidates rather than the same string.
-- The fast path must survive.  ~bookmark-gt-set~ currently puts
-  the suggested name in as editable initial input specifically
-  so ~RET~ accepts it (=bookmark-gt-core.el:1109-1122=).
-  Setting a bookmark is frequent and usually means "new, here,
-  now".
-- Choosing an existing record is the one branch that modifies
-  data the user already has; a stray ~RET~ under fuzzy matching
-  would move someone's bookmark.  Decide whether it confirms,
-  or at minimum reports what changed.
-- Candidate order: bookmarks in the current buffer first — the
-  same set ~bookmark-gt-cycle-next~ computes.
+Two constraints identified there still apply, to
+~bookmark-gt-update~'s reader:
 
-Selecting an existing bookmark whose target is a different file
-means changing both ~position~ and ~filename~ — relocate and
-position-set in one action.  Acceptable, but the prompt should
-make the destination change visible.
+- Candidates carry their tags and destination, and are ordered
+  with bookmarks in the current buffer first — the same set
+  ~bookmark-gt-cycle-next~ computes.
+- Updating modifies data the user already has, so the
+  destination change is reported.
+
+** Sequence migration
+
+Existing sequences store member *names*
+(=bookmark-gt-handlers.el:973=).  They are converted to ids at
+load time, in the same scan that mints ids (§Minting points):
+one traversal, and sequences stop depending on names from the
+first launch after upgrading rather than whenever each sequence
+happens to be jumped.
+
+A member name that resolves to exactly one record becomes that
+record's id.  A duplicated member name has no unambiguous
+answer, so it stays a name and is reported.  Sequence members
+therefore accept both forms — id preferred, name as legacy —
+and a name member resolves under the usual rule: one match, or
+an error.
+
+Accepted as minor: the package is unpublished, so the affected
+population is one user's file.
+
+* Remaining open question
+
+** Replacing ~bookmark-current-bookmark~
+
+~bookmark.el~ defines it buffer-locally as "name of bookmark
+most recently used in the current file", set on store, jump,
+and rename, and cleared on delete when it stops resolving.  It
+is read as the default name for a new record and as the
+completing-read default for several commands.
+
+Two problems:
+
+- It holds a *name*, so every read of it re-enters ~assoc~.
+  That is the direct cause of the visit-tracking defect
+  (§Evidence): the tracker credits the first record sharing
+  the name.
+- It is not reliably a name.  ~bookmark-handle-bookmark~ does
+  ~(setq bookmark-current-bookmark bookmark-name-or-record)~,
+  so after a jump it may hold a record.
+
+Its stated purpose — "to make moving a bookmark forward
+through a file easier" — is the create/update conflation this
+design removes.  That workflow becomes ~bookmark-gt-update~,
+so what remains is a default for that command's reader.
+
+Open: bookmark-gt needs its own buffer-local current-record
+tracking for paths that mutate.  That is new state, so it needs
+justifying against the records-only invariant — it would be a
+process-scoped resource bounded by the buffer's lifetime, the
+same category as ~bookmark-gt-list--marks~.  Holding an id
+rather than a record would also satisfy the lifetime rule
+(§The rule is about lifetime, not about memory versus disk),
+since a buffer-local outlives any single operation.
 
 * Migration impact
 
-- Re-setting a name stops moving the bookmark.  This is the
-  largest user-visible behavior change in the package, and it
-  affects every user who never set either defcustom.
-- Both defcustoms become obsolete.  Neither can be handled by
-  ~define-obsolete-variable-alias~, since neither has a
-  successor.
+Tracked in =ChangeLog.org= §Planned.  The items needing work
+beyond a changelog line:
+
+- *Every documented keybinding breaks.*  =readme.org='s install
+  snippet binds ~C-x r m~ to ~bookmark-gt-set~, and
+  =use-package :bind= on a void function fails at init.  The
+  readme change is part of the release, not documentation
+  catch-up.
+- ~bookmark-gt-same-name-overwrite~ has no successor, so
+  ~define-obsolete-variable-alias~ cannot cover it.
+  ~bookmark-gt-allow-duplicate-names~ is renamed to
+  ~bookmark-gt-allow-same-name-bookmarks~ and changes value type
+  from a boolean to a symbol, so an alias cannot cover it: the
+  old ~t~ / ~nil~ are not valid values of the new type.  Map
+  them on read — ~t~ to ~always~, ~nil~ to ~never~ — and warn.
 - =readme.org= §Same-name policy is superseded.  Four rules and
-  a flag matrix collapse to: ~set~ creates; names are queries;
-  the update commands change a bookmark.  The troubleshooting
-  subsection about filters and temporary records stays.
-- ~bookmark-current-bookmark~ is a name-as-identity mechanism
-  inherited from ~bookmark.el~, read at six sites here.  The
-  built-in cannot change; bookmark-gt should stop reading it on
-  any path that mutates.
+  a flag matrix collapse to: ~create~ creates, ~update~ updates,
+  names are queries.  The troubleshooting subsection about
+  filters and temporary records stays, and the duplicate-name
+  warning is rewritten around the flag rather than around the
+  defect list.
 - The first save after upgrading rewrites nearly every record —
   a new key on all of them, and text properties omitted from
   the 48 names carrying ~bmkp-full-record~ in one live file.
