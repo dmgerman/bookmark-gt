@@ -1590,7 +1590,14 @@ remains."
 Every call binds `bookmark-alist' to a filtered copy without
 records carrying `bookmark-gt-temp-key' before delegating to
 ORIG-FN with ARGS.  The user's live alist is untouched — the
-filter is only applied to what gets written to disk."
+filter is only applied to what gets written to disk.
+
+`bookmark-maybe-load-default-file' runs before the binding is
+established.  ORIG-FN calls it too, but from inside the
+binding, where it would populate the filtered copy and leave
+the global `bookmark-alist' empty while
+`bookmarks-already-loaded' is set."
+  (bookmark-maybe-load-default-file)
   (let ((bookmark-alist
          (seq-remove #'bookmark-gt-temp-p bookmark-alist)))
     (apply orig-fn args)))
