@@ -1,0 +1,129 @@
+;;; bookmark-gt-first-load-tests.el --- Operations before the first load  -*- lexical-binding: t; -*-
+
+;; Copyright (C) 2026 Daniel M. German <dmg@turingmachine.org>
+
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
+;;; Commentary:
+;;
+;; Regression tests for the first bookmark operation of a session,
+;; run while the file on disk has not been read yet.
+;;
+;; `bookmark-maybe-load-default-file' loads only while
+;; `bookmark-alist' is empty.  An operation that fills the list
+;; before asking for the load therefore keeps the file unread for
+;; the rest of the session, and the next save writes the short
+;; list in place of the file's contents.  The built-in
+;; `bookmark-store' loads for this reason;
+;; `bookmark-gt--push-record' goes around `bookmark-store', so
+;; every path that reaches it has to load on its own.
+;;
+;; Each test writes a file, returns the session to the unloaded
+;; state, runs one operation, and asserts the file still holds
+;; what it held.
+
+;;; Code:
+
+(require 'ert)
+(require 'test-helper)
+(require 'bookmark-gt-core)
+(require 'bookmark-gt-handlers)
+
+(defun bookmark-gt-first-load-test--names-on-disk ()
+  "Return the bookmark names in `bookmark-default-file'."
+  (let ((bookmark-alist nil))
+    (bookmark-load bookmark-default-file t t nil)
+    (mapcar #'car bookmark-alist)))
+
+(defmacro bookmark-gt-first-load-test-with-unloaded-file (&rest body)
+  "Run BODY with two bookmarks on disk and nothing loaded.
+The bookmarks are named \"one\" and \"two\".  BODY runs with the
+save filter installed, as `bookmark-gt-mode' installs it."
+  (declare (indent 0) (debug t))
+  `(bookmark-gt-test-with-clean-bookmarks
+     (bookmark-gt-create-non-file "one" 'h nil)
+     (bookmark-gt-create-non-file "two" 'h nil)
+     (bookmark-write-file bookmark-default-file)
+     ;; Return to the state at the start of a session.  Both
+     ;; variables are let-bound by the enclosing macro, so this
+     ;; mutation does not escape the test.
+     (setq bookmark-alist nil
+           bookmarks-already-loaded nil)
+     (advice-add 'bookmark-save :around #'bookmark-gt--save-filter-advice)
+     (unwind-protect
+         (progn ,@body)
+       (advice-remove 'bookmark-save #'bookmark-gt--save-filter-advice))))
+
+;;;; Save first
+
+(ert-deftest bookmark-gt-first-load-test-save-keeps-alist ()
+  "A save as the first operation leaves `bookmark-alist' filled.
+Stock `bookmark-save' loads from inside its own body.  With the
+filter advice binding a filtered copy first, that load fills the
+copy, and on exit the global `bookmark-alist' is empty while the
+file counts as read — the state in which the next save writes an
+empty file."
+  (bookmark-gt-first-load-test-with-unloaded-file
+    (bookmark-save)
+    (should (assoc "one" bookmark-alist))
+    (should (assoc "two" bookmark-alist))
+    ;; Both records must survive a second save.
+    (bookmark-save)
+    (should (equal (sort (bookmark-gt-first-load-test--names-on-disk) #'string<)
+                   '("one" "two")))))
+
+;;;; Creation first
+
+(ert-deftest bookmark-gt-first-load-test-create-url-keeps-file ()
+  "A URL bookmark created first is added to the file, not put in its place.
+`bookmark-gt-create-url' reaches `bookmark-gt--create-record',
+which has to load before it pushes."
+  (bookmark-gt-first-load-test-with-unloaded-file
+    (bookmark-gt-create-url "https://example.com" "new-url")
+    (should (assoc "one" bookmark-alist))
+    (should (assoc "two" bookmark-alist))
+    (bookmark-save)
+    (should (equal (sort (bookmark-gt-first-load-test--names-on-disk) #'string<)
+                   '("new-url" "one" "two")))))
+
+(ert-deftest bookmark-gt-first-load-test-create-non-file-keeps-file ()
+  "Any non-file creation loads first, whatever its handler.
+`bookmark-gt-create-url' is one caller of
+`bookmark-gt-create-non-file'; the kmacro, function, sequence and
+browser-tab creators are others, and all of them arrive at the
+same record builder."
+  (bookmark-gt-first-load-test-with-unloaded-file
+    (bookmark-gt-create-non-file "new-plain" 'h nil)
+    (bookmark-save)
+    (should (equal (sort (bookmark-gt-first-load-test--names-on-disk) #'string<)
+                   '("new-plain" "one" "two")))))
+
+(ert-deftest bookmark-gt-first-load-test-create-temp-keeps-file ()
+  "A temporary bookmark created first does not empty the file.
+This is the costliest order of the three: the temp record fills
+`bookmark-alist' and so keeps the file unread, and the save
+filter then removes that record from what gets written, leaving
+nothing to write."
+  (bookmark-gt-first-load-test-with-unloaded-file
+    (bookmark-gt-create-non-file "temp" 'h
+                                 (list (cons bookmark-gt-temp-key t)))
+    (should (assoc "one" bookmark-alist))
+    (should (assoc "two" bookmark-alist))
+    (bookmark-save)
+    ;; The two records stay; the temp one is excluded by the filter.
+    (should (equal (sort (bookmark-gt-first-load-test--names-on-disk) #'string<)
+                   '("one" "two")))))
+
+;;;; Same-name policy
+
+(ert-deftest bookmark-gt-first-load-test-name-policy-sees-file ()
+  "The same-name policy judges a new name against the file's names.
+The policy reads `bookmark-alist', so without the load it cannot
+see the name it is asked about."
+  (bookmark-gt-first-load-test-with-unloaded-file
+    (let ((bookmark-gt-allow-same-name-bookmarks nil))
+      (should-error (bookmark-gt-create-non-file "one" 'h nil)
+                    :type 'user-error))))
+
+(provide 'bookmark-gt-first-load-tests)
+;;; bookmark-gt-first-load-tests.el ends here

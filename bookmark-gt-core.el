@@ -767,6 +767,17 @@ NO-NOTIFY skips the UI refresh and the change hook, for a caller
 mutating many records that will notify once at the end.
 NO-CURRENT leaves `bookmark-current-bookmark' alone; see
 `bookmark-gt--push-record'."
+  ;; The existing bookmarks have to be in `bookmark-alist' before
+  ;; the first record is pushed onto it.  Two reasons, one of them
+  ;; costly: `bookmark-maybe-load-default-file' only loads while
+  ;; the list is empty, so a record pushed first makes the file
+  ;; unloadable for the rest of the session, and the next save
+  ;; writes that one record in place of the file's contents; and
+  ;; the same-name policy below reads the list, so it can only
+  ;; judge a name against bookmarks it can see.  The built-in
+  ;; `bookmark-store' loads for the same reason, and
+  ;; `bookmark-gt--push-record' goes around it.
+  (bookmark-maybe-load-default-file)
   (let* ((seed (or tags (alist-get 'tags data)))
          (data (assq-delete-all 'tags (copy-sequence data)))
          (refined (bookmark-gt--refine-name name data))

@@ -113,34 +113,9 @@
           (should (bookmark-gt-temp-p (assoc "temp" bookmark-alist))))
       (advice-remove (quote bookmark-save) (function bookmark-gt--save-filter-advice)))))
 
-(ert-deftest bookmark-gt-temp-test-save-before-first-load-keeps-alist ()
-  "Save as the first bookmark operation must leave `bookmark-alist' filled.
-Stock `bookmark-save' calls `bookmark-maybe-load-default-file'
-from inside its own body.  If the filter advice binds the
-filtered copy first, the load populates that copy, and on exit
-the global `bookmark-alist' is empty while
-`bookmarks-already-loaded' is t — a state in which the next
-save writes an empty bookmark file."
-  (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-create-non-file "on-disk" 'h nil)
-    (bookmark-write-file bookmark-default-file)
-    ;; Simulate a session in which no bookmark operation has run
-    ;; yet.  Both variables are let-bound by the enclosing macro,
-    ;; so this mutation does not escape the test.
-    (setq bookmark-alist nil
-          bookmarks-already-loaded nil)
-    (advice-add (quote bookmark-save) :around (function bookmark-gt--save-filter-advice))
-    (unwind-protect
-        (progn
-          (bookmark-save)
-          (should bookmarks-already-loaded)
-          (should (assoc "on-disk" bookmark-alist))
-          ;; The record must survive a second save.
-          (bookmark-save)
-          (let ((bookmark-alist nil))
-            (bookmark-load bookmark-default-file t t nil)
-            (should (assoc "on-disk" bookmark-alist))))
-      (advice-remove (quote bookmark-save) (function bookmark-gt--save-filter-advice)))))
+;; The save filter's behavior before the first load is covered in
+;; bookmark-gt-first-load-tests.el, with the other operations that
+;; can run first.
 
 (ert-deftest bookmark-gt-temp-test-uninstall-restores-built-in ()
   (bookmark-gt-test-with-clean-bookmarks
