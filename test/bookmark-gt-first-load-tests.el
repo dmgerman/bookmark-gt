@@ -28,6 +28,8 @@
 (require 'test-helper)
 (require 'bookmark-gt-core)
 (require 'bookmark-gt-handlers)
+(require 'bookmark-gt-migrate)
+(require 'bookmark-gt-auto-update)
 
 (defun bookmark-gt-first-load-test--names-on-disk ()
   "Return the bookmark names in `bookmark-default-file'."
@@ -166,6 +168,115 @@ instead of joined."
         (bookmark-store "one" (list (cons 'handler 'other)) nil)
         (should (= (length (bookmark-gt--records-named "one")) 2))
         (should (= (length bookmark-alist) 3))))))
+
+;;;; A file bookmark, for the paths that work from a buffer
+
+(defmacro bookmark-gt-first-load-test-with-unloaded-file-bookmark (&rest body)
+  "Run BODY with one file bookmark on disk and nothing loaded.
+Binds `target' to a temporary file holding two lines, bookmarked
+as \"file-bm\" at position 3."
+  (declare (indent 0) (debug t))
+  `(bookmark-gt-test-with-clean-bookmarks
+     (let ((target (bookmark-gt-test--make-temp-bookmark-file)))
+       (write-region "line one\nline two\n" nil target)
+       (bookmark-gt-create-non-file "file-bm" 'h
+                                    (list (cons 'filename target)
+                                          (cons 'position 3)))
+       (bookmark-write-file bookmark-default-file)
+       (setq bookmark-alist nil
+             bookmarks-already-loaded nil)
+       ,@body)))
+
+;;;; Following a rename first
+
+(ert-deftest bookmark-gt-first-load-test-rename-follows-file ()
+  "A rename as the first operation is followed in the record.
+The old path is gone once the rename returns, so a record left
+behind here cannot be repaired by any later operation."
+  (bookmark-gt-first-load-test-with-unloaded-file-bookmark
+    (let ((renamed (concat target "-renamed"))
+          (bookmark-gt-track-renames t))
+      (advice-add 'rename-file :around #'bookmark-gt--rename-file-advice)
+      (unwind-protect
+          (progn
+            (rename-file target renamed)
+            (should (equal (bookmark-gt-filename-of
+                            (bookmark-get-bookmark "file-bm"))
+                           renamed)))
+        (advice-remove 'rename-file #'bookmark-gt--rename-file-advice)
+        (when (file-exists-p renamed) (delete-file renamed))))))
+
+;;;; Resolving a name from Lisp first
+
+(ert-deftest bookmark-gt-first-load-test-resolve-finds-name ()
+  "A record named in a Lisp call is found before the first load.
+The prompting branch of `bookmark-gt--resolve' inherits a load
+from `bookmark-completing-read'; a caller passing a name does
+not, and used to be told the bookmark does not exist."
+  (bookmark-gt-first-load-test-with-unloaded-file
+    (bookmark-gt-toggle-temp "one")
+    (should (bookmark-gt-temp-p (bookmark-get-bookmark "one")))))
+
+;;;; Cycling first
+
+(ert-deftest bookmark-gt-first-load-test-cycle-finds-bookmarks ()
+  "Cycling in a buffer finds the file's bookmarks before the first load."
+  (bookmark-gt-first-load-test-with-unloaded-file-bookmark
+    (with-current-buffer (find-file-noselect target)
+      (unwind-protect
+          (progn
+            (goto-char (point-min))
+            (bookmark-gt-cycle-next)
+            (should (= (point) 3)))
+        (set-buffer-modified-p nil)
+        (kill-buffer)))))
+
+;;;; Migrating first
+
+(ert-deftest bookmark-gt-first-load-test-migrate-sees-records ()
+  "A migration run first rewrites the records in the file.
+Reporting nothing to migrate would read as a finished migration."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-create-non-file "plus" 'bmkp-jump-url-browse
+                                 (list (cons 'location "https://example.com")))
+    (bookmark-write-file bookmark-default-file)
+    (setq bookmark-alist nil
+          bookmarks-already-loaded nil)
+    (should (= (bookmark-gt-migrate-from-bookmark-plus) 1))
+    (should (eq (bookmark-prop-get (bookmark-get-bookmark "plus") 'handler)
+                'bookmark-gt-handler-url-jump))))
+
+;;;; Refreshing auto-update bookmarks first
+
+(ert-deftest bookmark-gt-first-load-test-auto-update-now-loads ()
+  "`bookmark-gt-auto-update-now' refreshes every record, so it loads.
+The idle-timer tick deliberately does not: reading the file from
+a timer is a side effect nobody asked for."
+  (bookmark-gt-first-load-test-with-unloaded-file
+    (bookmark-gt-auto-update-now)
+    (should (bookmark-gt--records-named "one"))))
+
+;;;; Highlights drawn before the file was read
+
+(ert-deftest bookmark-gt-first-load-test-highlights-refresh-on-load ()
+  "Overlays appear in a buffer opened before the bookmark file was read.
+`bookmark-gt-highlight--refresh-buffer' had no records to draw
+from at `find-file' time, and nothing asks it again for that
+buffer, so the load is what refreshes it."
+  (bookmark-gt-first-load-test-with-unloaded-file-bookmark
+    (let ((bookmark-gt-highlight-enable t))
+      (advice-add 'bookmark-load :after #'bookmark-gt-highlight--on-load)
+      (unwind-protect
+          (with-current-buffer (find-file-noselect target)
+            (bookmark-gt-highlight--refresh-buffer)
+            (should (null bookmark-gt-highlight--overlays))
+            (bookmark-maybe-load-default-file)
+            (should (= (length bookmark-gt-highlight--overlays) 1)))
+        (advice-remove 'bookmark-load #'bookmark-gt-highlight--on-load)
+        (when-let* ((buf (find-buffer-visiting target)))
+          (with-current-buffer buf
+            (set-buffer-modified-p nil)
+            (kill-buffer)))))))
 
 (provide 'bookmark-gt-first-load-tests)
 ;;; bookmark-gt-first-load-tests.el ends here

@@ -135,6 +135,7 @@ store bookmarks programmatically depend on."
     (advice-add 'bookmark-store    :after  #'bookmark-gt--auto-temp-advice)
     (advice-add 'bookmark-store    :around #'bookmark-gt--store-advice)
     (advice-add 'bookmark-load     :after  #'bookmark-gt--ensure-ids-advice)
+    (advice-add 'bookmark-load     :after  #'bookmark-gt-highlight--on-load)
     (advice-add 'tabulated-list-sort :after
                 #'bookmark-gt-list--tabulated-sort-observer)
     (add-hook 'bookmark-after-jump-hook #'bookmark-gt--on-jump-record-visit)
@@ -153,6 +154,7 @@ store bookmarks programmatically depend on."
     (advice-remove 'bookmark-store    #'bookmark-gt--auto-temp-advice)
     (advice-remove 'bookmark-store    #'bookmark-gt--store-advice)
     (advice-remove 'bookmark-load     #'bookmark-gt--ensure-ids-advice)
+    (advice-remove 'bookmark-load     #'bookmark-gt-highlight--on-load)
     (advice-remove 'tabulated-list-sort
                    #'bookmark-gt-list--tabulated-sort-observer)
     (remove-hook 'bookmark-after-jump-hook #'bookmark-gt--on-jump-record-visit)

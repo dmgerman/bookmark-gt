@@ -153,6 +153,12 @@ matches that buffer."
 (defun bookmark-gt-auto-update-now ()
   "Force an immediate refresh of every auto-update bookmark."
   (interactive)
+  ;; "Every" has to mean every record in the file, so this asks for
+  ;; the load that `bookmark-gt-auto-update-tick' does not: the
+  ;; tick also runs from an idle timer, where reading the file is a
+  ;; side effect nobody asked for.  A tick with nothing loaded has
+  ;; nothing to refresh, which the next operation puts right.
+  (bookmark-maybe-load-default-file)
   (bookmark-gt-auto-update-tick)
   (when (called-interactively-p 'interactive)
     (message "Auto-update bookmarks refreshed")))

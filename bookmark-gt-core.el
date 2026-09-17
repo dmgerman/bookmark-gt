@@ -385,6 +385,12 @@ caller did not choose.
 
 Note the clause order: nil is itself a symbol, so it has to be
 tested before the id branch.  So does t."
+  ;; A name or an id can only be looked up among the records that
+  ;; are loaded.  The prompting branch inherits a load from
+  ;; `bookmark-completing-read', so this is what a caller from
+  ;; Lisp — passing the name of a bookmark it expects to exist —
+  ;; relies on.
+  (bookmark-maybe-load-default-file)
   (cond
    ((null bookmark)
     (unless (bookmark-gt--can-prompt-p)
@@ -1134,6 +1140,20 @@ overlay per match."
   "Refresh highlight overlays for the just-opened buffer."
   (bookmark-gt-highlight--refresh-buffer))
 
+(defun bookmark-gt-highlight--on-load (&rest _)
+  "Refresh the highlight overlays of every visible file buffer.
+Attached as `:after' advice on `bookmark-load'.
+
+A buffer opened before the bookmark file was read has no
+overlays: `bookmark-gt-highlight--refresh-buffer' had no records
+to draw from, and nothing asks it again for that buffer.  Both
+`find-file-hook' and enabling `bookmark-gt-mode' can run that
+early — during startup they usually do.  Refreshing when the
+records arrive covers them, and leaves the `find-file' path
+without a file read."
+  (when bookmark-gt-highlight-enable
+    (bookmark-gt-highlight--refresh-all-visible)))
+
 (defun bookmark-gt-highlight--on-jump ()
   "Record the point after a jump and refresh the buffer's overlays.
 Lets records without a numeric `position' (e.g. org-heading
@@ -1202,6 +1222,9 @@ refreshes list buffers and highlight overlays, then runs
   "Return a list of (POSITION . NAME) for bookmarks in this buffer's file.
 Sorted by POSITION ascending.  Only local, existing files are
 considered.  Records without a numeric `position' are skipped."
+  ;; Cycling can be the first thing a session does, and the answer
+  ;; then has to come from the file rather than from an empty list.
+  (bookmark-maybe-load-default-file)
   (let ((path (buffer-file-name)))
     (when path
       (sort
@@ -1427,6 +1450,13 @@ further built-in arguments.  Rewrites bookmarks whose
   (apply orig-fn from to args)
   (when (and bookmark-gt-track-renames
              (not (backup-file-name-p to)))
+    ;; A rename can be the first thing a session does, and a
+    ;; bookmark that is not in `bookmark-alist' yet cannot be
+    ;; followed: FROM is gone by now, so the record would keep a
+    ;; path that no later operation can repair.  The load sits
+    ;; inside the gate, so a session that does not track renames
+    ;; pays nothing for it.
+    (bookmark-maybe-load-default-file)
     (let ((from-abs (expand-file-name from))
           (to-abs   (expand-file-name to)))
       (dolist (rec bookmark-alist)

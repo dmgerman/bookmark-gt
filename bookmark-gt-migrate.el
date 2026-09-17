@@ -135,6 +135,10 @@ Returns the number of records changed.  Does NOT save; run
 `bookmark-save' after inspecting the results in
 `bookmark-gt-list'."
   (interactive)
+  ;; The records to rewrite are the ones in the file, so a
+  ;; migration run before anything read it would report that there
+  ;; was nothing to migrate.
+  (bookmark-maybe-load-default-file)
   (let ((changed 0))
     (dolist (record bookmark-alist)
       (when (bookmark-gt-migrate--rewrite-record record)
