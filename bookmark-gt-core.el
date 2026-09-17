@@ -1497,6 +1497,11 @@ record of its own kind (`bookmark-gt--store-replaceable-record\='),
 adds a second record when the setting permits one, or signals
 when it does not.  Storing under an unused name is untouched, as
 is a caller that already passed NO-OVERWRITE."
+  ;; The decision below reads `bookmark-alist', while ORIG-FN's own
+  ;; load runs a step later, so a store arriving before anything
+  ;; has read the file would be judged against an empty list and
+  ;; take the unused-name branch whatever the file holds.
+  (bookmark-maybe-load-default-file)
   (let ((records (and (not no-overwrite)
                       (stringp name)
                       (bookmark-gt--records-named name))))

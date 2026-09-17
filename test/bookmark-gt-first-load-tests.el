@@ -125,5 +125,47 @@ see the name it is asked about."
       (should-error (bookmark-gt-create-non-file "one" 'h nil)
                     :type 'user-error))))
 
+;;;; Store first
+;;
+;; `bookmark-store' loads on its own, so a store arriving first
+;; cannot lose records.  What it can lose is the policy: the
+;; advice decides what a store onto a name in use does, and it
+;; decides from `bookmark-alist' one step before the built-in
+;; load fills it.
+
+(defmacro bookmark-gt-first-load-test--with-store-advice (&rest body)
+  "Run BODY with `bookmark-gt--store-advice' installed."
+  (declare (indent 0) (debug t))
+  `(progn
+     (advice-add 'bookmark-store :around #'bookmark-gt--store-advice)
+     (unwind-protect
+         (progn ,@body)
+       (advice-remove 'bookmark-store #'bookmark-gt--store-advice))))
+
+(ert-deftest bookmark-gt-first-load-test-store-refuses-name-in-file ()
+  "A store onto a name the file holds signals, rather than replacing it.
+Under `nil' the setting permits no second record of a name, and
+the record is not one the store may replace, so the store is
+refused and the record in the file keeps its data."
+  (bookmark-gt-first-load-test-with-unloaded-file
+    (bookmark-gt-first-load-test--with-store-advice
+      (let ((bookmark-gt-allow-same-name-bookmarks nil))
+        (should-error (bookmark-store "one" (list (cons 'handler 'other)) nil)
+                      :type 'user-error)
+        (should (eq (bookmark-prop-get (bookmark-get-bookmark "one") 'handler)
+                    'h))))))
+
+(ert-deftest bookmark-gt-first-load-test-store-adds-second-record ()
+  "Under `always' a store onto a name in the file adds a record.
+Without the load the advice sees no record of that name and lets
+the built-in overwrite, which leaves the file's record replaced
+instead of joined."
+  (bookmark-gt-first-load-test-with-unloaded-file
+    (bookmark-gt-first-load-test--with-store-advice
+      (let ((bookmark-gt-allow-same-name-bookmarks 'always))
+        (bookmark-store "one" (list (cons 'handler 'other)) nil)
+        (should (= (length (bookmark-gt--records-named "one")) 2))
+        (should (= (length bookmark-alist) 3))))))
+
 (provide 'bookmark-gt-first-load-tests)
 ;;; bookmark-gt-first-load-tests.el ends here
