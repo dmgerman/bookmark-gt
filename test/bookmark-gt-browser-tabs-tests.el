@@ -64,8 +64,10 @@
       (should (bookmark-gt-temp-p record))
       (should (equal (bookmark-gt-tags-of record) '("chrome"))))))
 
-(ert-deftest bookmark-gt-browser-gt-test-store-seeds-last-visited-from-accessed ()
-  "The tab's `:lastAccessed' (ms) becomes the record's `last-visited'."
+(ert-deftest bookmark-gt-browser-gt-test-store-ignores-accessed ()
+  "The tab's `:lastAccessed' does not become the record's `last-visited'.
+`last-visited' records a jump bookmark-gt made, not a tab focus
+the browser reported."
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-browser-tabs--store
      (list :url "https://example.org"
@@ -73,13 +75,10 @@
            :id "1"
            :browser-gt-browser "chrome"
            :lastAccessed 1785939461849.99))
-    (let* ((record (car bookmark-alist))
-           (lv (bookmark-prop-get record 'last-visited)))
-      (should lv)
-      (should (equal (time-convert lv 'integer) 1785939461)))))
+    (should-not (bookmark-prop-get (car bookmark-alist) 'last-visited))))
 
-(ert-deftest bookmark-gt-browser-gt-test-store-omits-last-visited-when-absent ()
-  "A tab plist without `:lastAccessed' produces a record without `last-visited'."
+(ert-deftest bookmark-gt-browser-gt-test-store-omits-last-visited-when-unvisited ()
+  "A tab never jumped to produces a record without `last-visited'."
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-browser-tabs--store
      (list :url "https://example.org"
@@ -87,6 +86,58 @@
            :id "1"
            :browser-gt-browser "chrome"))
     (should-not (bookmark-prop-get (car bookmark-alist) 'last-visited))))
+
+;;;; Visit carryover
+
+(ert-deftest bookmark-gt-browser-gt-test-visit-carryover ()
+  "A rebuild re-attaches `visits' and `last-visited' to the same tab."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((tab (list :url "https://example.org"
+                     :title "Example"
+                     :id "42"
+                     :browser-gt-browser "chrome")))
+      (bookmark-gt-browser-tabs--store tab)
+      (bookmark-gt-record-visit (car bookmark-alist))
+      (let ((visited (bookmark-prop-get (car bookmark-alist) 'last-visited))
+            (snapshot (bookmark-gt-browser-tabs--visit-snapshot)))
+        (setq bookmark-alist nil)
+        (bookmark-gt-browser-tabs--store tab snapshot)
+        (let ((record (car bookmark-alist)))
+          (should (equal (bookmark-prop-get record 'visits) 1))
+          (should (equal (bookmark-prop-get record 'last-visited) visited)))))))
+
+(ert-deftest bookmark-gt-browser-gt-test-visit-carryover-keyed-on-browser ()
+  "Carryover is keyed on the browser as well as the tab id.
+Tab ids are numbered per browser, so the same id in another
+browser is a different tab and inherits nothing."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-browser-tabs--store
+     (list :url "https://example.org"
+           :title "Example"
+           :id "42"
+           :browser-gt-browser "chrome"))
+    (bookmark-gt-record-visit (car bookmark-alist))
+    (let ((snapshot (bookmark-gt-browser-tabs--visit-snapshot)))
+      (setq bookmark-alist nil)
+      (bookmark-gt-browser-tabs--store
+       (list :url "https://example.org"
+             :title "Example"
+             :id "42"
+             :browser-gt-browser "firefox")
+       snapshot)
+      (should-not (bookmark-prop-get (car bookmark-alist) 'last-visited))
+      (should-not (bookmark-prop-get (car bookmark-alist) 'visits)))))
+
+(ert-deftest bookmark-gt-browser-gt-test-visit-snapshot-omits-unvisited ()
+  "A tab record with no visit props contributes no snapshot entry."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-browser-tabs--store
+     (list :url "https://example.org"
+           :title "Example"
+           :id "42"
+           :browser-gt-browser "chrome"))
+    (should (zerop (hash-table-count
+                    (bookmark-gt-browser-tabs--visit-snapshot))))))
 
 (ert-deftest bookmark-gt-browser-gt-test-store-empty-title-uses-url ()
   (bookmark-gt-test-with-clean-bookmarks

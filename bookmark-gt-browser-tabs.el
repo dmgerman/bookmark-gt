@@ -156,9 +156,51 @@ Value shape:
      ((functionp filt) (funcall filt tab))
      (t                t))))
 
+;;;; Visit carryover
+;;
+;; `visits' and `last-visited' record what the user did through
+;; bookmark-gt: the visit tracker writes them from
+;; `bookmark-after-jump-hook' after a jump.  A refresh deletes
+;; every tab record and stores fresh ones, so both props would
+;; reset on each refresh — and under
+;; `bookmark-gt-browser-tabs-mode' a refresh runs before every
+;; jump read, so a recorded visit would never survive to be
+;; sorted on.  The snapshot below carries them across one
+;; clear/rebuild cycle.
+;;
+;; What the carryover does not span: a browser restart (tab ids
+;; are reassigned), turning the mode off and on (the intervening
+;; `--clear' takes no snapshot), and exiting Emacs (tab records
+;; are temporary and never reach the bookmark file).  Losing the
+;; stats in those cases is intended.
+
+(defun bookmark-gt-browser-tabs--visit-key (browser id)
+  "Return the visit-carryover key for tab ID owned by BROWSER.
+Tab ids are numbered per browser, so the browser name is part of
+the key: tab 7 in one browser is a different tab from tab 7 in
+another."
+  (format "%s\0%s" (or browser "") id))
+
+(defun bookmark-gt-browser-tabs--visit-snapshot ()
+  "Return a hash table of visit stats for the tab records in `bookmark-alist'.
+Keys come from `bookmark-gt-browser-tabs--visit-key'; each value
+is a cons of the record's `visits' count and its `last-visited'
+time.  Records carrying neither prop are omitted."
+  (let ((table (make-hash-table :test #'equal)))
+    (dolist (rec bookmark-alist table)
+      (when (bookmark-gt-browser-tabs--own-record-p rec)
+        (let ((visits (bookmark-prop-get rec 'visits))
+              (visited (bookmark-prop-get rec 'last-visited)))
+          (when (or visits visited)
+            (puthash (bookmark-gt-browser-tabs--visit-key
+                      (bookmark-prop-get rec 'browser-gt-browser)
+                      (bookmark-prop-get rec 'browser-gt-id))
+                     (cons visits visited)
+                     table)))))))
+
 ;;;; Store
 
-(defun bookmark-gt-browser-tabs--store (tab)
+(defun bookmark-gt-browser-tabs--store (tab &optional snapshot)
   "Store TAB (a browser-gt plist) as a temp browser-tab bookmark.
 The name is the tab title, falling back to the URL.  The
 owning browser's client name becomes a tag so it shows up in the
@@ -170,28 +212,31 @@ the caller, and `bookmark-current-bookmark' — buffer-local, and
 the default for several name prompts — is left alone in
 whatever buffer the timer happened to run in.
 
-Seeds `last-visited' from the tab's `:lastAccessed' field (JS
-milliseconds since epoch) when present, so MRU sort in the jump
-reader reflects the browser's own last-focused ordering.  Each
-pre-jump refresh re-reads `:lastAccessed', so the timestamp
-tracks browser activity rather than bookmark-gt jump history."
+SNAPSHOT is the table from
+`bookmark-gt-browser-tabs--visit-snapshot'.  When it holds an
+entry for this tab, the record is stored with the `visits' and
+`last-visited' values the previous record for the same tab had.
+Both props then mean on a tab record what they mean on every
+other record: the last jump bookmark-gt made to it, not the last
+time the browser focused the tab."
   (let* ((url (or (plist-get tab :url) ""))
          (title (or (plist-get tab :title) ""))
          (id (plist-get tab :id))
          (browser (plist-get tab :browser-gt-browser))
-         (accessed-ms (plist-get tab :lastAccessed))
          (base (if (string-empty-p title) url title))
-         (props (list (cons 'url url)
-                      (cons 'browser-gt-id id)
-                      (cons 'browser-gt-browser browser)
-                      (cons bookmark-gt-temp-key t)
-                      (cons bookmark-gt-browser-tabs--marker-key t))))
-    (when (numberp accessed-ms)
-      (push (cons 'last-visited
-                  (time-convert (/ accessed-ms 1000.0) 'list))
-            props))
-    (when (and (stringp browser) (not (string-empty-p browser)))
-      (push (cons 'tags (list browser)) props))
+         (stats (and snapshot
+                     (gethash (bookmark-gt-browser-tabs--visit-key browser id)
+                              snapshot)))
+         (props (append
+                 (list (cons 'url url)
+                       (cons 'browser-gt-id id)
+                       (cons 'browser-gt-browser browser)
+                       (cons bookmark-gt-temp-key t)
+                       (cons bookmark-gt-browser-tabs--marker-key t))
+                 (when (car stats) (list (cons 'visits (car stats))))
+                 (when (cdr stats) (list (cons 'last-visited (cdr stats))))
+                 (when (and (stringp browser) (not (string-empty-p browser)))
+                   (list (cons 'tags (list browser)))))))
     ;; A refresh is not a user acting on one bookmark, so a name
     ;; the policy refuses is skipped rather than signalled: an
     ;; error here would abandon a refresh nobody asked for,
@@ -230,13 +275,16 @@ finds this flag set silently returns.")
   "Rebuild browser-tab bookmarks from live browser state.
 Clears existing tab records, fetches the current tabs via
 browser-gt, applies `bookmark-gt-browser-tabs-filter', and stores
-one temp bookmark per surviving tab.  Guarded against
+one temp bookmark per surviving tab.  A tab that already had a
+record keeps its `visits' and `last-visited' props; see
+`bookmark-gt-browser-tabs--visit-snapshot'.  Guarded against
 re-entrancy."
   (interactive)
   (if bookmark-gt-browser-tabs--refreshing
       (when (called-interactively-p 'interactive)
         (message "Browser-tab refresh already in progress; skipping"))
     (let ((bookmark-gt-browser-tabs--refreshing t)
+          (snapshot (bookmark-gt-browser-tabs--visit-snapshot))
           (count 0)
           (skipped 0))
       ;; Silence the after-hook (would fire once per stored tab) and
@@ -254,7 +302,7 @@ re-entrancy."
           (let ((url (plist-get tab :url)))
             (when (and (stringp url) (not (string-empty-p url))
                        (bookmark-gt-browser-tabs--accept-p tab))
-              (if (bookmark-gt-browser-tabs--store tab)
+              (if (bookmark-gt-browser-tabs--store tab snapshot)
                   (setq count (1+ count))
                 (setq skipped (1+ skipped)))))))
       (bookmark-gt-list-refresh)

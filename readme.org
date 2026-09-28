@@ -242,13 +242,22 @@ auto-save while it runs, and no pending write when it
 finishes.  Tab records are temporary, so a refresh — however
 many tabs it stores — never writes the bookmark file.
 
-Each stored tab record's ~last-visited~ is seeded from the
-tab's ~:lastAccessed~ field (Chrome / Firefox report this as
-the last time the tab was focused, in milliseconds since
-epoch).  MRU sort in ~bookmark-gt-jump~ therefore orders tabs
-by the browser's own last-focused ordering, and every pre-jump
-refresh re-reads the field so the ordering tracks browser
-activity rather than bookmark-gt jump history.
+On a tab record, ~visits~ and ~last-visited~ mean what they
+mean on every other record: the jumps ~bookmark-gt~ itself
+made to it.  The browser's own notion of when a tab was last
+focused is not used.  A tab that has never been jumped to has
+no ~last-visited~, so MRU sort in ~bookmark-gt-jump~ places it
+after every tab that has.
+
+Because a refresh deletes each tab record and stores a fresh
+one, both props are carried across the rebuild and re-attached
+to the record for the same tab.  The carryover is keyed on the
+browser name together with the browser's tab id, so tab 7 in
+one browser is not confused with tab 7 in another.  It does
+not span a browser restart (tab ids are reassigned), turning
+~bookmark-gt-browser-tabs-mode~ off and on, or exiting Emacs —
+tab records are temporary and never reach the bookmark file,
+so their visit history is a within-session quantity.
 
 Customizable:
 

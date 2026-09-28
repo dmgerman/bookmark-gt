@@ -377,13 +377,20 @@ while it runs, and no pending write when it finishes.  Tab records are
 temporary, so a refresh — however many tabs it stores — never writes the
 bookmark file.
 
-   Each stored tab record's ‘last-visited’ is seeded from the tab's
-‘:lastAccessed’ field (Chrome / Firefox report this as the last time the
-tab was focused, in milliseconds since epoch).  MRU sort in
-‘bookmark-gt-jump’ therefore orders tabs by the browser's own
-last-focused ordering, and every pre-jump refresh re-reads the field so
-the ordering tracks browser activity rather than bookmark-gt jump
-history.
+   On a tab record, ‘visits’ and ‘last-visited’ mean what they mean on
+every other record: the jumps ‘bookmark-gt’ itself made to it.  The
+browser's own notion of when a tab was last focused is not used.  A tab
+that has never been jumped to has no ‘last-visited’, so MRU sort in
+‘bookmark-gt-jump’ places it after every tab that has.
+
+   Because a refresh deletes each tab record and stores a fresh one,
+both props are carried across the rebuild and re-attached to the record
+for the same tab.  The carryover is keyed on the browser name together
+with the browser's tab id, so tab 7 in one browser is not confused with
+tab 7 in another.  It does not span a browser restart (tab ids are
+reassigned), turning ‘bookmark-gt-browser-tabs-mode’ off and on, or
+exiting Emacs — tab records are temporary and never reach the bookmark
+file, so their visit history is a within-session quantity.
 
    Customizable:
 
@@ -1786,56 +1793,56 @@ Node: Opt-in modes9385
 Node: bookmark-gt-auto-update-mode9736
 Node: bookmark-gt-default-tags-mode10722
 Node: bookmark-gt-browser-tabs-mode11754
-Node: User interface14712
-Node: The *Bookmarks-gt List* buffer14969
-Node: Columns15542
-Node: Keys16780
-Node: Acting on several bookmarks at once18668
-Node: Persisting view state22524
-Node: Jump to a bookmark bookmark-gt-jump23483
-Node: The annotation24910
-Ref: Relationship to marginalia-field-width26515
-Node: Elisp signatures28035
-Node: Non-file bookmark types31061
-Node: URL bookmarks — bookmark-gt-create-url31646
-Node: Dired bookmarks — bookmark-gt-handler-dired-jump32448
-Ref: Virtual dired34024
-Node: Function bookmarks — bookmark-gt-create-function35237
-Node: Keyboard-macro bookmarks — bookmark-gt-create-kmacro36071
-Node: Sequence bookmarks — bookmark-gt-create-sequence37750
-Node: File-type handlers — override the file-jump path per pattern38521
-Node: View bookmarks — save the list buffer's current view39897
-Node: Setting bookmarks41065
-Node: Tag reader41321
-Node: Bookmarks that share a name42603
-Node: Telling them apart on screen44276
-Node: Loading a file that breaks the setting44933
-Node: If you expected two records and see one46437
-Node: Which command reaches which record48225
-Node: Record identity50183
-Node: Changing an existing bookmark51176
-Node: bookmark-gt-update — point it at where I am52227
-Node: bookmark-gt-relocate — point it somewhere I name53213
-Node: bookmark-gt-rename54376
-Node: Deleting54858
-Node: In-file behaviors55353
-Node: In-buffer cycling55582
-Node: Per-bookmark highlighting56582
-Node: Region bookmarks58545
-Node: Trackers60069
-Node: Visit tracker60245
-Node: File-rename tracker60989
-Node: Extension API61976
-Node: Handler registry62177
-Node: Group registry64374
-Node: Extension points66027
-Node: Compatibility69151
-Node: Data compat with bookmark+69352
-Node: Migrating from bookmark+70695
-Node: Reference73039
-Node: Selected customization73202
-Node: Acknowledgements80471
-Node: License82805
+Node: User interface15200
+Node: The *Bookmarks-gt List* buffer15457
+Node: Columns16030
+Node: Keys17268
+Node: Acting on several bookmarks at once19156
+Node: Persisting view state23012
+Node: Jump to a bookmark bookmark-gt-jump23971
+Node: The annotation25398
+Ref: Relationship to marginalia-field-width27003
+Node: Elisp signatures28523
+Node: Non-file bookmark types31549
+Node: URL bookmarks — bookmark-gt-create-url32134
+Node: Dired bookmarks — bookmark-gt-handler-dired-jump32936
+Ref: Virtual dired34512
+Node: Function bookmarks — bookmark-gt-create-function35725
+Node: Keyboard-macro bookmarks — bookmark-gt-create-kmacro36559
+Node: Sequence bookmarks — bookmark-gt-create-sequence38238
+Node: File-type handlers — override the file-jump path per pattern39009
+Node: View bookmarks — save the list buffer's current view40385
+Node: Setting bookmarks41553
+Node: Tag reader41809
+Node: Bookmarks that share a name43091
+Node: Telling them apart on screen44764
+Node: Loading a file that breaks the setting45421
+Node: If you expected two records and see one46925
+Node: Which command reaches which record48713
+Node: Record identity50671
+Node: Changing an existing bookmark51664
+Node: bookmark-gt-update — point it at where I am52715
+Node: bookmark-gt-relocate — point it somewhere I name53701
+Node: bookmark-gt-rename54864
+Node: Deleting55346
+Node: In-file behaviors55841
+Node: In-buffer cycling56070
+Node: Per-bookmark highlighting57070
+Node: Region bookmarks59033
+Node: Trackers60557
+Node: Visit tracker60733
+Node: File-rename tracker61477
+Node: Extension API62464
+Node: Handler registry62665
+Node: Group registry64862
+Node: Extension points66515
+Node: Compatibility69639
+Node: Data compat with bookmark+69840
+Node: Migrating from bookmark+71183
+Node: Reference73527
+Node: Selected customization73690
+Node: Acknowledgements80959
+Node: License83293
 
 End Tag Table
 
