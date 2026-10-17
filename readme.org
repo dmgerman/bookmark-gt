@@ -12,12 +12,23 @@
 A bookmark manager for Emacs, that replaces the the built-in
 ~bookmark.el~. It is inspired by [[https://www.emacswiki.org/emacs/BookmarkPlus][bookmark+]].
 
-It supports most of =bookmark+='s features: tags, non-file
-bookmark types, temporary bookmarks, bookmark highlighting,
-and others.
+Along its most important features:
 
-=bookmark-gt= is integrated with consult, marginalia, and
-orderless.
+- tag support
+  - including default tags
+- ability to name several bookmarks with the same name differentiated by tags
+- a rich bookmark list buffer for bookmark management
+  - bulk management
+  - searching
+  - filtering
+- automatic renaming of targets of bookmarks if they are moved inside emacs
+- marginalia/vertico/consult support for bookmark jumping
+- temporary bookmarks (not saved to disk)
+- autoupdate bookmarks (keep track of where you are when reading a long document)
+- several handlers for bookmarks
+  - dired
+  - macros
+   sequences of bookmarks
 
 Bookmark files created with =bookmark-gt= can be read by the
 built-in bookmark package: bookmark-gt's own record keys are
