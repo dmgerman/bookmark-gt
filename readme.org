@@ -12,6 +12,9 @@
 A bookmark manager for Emacs, that replaces the the built-in
 ~bookmark.el~. It is inspired by [[https://www.emacswiki.org/emacs/BookmarkPlus][bookmark+]].
 
+This is a quick demo of its features:
+[[https://youtu.be/hitAyO8ArYM]]
+
 Along its most important features:
 
 - tag support
