@@ -16,10 +16,27 @@ A bookmark manager for Emacs, that replaces the the built-in
 ‘bookmark.el’.  It is inspired by bookmark+
 (https://www.emacswiki.org/emacs/BookmarkPlus).
 
-   It supports most of ‘bookmark+’'s features: tags, non-file bookmark
-types, temporary bookmarks, bookmark highlighting, and others.
+   This is a quick demo of its features: <https://youtu.be/hitAyO8ArYM>
 
-   ‘bookmark-gt’ is integrated with consult, marginalia, and orderless.
+   Along its most important features:
+
+   • tag support
+        • including default tags
+   • ability to name several bookmarks with the same name differentiated
+     by tags
+   • a rich bookmark list buffer for bookmark management
+        • bulk management
+        • searching
+        • filtering
+   • automatic renaming of targets of bookmarks if they are moved inside
+     emacs
+   • marginalia/vertico/consult support for bookmark jumping
+   • temporary bookmarks (not saved to disk)
+   • autoupdate bookmarks (keep track of where you are when reading a
+     long document)
+   • several handlers for bookmarks
+        • dired
+        • macros sequences of bookmarks
 
    Bookmark files created with ‘bookmark-gt’ can be read by the built-in
 bookmark package: bookmark-gt's own record keys are ordinary alist
@@ -1785,64 +1802,64 @@ GPL-3.0-or-later.  See ‘LICENSE’.
 
 Tag Table:
 Node: Top205
-Node: Install3409
-Node: Which version is installed5629
-Node: Getting started6171
-Node: Master switch bookmark-gt-mode6369
-Node: Opt-in modes9385
-Node: bookmark-gt-auto-update-mode9736
-Node: bookmark-gt-default-tags-mode10722
-Node: bookmark-gt-browser-tabs-mode11754
-Node: User interface15200
-Node: The *Bookmarks-gt List* buffer15457
-Node: Columns16030
-Node: Keys17268
-Node: Acting on several bookmarks at once19156
-Node: Persisting view state23012
-Node: Jump to a bookmark bookmark-gt-jump23971
-Node: The annotation25398
-Ref: Relationship to marginalia-field-width27003
-Node: Elisp signatures28523
-Node: Non-file bookmark types31549
-Node: URL bookmarks — bookmark-gt-create-url32134
-Node: Dired bookmarks — bookmark-gt-handler-dired-jump32936
-Ref: Virtual dired34512
-Node: Function bookmarks — bookmark-gt-create-function35725
-Node: Keyboard-macro bookmarks — bookmark-gt-create-kmacro36559
-Node: Sequence bookmarks — bookmark-gt-create-sequence38238
-Node: File-type handlers — override the file-jump path per pattern39009
-Node: View bookmarks — save the list buffer's current view40385
-Node: Setting bookmarks41553
-Node: Tag reader41809
-Node: Bookmarks that share a name43091
-Node: Telling them apart on screen44764
-Node: Loading a file that breaks the setting45421
-Node: If you expected two records and see one46925
-Node: Which command reaches which record48713
-Node: Record identity50671
-Node: Changing an existing bookmark51664
-Node: bookmark-gt-update — point it at where I am52715
-Node: bookmark-gt-relocate — point it somewhere I name53701
-Node: bookmark-gt-rename54864
-Node: Deleting55346
-Node: In-file behaviors55841
-Node: In-buffer cycling56070
-Node: Per-bookmark highlighting57070
-Node: Region bookmarks59033
-Node: Trackers60557
-Node: Visit tracker60733
-Node: File-rename tracker61477
-Node: Extension API62464
-Node: Handler registry62665
-Node: Group registry64862
-Node: Extension points66515
-Node: Compatibility69639
-Node: Data compat with bookmark+69840
-Node: Migrating from bookmark+71183
-Node: Reference73527
-Node: Selected customization73690
-Node: Acknowledgements80959
-Node: License83293
+Node: Install3965
+Node: Which version is installed6185
+Node: Getting started6727
+Node: Master switch bookmark-gt-mode6925
+Node: Opt-in modes9941
+Node: bookmark-gt-auto-update-mode10292
+Node: bookmark-gt-default-tags-mode11278
+Node: bookmark-gt-browser-tabs-mode12310
+Node: User interface15756
+Node: The *Bookmarks-gt List* buffer16013
+Node: Columns16586
+Node: Keys17824
+Node: Acting on several bookmarks at once19712
+Node: Persisting view state23568
+Node: Jump to a bookmark bookmark-gt-jump24527
+Node: The annotation25954
+Ref: Relationship to marginalia-field-width27559
+Node: Elisp signatures29079
+Node: Non-file bookmark types32105
+Node: URL bookmarks — bookmark-gt-create-url32690
+Node: Dired bookmarks — bookmark-gt-handler-dired-jump33492
+Ref: Virtual dired35068
+Node: Function bookmarks — bookmark-gt-create-function36281
+Node: Keyboard-macro bookmarks — bookmark-gt-create-kmacro37115
+Node: Sequence bookmarks — bookmark-gt-create-sequence38794
+Node: File-type handlers — override the file-jump path per pattern39565
+Node: View bookmarks — save the list buffer's current view40941
+Node: Setting bookmarks42109
+Node: Tag reader42365
+Node: Bookmarks that share a name43647
+Node: Telling them apart on screen45320
+Node: Loading a file that breaks the setting45977
+Node: If you expected two records and see one47481
+Node: Which command reaches which record49269
+Node: Record identity51227
+Node: Changing an existing bookmark52220
+Node: bookmark-gt-update — point it at where I am53271
+Node: bookmark-gt-relocate — point it somewhere I name54257
+Node: bookmark-gt-rename55420
+Node: Deleting55902
+Node: In-file behaviors56397
+Node: In-buffer cycling56626
+Node: Per-bookmark highlighting57626
+Node: Region bookmarks59589
+Node: Trackers61113
+Node: Visit tracker61289
+Node: File-rename tracker62033
+Node: Extension API63020
+Node: Handler registry63221
+Node: Group registry65418
+Node: Extension points67071
+Node: Compatibility70195
+Node: Data compat with bookmark+70396
+Node: Migrating from bookmark+71739
+Node: Reference74083
+Node: Selected customization74246
+Node: Acknowledgements81515
+Node: License83849
 
 End Tag Table
 

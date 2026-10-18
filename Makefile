@@ -31,10 +31,16 @@ EL_FILES = bookmark-gt.el \
 
 # bookmark-gt has NO hard runtime dependencies beyond Emacs itself (per
 # Package-Requires); marginalia, consult, and orderless are optional
-# soft-deps loaded with `(require 'foo nil t)'.  They are installed here
-# so byte-compile and package-lint can resolve the feature symbols
-# without warnings.  `package-lint' is the lint tool itself.
-DEPS = package-lint marginalia consult orderless
+# soft-deps loaded with `(require 'foo nil t)'.  They are installed only
+# into the test ELPA, so the tests exercise the integrations; compile,
+# lint, checkdoc and check-declare run without them, as MELPA does.
+DEPS = marginalia consult orderless
+
+# `bookmark-gt-jump--read-with-consult' calls `consult--read' and
+# `consult--type-narrow': consult offers no public reader with narrow
+# keys.  Those forward declarations are allowed; any other package's
+# private symbol fails `check-forward-declares'.
+PRIVATE_OK = bookmark-gt-|consult--
 
 INFO_SRC = readme.org
 

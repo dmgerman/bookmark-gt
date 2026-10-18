@@ -62,6 +62,7 @@
 ;;; Code:
 
 (require 'bookmark)
+(require 'kmacro)
 (require 'seq)
 (require 'bookmark-gt-core)
 
@@ -608,8 +609,8 @@ captured when the bookmark was set.  Bookmarks set from
           (require 'dired-aux)
           (dired-insert-old-subdirs subdirs))
         (dolist (sub hidden)
-          (when (ignore-errors (dired-goto-subdir sub))
-            (ignore-errors (dired-hide-subdir 1))))
+          (when (dired-goto-subdir sub)
+            (dired-hide-subdir 1)))
         (when marks
           (bookmark-gt--dired-mark-remembered marks)))))))
 
@@ -835,12 +836,6 @@ via `kmacro-name-last-macro')."
        (or (stringp (symbol-function sym))
            (vectorp (symbol-function sym))
            (get sym 'kmacro))))
-
-(declare-function kmacro-p "kmacro" (x))
-;; `kmacro--keys' is a `cl-defstruct' accessor generated at load
-;; time; check-declare cannot see it as a `defun', so we pass the
-;; FILEONLY flag (fourth arg t) to skip the existence check.
-(declare-function kmacro--keys "kmacro" (kmacro) t)
 
 (defun bookmark-gt--kmacro-as-vector (macro)
   "Return MACRO as a key vector suitable for `execute-kbd-macro'.

@@ -42,6 +42,7 @@
 ;;; Code:
 
 (require 'bookmark)
+(require 'map)
 (require 'seq)
 (require 'bookmark-gt-core)
 

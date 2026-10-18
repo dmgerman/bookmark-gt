@@ -61,19 +61,13 @@
 (require 'orderless nil t)
 
 ;; Compiler-visible declarations for the soft-dep functions we call.
-;; `marginalia--fields' is a macro, so it is available to the byte-
-;; compiler through the top-level (require 'marginalia nil t) above
-;; whenever marginalia is installed; no declare-function is needed
-;; (declare-function refuses to verify macros).
-(declare-function consult--read "consult")
-(declare-function consult--type-narrow "consult")
-(declare-function consult--type-group "consult")
+(declare-function consult--read "ext:consult")
+(declare-function consult--type-narrow "ext:consult")
 
 (defvar orderless-style-dispatchers)
 (defvar marginalia-annotators)
 (defvar marginalia-separator)
 (defvar marginalia-field-width)
-(defvar marginalia--cand-width-step)
 
 ;;;; Customization
 
@@ -330,9 +324,8 @@ Uses the bookmark+-compat helpers so a placeholder filename or a
 ;; capped by `bookmark-gt-jump--truncate-name', and the reader holds
 ;; the whole candidate list before the read opens.  So the location
 ;; field is sized from the space that is actually free rather than
-;; from a fraction of a budget.  The widths are absolute integers,
-;; which `marginalia--truncate' uses as column counts directly; only
-;; floats are multiplied by `marginalia-field-width'.
+;; from a fraction of a budget.  The widths are absolute column
+;; counts, which `bookmark-gt-jump--field' applies directly.
 
 (defvar bookmark-gt-jump--name-column nil
   "Column where marginalia aligns this read's annotations, or nil.
@@ -365,9 +358,7 @@ candidates are unknown, assume a name of the full
 
 (defun bookmark-gt-jump--column-for (width)
   "Return WIDTH rounded up to marginalia's candidate width step."
-  (let ((step (if (boundp 'marginalia--cand-width-step)
-                  marginalia--cand-width-step
-                10)))
+  (let ((step (or (bound-and-true-p marginalia--cand-width-step) 10)))
     (* (ceiling width step) step)))
 
 (defun bookmark-gt-jump--location-width (used)
@@ -385,6 +376,25 @@ at most `bookmark-gt-jump-location-max-width'."
      ((null bound) width)
      ((floatp bound) (min width (round (* bound marginalia-field-width))))
      (t (min width bound)))))
+
+(defun bookmark-gt-jump--field (string width face)
+  "Return STRING fitted to WIDTH columns and displayed in FACE.
+A STRING shorter than the absolute value of WIDTH is padded with
+spaces; a longer one is cut and ends in the string that function
+`truncate-string-ellipsis' returns.
+A negative WIDTH keeps the end of STRING instead of its start.
+Only the first line of STRING is used.  When STRING is cut, the
+result carries the full STRING as its `help-echo'."
+  (let* ((line (car (split-string string "\n")))
+         (ellipsis (truncate-string-ellipsis))
+         (field (if (< width 0)
+                    (reverse (truncate-string-to-width
+                              (reverse line) (- width) 0 ?\s ellipsis))
+                  (truncate-string-to-width line width 0 ?\s ellipsis))))
+    (unless (string-prefix-p string field)
+      (put-text-property 0 (length field) 'help-echo string field))
+    (put-text-property 0 (length field) 'face face field)
+    field))
 
 (defun bookmark-gt-jump-annotate (candidate)
   "Marginalia annotator for a bookmark CANDIDATE.
@@ -417,11 +427,18 @@ the location field takes the space those leave free, bounded by
              ;; directories; positive keeps the start, so a URL shows
              ;; its host.
              (location-w (bookmark-gt-jump--location-width used)))
-        (marginalia--fields
-         (tag-seg :truncate tag-w  :face 'completions-annotations)
-         (type    :truncate type-w :face 'marginalia-type)
-         (path    :truncate (if file-p (- location-w) location-w)
-                  :face 'marginalia-file-name))))))
+        ;; Marginalia aligns an annotation at the first character
+        ;; whose `marginalia--align' text property is t.
+        (concat
+         (propertize " " 'marginalia--align t)
+         marginalia-separator
+         (bookmark-gt-jump--field tag-seg tag-w 'completions-annotations)
+         marginalia-separator
+         (bookmark-gt-jump--field type type-w 'marginalia-type)
+         marginalia-separator
+         (bookmark-gt-jump--field path
+                                  (if file-p (- location-w) location-w)
+                                  'marginalia-file-name))))))
 
 ;;;; Marginalia install / uninstall
 
@@ -567,9 +584,8 @@ order).  Bound by the entry points via the `:sort-by' keyword.")
   "Dynamic preselect index during `bookmark-gt-jump--read'.
 When a positive integer, the reader positions the cursor on the
 N-th candidate by installing a one-shot `minibuffer-setup-hook'
-that calls `vertico-next' N times after a small delay.  No-op
-when vertico is not loaded or when the pool has fewer candidates
-than the requested index.  Bound by the entry points via the
+that calls `vertico-next' with N after a small delay.  No-op
+when `vertico-mode' is off.  Bound by the entry points via the
 `:preselect' keyword.")
 
 (defun bookmark-gt-jump--sort-records (records)
@@ -590,22 +606,22 @@ The original list is not mutated."
     (_ records)))
 
 (declare-function vertico-next "ext:vertico")
-(declare-function vertico--exhibit "ext:vertico")
+(defvar vertico-mode)
 
 (defun bookmark-gt-jump--preselect-advance ()
   "Advance vertico's cursor `bookmark-gt-jump--preselect' rows down.
 Called from a small-delay timer inside the minibuffer.  No-op when
-vertico is not loaded — completion frameworks other than vertico
-have no equivalent primitive we can call from here."
+`vertico-mode' is off — completion frameworks other than vertico
+have no equivalent primitive we can call from here.  After moving,
+runs the minibuffer's `post-command-hook', which is where vertico
+redisplays its candidate list after a command."
   (let ((n bookmark-gt-jump--preselect))
     (when (and (integerp n) (> n 0)
-               (fboundp 'vertico-next)
+               (bound-and-true-p vertico-mode)
                (active-minibuffer-window))
       (with-selected-window (active-minibuffer-window)
-        (ignore-errors
-          (dotimes (_ n) (vertico-next))
-          (when (fboundp 'vertico--exhibit)
-            (vertico--exhibit)))))))
+        (vertico-next n)
+        (run-hooks 'post-command-hook)))))
 
 (defun bookmark-gt-jump--preselect-arm ()
   "Install a one-shot `minibuffer-setup-hook' that advances by preselect."
@@ -734,8 +750,8 @@ the reader prompts for the bookmark.
   the `visits' prop descending; nil leaves the pool's original
   order.  Defaults to `bookmark-gt-jump-default-sort' (\\='mru
   out of the box).
-- :PRESELECT — positive integer.  When set (and vertico is
-  loaded), the reader positions the cursor on the N-th candidate
+- :PRESELECT — positive integer.  When set (and `vertico-mode'
+  is on), the reader positions the cursor on the N-th candidate
   via a one-shot `minibuffer-setup-hook'.
 
 Narrowing particles in the minibuffer (requires `orderless'):

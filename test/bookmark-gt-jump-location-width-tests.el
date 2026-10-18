@@ -85,6 +85,42 @@
   (should (= 60 (bookmark-gt-jump--column-for 60)))
   (should (= 70 (bookmark-gt-jump--column-for 61))))
 
+;;;; Field formatting
+
+(ert-deftest bookmark-gt-jump-field-test-pads-short-string ()
+  "A string narrower than WIDTH is padded with spaces to WIDTH."
+  (should (equal "ab   "
+                 (substring-no-properties
+                  (bookmark-gt-jump--field "ab" 5 'bold)))))
+
+(ert-deftest bookmark-gt-jump-field-test-positive-width-keeps-start ()
+  "A positive WIDTH keeps the start of a long string."
+  (let ((truncate-string-ellipsis "…"))
+    (should (equal "abcd…"
+                   (substring-no-properties
+                    (bookmark-gt-jump--field "abcdefgh" 5 'bold))))))
+
+(ert-deftest bookmark-gt-jump-field-test-negative-width-keeps-end ()
+  "A negative WIDTH keeps the end of a long string."
+  (let ((truncate-string-ellipsis "…"))
+    (should (equal "…efgh"
+                   (substring-no-properties
+                    (bookmark-gt-jump--field "abcdefgh" -5 'bold))))))
+
+(ert-deftest bookmark-gt-jump-field-test-uses-first-line ()
+  "Only the first line of a multi-line string is shown."
+  (should (equal "ab   "
+                 (substring-no-properties
+                  (bookmark-gt-jump--field "ab\ncd" 5 'bold)))))
+
+(ert-deftest bookmark-gt-jump-field-test-face-and-help-echo ()
+  "The field carries FACE; a cut field carries the full string as help-echo."
+  (let ((cut (bookmark-gt-jump--field "abcdefgh" 5 'bold))
+        (whole (bookmark-gt-jump--field "ab" 5 'bold)))
+    (should (eq 'bold (get-text-property 0 'face cut)))
+    (should (equal "abcdefgh" (get-text-property 0 'help-echo cut)))
+    (should-not (get-text-property 0 'help-echo whole))))
+
 (provide 'bookmark-gt-jump-location-width-tests)
 
 ;;; bookmark-gt-jump-location-width-tests.el ends here

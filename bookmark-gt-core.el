@@ -912,8 +912,6 @@ list buffer and any other observers refresh."
 ;; bookmark-gt itself calls the macro — the mechanism is retained
 ;; for third-party use only.
 
-(declare-function bookmark--set-fringe-mark "bookmark" ())
-
 (defvar-local bookmark-gt-current-bookmark nil
   "Record of the bookmark most recently used in this buffer.
 Set by `bookmark-gt--jump-via-override' after the handler runs,

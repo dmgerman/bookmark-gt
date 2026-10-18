@@ -6,11 +6,15 @@ copied into the `melpa/melpa` fork under `recipes/` when submitting.
 
 ## What ships
 
-Only the nine top-level `bookmark-gt*.el` files listed under
-`:files` in the recipe.  `README.md`, `LICENSE`, tests under
-`test/`, planning material under `ai/`, the `Makefile`, and the
-`.github/` workflows stay in the git repo but do not get installed
-with the package.
+The recipe omits `:files`, so MELPA's default file spec applies:
+every top-level `*.el` file (`bookmark-gt.el` and the
+`bookmark-gt-*.el` modules), plus `bookmark-gt.info` and `dir`.
+`readme.org`, `LICENSE`, tests under `test/`, planning material
+under `ai/`, the `Makefile`, and the `.github/` workflows stay in
+the git repo but do not get installed with the package.
+
+`make melpazoid` stages exactly the files this recipe selects and
+runs MELPA's melpazoid checks on them.
 
 ## Deliberate omissions from Package-Requires
 
@@ -27,9 +31,9 @@ when absent, so they are *not* forced on every install:
   registered into `orderless-style-dispatchers` when orderless is
   loaded.  Without it, users match by whatever completion style is
   active.
-- `browsel` — `bookmark-gt-browsel-tabs` only loads if browsel is
-  present.  Without it, browser-tab bookmarks are unavailable but
-  every other feature works.
+- `browser-gt` — `bookmark-gt-browser-tabs` only fetches tabs if
+  browser-gt is present.  Without it, browser-tab bookmarks are
+  unavailable but every other feature works.
 
 Each of these is loaded with `(require 'foo nil t)` and every use
 site is guarded with `featurep` / `fboundp` per the
@@ -40,7 +44,8 @@ site is guarded with `featurep` / `fboundp` per the
 1. Fork <https://github.com/melpa/melpa>.
 2. Copy `melpa/bookmark-gt` (this file) into `recipes/` in the
    fork.
-3. In the fork: `make recipes/bookmark-gt` to verify the recipe
+3. Run `make melpazoid` here first; it must report no findings.
+   In the fork: `make recipes/bookmark-gt` to verify the recipe
    builds a package cleanly.
 4. Optional smoke test: `make sandbox INSTALL=bookmark-gt`.
 5. Open a PR against `melpa/melpa` following their PR template.

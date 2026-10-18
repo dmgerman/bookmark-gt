@@ -54,6 +54,35 @@
       (goto-char (point-min))
       (should (member (bookmark-gt-list-test--column 3) '("one" "two"))))))
 
+(defun bookmark-gt-list-test--row-tinted-p (name)
+  "Return non-nil when the row showing NAME begins in the temp face."
+  (goto-char (point-min))
+  (search-forward name)
+  (memq 'bookmark-gt-face-temp
+        (ensure-list (get-text-property (pos-bol) 'face))))
+
+(ert-deftest bookmark-gt-list-test-temp-row-is-tinted ()
+  "A temporary record's row is tinted; a persistent record's row is not."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-create-non-file "kept" 'bookmark-gt-handler-url-jump
+                              '((url . "https://kept.example/")))
+    (bookmark-gt-create-non-file "scratch" 'bookmark-gt-handler-url-jump
+                              '((url . "https://scratch.example/")))
+    (bookmark-gt-temp-set (assoc "scratch" bookmark-alist) t)
+    (let ((bookmark-gt-list-default-show-temp t))
+      (bookmark-gt-list-test--in-buffer
+        (should (bookmark-gt-list-test--row-tinted-p "scratch"))
+        (should-not (bookmark-gt-list-test--row-tinted-p "kept"))))))
+
+(ert-deftest bookmark-gt-list-test-printer-is-buffer-local ()
+  "The list buffer's row printer does not change other buffers."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-list-test--in-buffer
+      (should (local-variable-p 'tabulated-list-printer))
+      (should (eq tabulated-list-printer #'bookmark-gt-list--print-entry))
+      (should (eq (default-value 'tabulated-list-printer)
+                  #'tabulated-list-print-entry)))))
+
 (ert-deftest bookmark-gt-list-test-type-column-uses-registry ()
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-create-non-file "u" 'bookmark-gt-handler-url-jump

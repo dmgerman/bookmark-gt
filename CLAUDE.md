@@ -51,8 +51,21 @@ make clean && make check-30 && make test
 ```
 
 `make check-30` runs byte-compile with `-Werror`, package-lint,
-checkdoc, check-declare, and check-version.  `make test` runs
-the ERT suite.  Both must exit 0.
+checkdoc, check-declare, check-forward-declares, the ERT suite,
+melpazoid, and check-version.  `make test` runs the ERT suite on
+its own.  Both must exit 0.
+
+Compile, lint, checkdoc, and check-declare run in `.elpa-melpa`,
+which holds only what MELPA's checker installs (Package-Requires
+plus package-lint and pkg-info).  The soft deps in `DEPS`
+(marginalia, consult, orderless) are installed only into `.elpa`
+for the tests.  Do not add a soft dep to the MELPA environment to
+remove a warning: that hides the warning MELPA reports.
+
+`make melpazoid` runs the upstream melpazoid.el on the files that
+`melpa/bookmark-gt` selects, under Emacs 31.1, the way the MELPA
+reviewers' container does (needs network).  Its output is what
+the MELPA PR review shows.
 
 `make check-all` runs `check-30` and `check-31` — do this before
 you say the change is safe on both Emacs versions.

@@ -236,7 +236,7 @@ require a network round-trip, too slow for a list render."
 Composes the type face from the handler registry with
 `bookmark-gt-face-missing-file' when the record's file is
 absent.  Temp records get the row-wide tint via
-`bookmark-gt-list--tint-row-after-print' instead."
+`bookmark-gt-list--print-entry' instead."
   (let ((type-face (bookmark-gt-handler-face record))
         (missing-p (bookmark-gt-list--missing-file-p record)))
     (cond
@@ -246,15 +246,14 @@ absent.  Temp records get the row-wide tint via
      (type-face                 type-face)
      (t                         nil))))
 
-(defun bookmark-gt-list--tint-row-after-print (id _cols)
-  "Tint the just-printed row with `bookmark-gt-face-temp' when ID is temp.
-Attached as `:after' advice on `tabulated-list-print-entry' so
-the tint spans the whole row (data cells and inter-column
-padding).  Gated by `derived-mode-p' so it does nothing in
-other tabulated-list buffers."
-  (when (and (derived-mode-p 'bookmark-gt-list-mode)
-             id
-             (bookmark-gt-temp-p id))
+(defun bookmark-gt-list--print-entry (id cols)
+  "Print the row for ID with columns COLS; tint it when ID is temp.
+The value of `tabulated-list-printer' in `bookmark-gt-list-mode'.
+Calls `tabulated-list-print-entry', then applies
+`bookmark-gt-face-temp' to the whole printed line (data cells and
+inter-column padding) when ID is a temporary record."
+  (tabulated-list-print-entry id cols)
+  (when (and id (bookmark-gt-temp-p id))
     (let ((inhibit-read-only t))
       (save-excursion
         (forward-line -1)
@@ -262,9 +261,6 @@ other tabulated-list buffers."
                                 (line-end-position)
                                 'bookmark-gt-face-temp
                                 t)))))
-
-(advice-add 'tabulated-list-print-entry :after
-            #'bookmark-gt-list--tint-row-after-print)
 
 (defun bookmark-gt-list--mark-string (record)
   "Return RECORD's mark as a 1-char string.
@@ -540,6 +536,7 @@ Sorting: click a column header, or press `S' for column-at-point sort.
   (setq bookmark-gt-list--marks (make-hash-table :test #'eq))
   (setq tabulated-list-sort-key '("Name" . nil))
   (setq tabulated-list-entries #'bookmark-gt-list--entries)
+  (setq-local tabulated-list-printer #'bookmark-gt-list--print-entry)
   (setq-local revert-buffer-function #'bookmark-gt-list--revert)
   (setq-local bookmark-make-record-function
               #'bookmark-gt-list--make-record)
