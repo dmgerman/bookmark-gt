@@ -1,200 +1,122 @@
 #+TITLE: bookmark-gt — ChangeLog
 #+STARTUP: overview
 
-* Unreleased
-
-** Breaking
-
-- ~bookmark-gt-set~ is removed: it conflated creating a bookmark
-  with changing one.  ~bookmark-gt-create~ creates,
-  ~bookmark-gt-update~ points an existing bookmark at the current
-  location, and ~bookmark-gt-relocate~ retargets one by typing a
-  path.  ~bookmark-gt-mode~ now remaps the built-in commands, so
-  a stock ~C-x r m~ reaches ~bookmark-gt-create~ without being
-  rebound — but an explicit binding to ~bookmark-gt-set~, as
-  earlier versions of this manual advised, must be removed or
-  init will fail.
-- The commands that create non-file bookmarks are renamed to
-  match: ~bookmark-gt-set-url~ → ~bookmark-gt-create-url~, and
-  likewise ~-set-function~, ~-set-kmacro~, ~-set-sequence~ and
-  ~-set-non-file~.  ~bookmark-gt-set-temp~ →
-  ~bookmark-gt-temp-set~.
-- ~bookmark-gt-set-after-hook~ → ~bookmark-gt-record-changed-hook~,
-  now called with two arguments: the record, and a symbol naming
-  the operation.  ~bookmark-gt-set-name-reader-hook~ and
-  ~bookmark-gt-set-tag-reader-hook~ → ~bookmark-gt-create-*~;
-  they run only while creating.
-- ~bookmark-gt-same-name-overwrite~ is removed, and
-  ~bookmark-gt-allow-duplicate-names~ becomes
-  ~bookmark-gt-allow-same-name-bookmarks~, taking ~never~,
-  ~different-destination~ (the default) or ~always~.  A name
-  already in use is now refused with an error rather than stored
-  with a ~<N>~ suffix: a stored suffix made names unique behind
-  the user\='s back.  ~C-u~ on create no longer forces a suffix.
-
-** Added
-
-- ~bookmark-gt-unique-name-handlers~ — handlers whose bookmarks are one
-  per name.  Re-storing a record of such a handler under a name
-  another record of the *same* handler uses replaces it, which is
-  what re-saving means for these types: a burly bookmark holds a
-  serialized window layout, so its URL differs on every save and
-  the same-name policy alone would leave a new bookmark behind
-  each time.  Defaults to ~burly-bookmark-handler~.  It governs
-  only records of the same handler, so a burly save onto a file
-  bookmark\='s name is still a collision the policy decides.
-- ~bookmark-gt-unique-names~ — names (regexps) that may identify
-  only one bookmark, whatever
-  ~bookmark-gt-allow-same-name-bookmarks~ says.  Creating a
-  second is refused and one arriving another way is removed by
-  the enforcement scan.  For such a name the string *is* an
-  identifier, usually to a package rather than to you:
-  ~org-capture~ stores onto ~org-capture-last-stored~ on every
-  capture and expects to find its own.  Both org names are in the
-  default, as they are in ~bookmark-gt-auto-temp-names~ — but the
-  two options are independent, so a name can be unique without
-  being temporary, or the reverse.
-- ~bookmark-gt-update~ — points a bookmark at the current
-  location, keeping its name, id, tags, annotation, creation time
-  and visit history, and replacing everything that describes
-  where it points.  Confirms when the type would change; signals
-  for URL, function, kmacro and sequence bookmarks, which have no
-  buffer location.
-- ~bookmark-gt-delete~ and ~bookmark-gt-rename~ act on the
-  bookmark given rather than the first record sharing its name.
-  Deleting reports any sequence bookmark that referenced it.
-- ~bookmark-gt-mode~ remaps ~bookmark-set~, ~bookmark-jump~,
-  ~bookmark-delete~, ~bookmark-rename~ and ~bookmark-bmenu-list~
-  to bookmark-gt\='s commands while the mode is on.  Only the
-  commands are remapped; the functions keep their own behavior
-  for Lisp callers.
-
-** Changed
-
-- ~org-refile-last-stored~ is added to
-  ~bookmark-gt-auto-temp-names~.  ~org-refile~ stores it the way
-  ~org-capture~ stores its own, so it was being written to the
-  bookmark file when it should not have been.
-
-- Browser-tab records are refreshed only where they are about to
-  be read: the jump reader, opening or reverting the list buffer,
-  on demand, and once when the mode is enabled.  The subscription to
-  browser connect and disconnect events is removed, along with
-  ~bookmark-gt-browser-tabs-debounce~ and the timer that
-  coalesced those events.  Tabs change without any client
-  connecting, so refreshing on those events could not keep the
-  records current, and it rebuilt records nothing was going to
-  display.
-- Marks in the list buffer survive a reload of the bookmark
-  file.  They were keyed by record, and a reload replaces every
-  record, so any reload cleared them — including the silent one
-  Emacs performs when the file changed on disk.
-- A sequence bookmark whose members no longer resolve is
-  reported when the list buffer is opened or reverted, when the
-  jump reader is read, and after a load — rather than failing
-  partway through a traversal.
-- Loading a bookmark file whose names repeat in ways
-  ~bookmark-gt-allow-same-name-bookmarks~ forbids omits those
-  records and warns, listing them in full.  The same check runs
-  when the list buffer is opened or reverted and when the jump
-  reader is read, so a record added by the built-in
-  ~bookmark-set~ is caught too.  The first record of a name is
-  kept; under the default a later one is kept when it points
-  somewhere no kept record does.  The omission is in memory only
-  — the bookmarks are still in the file until it is next saved —
-  and it is not counted as a change, so it never schedules that
-  save on its own.
+* 0.9.1 — 2026-10-19
 
 ** Fixed
 
-- The location field of the jump annotation now uses the width the
-  other columns leave free, instead of half of
-  ~marginalia-field-width~.  That budget is 80 columns by default
-  and is chosen without reference to how much room the candidates
-  leave, so on a wide frame the annotation stopped short of the
-  right edge with columns to spare, and URLs — truncated from the
-  right — lost the path and query that distinguish them.  The new
-  width is measured once per read, so every row of one display
-  shares a layout.  ~bookmark-gt-jump-location-max-width~ bounds
-  it, default 100 columns; ~nil~ applies no bound beyond the free
-  space, and a float still means a fraction of
-  ~marginalia-field-width~.
-
-- A package storing a bookmark under a name you chose no longer
-  replaces whatever already had that name.  ~burly~ asks for a
-  name and stores with ~bookmark-store~, so saving a window
-  layout as ~notes~ used to turn an existing ~notes~ file
-  bookmark into a window layout, silently.
-  ~bookmark-gt-allow-same-name-bookmarks~ now decides such a
-  collision, as it does for ~bookmark-gt-create~: under ~always~
-  both are kept, under ~never~ the store is refused, and the
-  existing bookmark is left alone either way.
-- The TAGS argument of ~bookmark-gt-create-url~ and the other
-  typed creators reaches the tag reader as its seed.  It was
-  passed as a record property and the reader was seeded with
-  nothing, so with the prompt on — the default — the tags were
-  not offered for editing and the record ended up with two
-  ~tags~ entries, the caller\='s unreachable behind the one the
-  reader produced.
-- A browser-tab refresh no longer stops at a repeated tab title.
-  Titles repeat routinely — two windows on one site, a page open
-  twice — so a refusal skips that tab and the refresh reports how
-  many it skipped.  Under ~never~ the first tab of a title is
-  kept; under the default a second tab on the same URL is
-  skipped, being indistinguishable from the first.
-- A bookmark stored onto an existing name by another package
-  keeps its bookmark-gt properties.  The built-in
-  ~bookmark-store~ replaces such a record wholesale, discarding
-  its id, tags, annotation and visit history — which happened on
-  every ~org-capture~ and ~org-refile~, since both store onto a
-  fixed name.
-- ~bookmark-gt-relocate~, ~bookmark-gt-toggle-temp~ and
-  ~bookmark-gt-auto-update-toggle~ resolve a reference the same
-  way the other commands do: given a name shared by several
-  bookmarks they ask which one, instead of acting on the first.
-- ~bookmark-gt-relocate~ refuses a target whose type differs from
-  the record\='s, instead of leaving, say, a PDF handler pointing
-  at an org file.
-
-** Added
-
-- Every record carries a ~bookmark-gt-id~: a symbol, assigned on
-  creation and to records lacking one when the bookmark file is
-  loaded, the list buffer redraws, or the jump reader opens.  The
-  built-in bookmark package ignores the key, so files stay
-  readable by it.  The first save after upgrading rewrites every
-  record.
-- Records sharing a name are shown with a ~<N>~ suffix, as Emacs
-  does for buffers.  The suffix is computed for display and never
-  stored, so it cannot go stale.
-- Sequence bookmarks reference members by id, so a member can be
-  renamed without breaking the sequence.  Existing sequences are
-  converted where the member name matches one record; members
-  that match none or several are left as names and reported.
-
-** Fixed
-
-- Commands act on the bookmark selected, not on the first record
-  sharing its name: list-buffer jump, rename, relocate and
-  delete, and ~bookmark-gt-jump~.
-- Visit count, highlight overlay and region restore apply to the
-  record jumped to.
-- ~rename-file~ rewrites the record whose filename matched, not a
-  namesake.
-
-** Added
-
-- ~bookmark-gt-jump-record~, ~bookmark-gt-rename-record~,
-  ~bookmark-gt-delete-record~ — take a record, signal on a name.
-- ~bookmark-gt-relocate~ accepts a record as well as a name.
+- The jump reader\='s annotations could fail with an error when
+  bookmark-gt was installed from MELPA and marginalia was
+  installed afterwards.
+- ~bookmark-gt-tags-alist~ could fail with
+  ~void-function map-into~.
 
 ** Documentation
 
-- =readme.org=: which commands are name-based (Emacs's own) and
-  which act on the record chosen.
+- The manual has a feature overview and a link to a demo video.
 
-* Planned — 0.3.0
+* 0.9.0 — 2026-10-17
+
+The release after 0.2.0.  There is no 0.3.0.
+
+** Breaking — read before upgrading
+
+- ~bookmark-gt-set~ is removed.  Use ~bookmark-gt-create~ to make
+  a bookmark and ~bookmark-gt-update~ to point an existing one at
+  the current location.  Remove any key binding to
+  ~bookmark-gt-set~ from your init file: with
+  ~bookmark-gt-mode~ on, ~C-x r m~ already runs
+  ~bookmark-gt-create~.
+- Commands renamed:
+  - ~bookmark-gt-set-url~ → ~bookmark-gt-create-url~
+  - ~bookmark-gt-set-function~ → ~bookmark-gt-create-function~
+  - ~bookmark-gt-set-kmacro~ → ~bookmark-gt-create-kmacro~
+  - ~bookmark-gt-set-sequence~ → ~bookmark-gt-create-sequence~
+  - ~bookmark-gt-set-non-file~ → ~bookmark-gt-create-non-file~
+  - ~bookmark-gt-set-temp~ → ~bookmark-gt-temp-set~
+- Hooks renamed:
+  - ~bookmark-gt-set-after-hook~ → ~bookmark-gt-record-changed-hook~.
+    Functions on it now receive two arguments: the record and a
+    symbol naming the operation.
+  - ~bookmark-gt-set-name-reader-hook~ →
+    ~bookmark-gt-create-name-reader-hook~
+  - ~bookmark-gt-set-tag-reader-hook~ →
+    ~bookmark-gt-create-tag-reader-hook~
+- Options:
+  - ~bookmark-gt-allow-duplicate-names~ →
+    ~bookmark-gt-allow-same-name-bookmarks~, with the values
+    ~never~, ~different-destination~ (default) and ~always~.
+  - ~bookmark-gt-same-name-overwrite~ is removed.
+- Creating a bookmark under a name the option does not allow is
+  refused with an error.  bookmark-gt no longer renames it to
+  ~NAME<2>~, and ~C-u~ on create no longer does so either.
+
+** New
+
+- Several bookmarks can share a name.  The list buffer and the
+  jump reader show them as ~NAME<2>~, ~NAME<3>~, and so on; the
+  suffix is for display only and is not saved.
+- ~bookmark-gt-update~: point a bookmark at the current location,
+  keeping its name, tags, annotation and visit history.
+- With ~bookmark-gt-mode~ on, ~C-x r m~, ~C-x r b~, ~C-x r l~ and
+  the built-in delete and rename commands run their bookmark-gt
+  versions.
+- ~bookmark-gt-unique-names~: names that may belong to only one
+  bookmark.  Defaults to the names org-capture and org-refile
+  use.
+- ~bookmark-gt-unique-name-handlers~: bookmark types that keep
+  one bookmark per name, so saving again replaces the previous
+  one.  Defaults to burly window layouts.
+- ~bookmark-gt-jump-location-max-width~: the widest the location
+  column of the jump reader may grow.  Default 100.
+- Sequence bookmarks keep working when a member is renamed.
+- For Lisp code: ~bookmark-gt-jump-record~,
+  ~bookmark-gt-rename-record~ and ~bookmark-gt-delete-record~ act
+  on a record; ~bookmark-gt-relocate~ accepts a record as well as
+  a name.
 
 ** Changed
 
-- The version becomes 0.3.0.
+- The jump reader\='s location column uses the space the other
+  columns leave free, so long URLs and paths are cut less on a
+  wide frame.
+- ~org-refile-last-stored~ is a temporary bookmark by default,
+  like ~org-capture-last-stored~, and is not saved to the
+  bookmark file.
+- Browser tabs are fetched only when they are about to be shown:
+  when the jump reader opens or the list buffer is opened or
+  refreshed.  ~bookmark-gt-browser-tabs-debounce~ is removed.
+- Browser tabs sort in MRU order by when you last jumped to them
+  from bookmark-gt, not by when the browser last focused them.
+- Marks in the list buffer are kept when the bookmark file is
+  reloaded.
+- Bookmarks that break the same-name rule when the file is loaded
+  are hidden, with a warning listing them.  They stay in the file
+  until the next save.
+- A sequence bookmark with members that no longer exist is
+  reported when it is shown, instead of failing while it runs.
+- Upgrading adds an identifier to every bookmark, so the first
+  save after upgrading rewrites the whole bookmark file.  Built-in
+  ~bookmark.el~ can still read it.
+
+** Fixed
+
+- All bookmarks could be erased from the bookmark file when the
+  first bookmark command of a session was a save or a create.
+- A package that stores bookmarks itself (org-capture, org-refile,
+  burly) could overwrite one of your bookmarks of the same name,
+  or erase its tags, annotation and visit history.
+- Commands acting on a bookmark whose name is shared — jump,
+  rename, relocate, delete, toggle-temp, auto-update toggle —
+  acted on the first one with that name instead of the one
+  selected.  They now ask when the choice is ambiguous.
+- Jump-reader annotations were missing for ~NAME<2>~ entries, or
+  showed the wrong bookmark\='s details.
+- Renaming a file before the bookmark file was loaded left its
+  bookmark pointing at the old path.
+- ~bookmark-gt-relocate~ accepted a target of a different type,
+  for example an org file for a PDF bookmark.
+- Tags passed to ~bookmark-gt-create-url~ and the other create
+  commands were not offered in the tag prompt.
+- Refreshing browser tabs stopped at the first repeated tab
+  title.
