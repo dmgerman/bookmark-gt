@@ -49,6 +49,7 @@
 (require 'bookmark)
 (require 'seq)
 (require 'cl-lib)
+(require 'mule-util)
 (require 'bookmark-gt-core)
 (require 'bookmark-gt-tags)
 (require 'bookmark-gt-handlers)
