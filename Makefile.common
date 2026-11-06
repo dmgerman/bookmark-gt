@@ -115,7 +115,8 @@ INSTALL_REQUIRES = \
                 (message \"Installing %s\" (car r)) \
                 (package-install (car r)))))"
 
-.DEFAULT_GOAL := default
+# `make' with no target prints the target list.
+.DEFAULT_GOAL := help
 
 .PHONY: default lint checkdoc check-declare compile test clean check \
         check-ci info help melpazoid check-forward-declares \
@@ -126,8 +127,8 @@ INSTALL_REQUIRES = \
         test-30 test-31 test-all
 
 # Byte-compile, and regenerate the manual when its source changed.
-# Lint is left out so the common edit-then-`make' loop stays fast; run
-# `make check' before committing.
+# Lint is left out so the common edit-then-`make default' loop stays
+# fast; run `make check' before committing.
 default: compile $(if $(strip $(INFO_SRC)),info) $(DEFAULT_EXTRA)
 
 $(ELPA_DIR) $(MELPA_ELPA_DIR):
@@ -426,7 +427,8 @@ test-all:      test-30 test-31
 
 help:
 	@echo "$(PACKAGE) targets:"
-	@echo "  make                compile$(if $(strip $(INFO_SRC)), + info)$(if $(strip $(DEFAULT_EXTRA)), + $(DEFAULT_EXTRA)) (default)"
+	@echo "  make                print this list"
+	@echo "  make default        compile$(if $(strip $(INFO_SRC)), + info)$(if $(strip $(DEFAULT_EXTRA)), + $(DEFAULT_EXTRA))"
 	@echo "  make lint           package-lint every source"
 	@echo "  make checkdoc       checkdoc every source"
 	@echo "  make check-declare  verify declare-function file arguments"
@@ -442,4 +444,4 @@ endif
 	@echo "  make check-ci       run check under every Emacs in CI_EMACS_LIST"
 	@echo "  make check-all      check-30 + check-31"
 	@echo "  make clean          remove *.elc"
-	@$(if $(strip $(HELP_EXTRA)),$(foreach l,$(HELP_EXTRA),echo "$(l)";))
+	@$(if $(strip $(HELP_EXTRA)),printf '%s\n' $(HELP_EXTRA))
