@@ -130,5 +130,26 @@
           (forward-line 1))
         (should (= caret-count 1))))))
 
+;;;; List buffer integration
+
+(ert-deftest bookmark-gt-auto-update-test-mode-adds-tick-to-list-hook ()
+  "The mode adds its tick to `bookmark-gt-list-before-read-hook' and removes it."
+  (let ((bookmark-gt-list-before-read-hook nil)
+        (was-on bookmark-gt-auto-update-mode))
+    (unwind-protect
+        (progn
+          (bookmark-gt-auto-update-mode 1)
+          (should (memq #'bookmark-gt-auto-update-tick
+                        bookmark-gt-list-before-read-hook))
+          (bookmark-gt-auto-update-mode -1)
+          (should-not (memq #'bookmark-gt-auto-update-tick
+                            bookmark-gt-list-before-read-hook)))
+      (bookmark-gt-auto-update-mode (if was-on 1 -1)))))
+
+(ert-deftest bookmark-gt-auto-update-test-list-binds-toggle ()
+  "The list buffer binds `^' to the toggle this module defines."
+  (should (eq (keymap-lookup bookmark-gt-list-mode-map "^")
+              #'bookmark-gt-list-toggle-auto-update)))
+
 (provide 'bookmark-gt-auto-update-tests)
 ;;; bookmark-gt-auto-update-tests.el ends here

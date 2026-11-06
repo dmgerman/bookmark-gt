@@ -24,6 +24,13 @@
   tags and ~bookmark-gt-create-tag-reader-hook~ are not applied.
   Browser-tab bookmarks therefore no longer receive default tags.
 
+** Added
+
+- ~bookmark-gt-list-before-read-hook~, run when the list buffer is
+  opened or reverted, before the rows are drawn.
+  ~bookmark-gt-browser-tabs-mode~ and ~bookmark-gt-auto-update-mode~
+  add their refresh functions to it.
+
 ** Documentation
 
 - The manual now states the order of the tag pipeline: default

@@ -38,8 +38,9 @@
 ;;                                        enabled, registers
 ;;                                        `bookmark-gt-browser-tabs-refresh'
 ;;                                        on `bookmark-gt-jump-before-read-hook'
-;;                                        so the jump reader sees
-;;                                        current tabs at each read.
+;;                                        and `bookmark-gt-list-before-read-hook'
+;;                                        so the jump reader and the list
+;;                                        buffer see current tabs at each read.
 ;;
 ;; Loads lazily: if browser-gt is not installed the file is a no-op
 ;; and every command signals a friendly `user-error'.
@@ -309,8 +310,8 @@ re-entrancy."
 ;;
 ;; No timer, and no subscription to browser-gt's connect and
 ;; disconnect hooks.  Tab records are rebuilt at the two moments
-;; they are about to be read — the jump reader, and a revert of
-;; the list buffer — plus on demand.
+;; they are about to be read — the jump reader, and opening or
+;; reverting the list buffer — plus on demand.
 ;;
 ;; Refreshing on client events as well was work done on behalf of
 ;; nobody: it fetched and rebuilt records that nothing was going
@@ -326,21 +327,21 @@ re-entrancy."
   "Global minor mode that exposes browser tabs as temporary bookmarks.
 
 When enabled, registers `bookmark-gt-browser-tabs-refresh' on
-`bookmark-gt-jump-before-read-hook', so the jump reader sees the
-current tabs at each read, and refreshes once immediately if a
-browser is already connected.  Reverting the
-`*Bookmarks-gt List*' buffer with `g\=' refreshes as well, as
-does `M-x bookmark-gt-browser-tabs-refresh'.
+`bookmark-gt-jump-before-read-hook' and
+`bookmark-gt-list-before-read-hook', so the jump reader and the
+`*Bookmarks-gt List*' buffer see the current tabs at each read,
+and refreshes once immediately if a browser is already connected.
+`M-x bookmark-gt-browser-tabs-refresh' refreshes on demand.
 
 Tab state changes faster than any event bookmark-gt could
 subscribe to, so the records are rebuilt where they are about to
 be read rather than kept continuously in sync.  Each read pays
 one fetch and store.
 
-Turning the mode off removes the jump-before-read hook and
-clears the tab records this mode added — only records carrying
-its own marker; records from other browser-gt-related packages
-are untouched.
+Turning the mode off removes both hook entries and clears the
+tab records this mode added — only records carrying its own
+marker; records from other browser-gt-related packages are
+untouched.
 
 Requires browser-gt to be installed.  Enable is a `user-error'
 no-op when browser-gt is not loaded."
@@ -353,10 +354,14 @@ no-op when browser-gt is not loaded."
    (bookmark-gt-browser-tabs-mode
     (add-hook 'bookmark-gt-jump-before-read-hook
               #'bookmark-gt-browser-tabs-refresh)
+    (add-hook 'bookmark-gt-list-before-read-hook
+              #'bookmark-gt-browser-tabs-refresh)
     (when (browser-gt-connected-clients)
       (bookmark-gt-browser-tabs-refresh)))
    (t
     (remove-hook 'bookmark-gt-jump-before-read-hook
+                 #'bookmark-gt-browser-tabs-refresh)
+    (remove-hook 'bookmark-gt-list-before-read-hook
                  #'bookmark-gt-browser-tabs-refresh)
     (bookmark-gt-browser-tabs--clear))))
 

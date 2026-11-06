@@ -403,10 +403,12 @@ not kept in sync:
   `bookmark-gt-jump-before-read-hook`, which the reader runs
   exactly once per outer call, so nested jump calls do not
   re-refresh.
-- **Opening the list buffer, and `g` (revert).** Both call
-  `bookmark-gt-list--refresh-ephemeral`, which refreshes browser
-  tabs and auto-update positions, each gated by a
-  `bound-and-true-p` check on its opt-in mode.
+- **Opening the list buffer, and `g` (revert).** Both run
+  `bookmark-gt-list-before-read-hook`.
+  `bookmark-gt-browser-tabs-mode` adds its refresh there and
+  `bookmark-gt-auto-update-mode` adds its tick, each while the
+  mode is on.  The list used to call both functions directly,
+  which made the list depend on two modules that require it.
 - **On demand**, and once when the tabs mode is enabled with a
   browser already connected.
 

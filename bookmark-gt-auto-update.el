@@ -33,13 +33,17 @@
 ;;     seconds.
 ;;   - `kill-buffer-hook'         (catches "closing the file").
 ;;   - `window-state-change-hook' (catches "switching away").
+;;   - `bookmark-gt-list-before-read-hook' (opening or reverting the
+;;     list buffer).
 ;;
 ;; The refresh only runs while `bookmark-gt-auto-update-mode' is on.
 ;; The mode is off by default — enable it globally with
 ;; `(bookmark-gt-auto-update-mode 1)' or interactively.
 ;;
-;; Per-bookmark toggle: `bookmark-gt-auto-update-toggle NAME'.  The
-;; list buffer (`bookmark-gt-list-mode') shows a `^' glyph in its
+;; Per-bookmark toggle: `bookmark-gt-auto-update-toggle NAME', and
+;; `^' in the list buffer, which runs
+;; `bookmark-gt-list-toggle-auto-update' (defined here, bound in the
+;; list buffer's keymap).  The list buffer shows a `^' glyph in its
 ;; dedicated column for any record with the property set, whether or
 ;; not the tracking timer is currently running.
 
@@ -48,6 +52,7 @@
 (require 'bookmark)
 (require 'seq)
 (require 'bookmark-gt-core)
+(require 'bookmark-gt-list)
 
 ;;;; Customization
 
@@ -163,6 +168,27 @@ matches that buffer."
   (when (called-interactively-p 'interactive)
     (message "Auto-update bookmarks refreshed")))
 
+;;;; List buffer command
+
+;;;###autoload
+(defun bookmark-gt-list-toggle-auto-update ()
+  "Toggle `auto-update' on the marked bookmarks, or the one at point.
+With several rows marked, all of them are set to the same
+value: on unless every one of them already has the property, in
+which case all are turned off."
+  (interactive nil bookmark-gt-list-mode)
+  (let* ((records (bookmark-gt-list--records-to-act-on))
+         (flag (bookmark-gt-list--toggle-target
+                records #'bookmark-gt-auto-update-p)))
+    (dolist (record records)
+      (bookmark-gt-auto-update-set record flag t))
+    (bookmark-gt-list--finish records)
+    (message "%s auto-update on %s"
+             (if flag "Enabled" "Disabled")
+             (if (cdr records)
+                 (format "%d bookmarks" (length records))
+               (format "%S" (car (car records)))))))
+
 ;;;; Timer + hooks
 ;;
 ;; The timer is the one piece of process-scoped state this module
@@ -191,7 +217,8 @@ inactive.")
                                t #'bookmark-gt-auto-update-tick)))
   (add-hook 'kill-buffer-hook #'bookmark-gt-auto-update--on-kill-buffer)
   (add-hook 'window-state-change-hook
-            #'bookmark-gt-auto-update--on-window-state-change))
+            #'bookmark-gt-auto-update--on-window-state-change)
+  (add-hook 'bookmark-gt-list-before-read-hook #'bookmark-gt-auto-update-tick))
 
 (defun bookmark-gt-auto-update--disarm ()
   "Cancel the idle timer and remove the trigger hooks."
@@ -200,7 +227,9 @@ inactive.")
     (setq bookmark-gt-auto-update--timer nil))
   (remove-hook 'kill-buffer-hook #'bookmark-gt-auto-update--on-kill-buffer)
   (remove-hook 'window-state-change-hook
-               #'bookmark-gt-auto-update--on-window-state-change))
+               #'bookmark-gt-auto-update--on-window-state-change)
+  (remove-hook 'bookmark-gt-list-before-read-hook
+               #'bookmark-gt-auto-update-tick))
 
 ;;;; Global mode
 
@@ -214,9 +243,10 @@ carrying the `auto-update' alist property to the current point
 of the buffer visiting its file.  `kill-buffer-hook' and
 `window-state-change-hook' also trigger a refresh, so a
 buffer close or window switch is captured without waiting for
-the next idle tick.
+the next idle tick, and opening or reverting the list buffer
+refreshes before it draws (`bookmark-gt-list-before-read-hook').
 
-Turning the mode off cancels the timer and removes the two
+Turning the mode off cancels the timer and removes the three
 hooks.  Bookmark records keep their `auto-update' property;
 tracking just stops running.  Re-enable to resume."
   :global t

@@ -45,17 +45,6 @@
 (require 'bookmark-gt-tags)
 (require 'bookmark-gt-handlers)
 
-;; Optional-mode ephemeral refreshers, called from
-;; `bookmark-gt-list--revert' (`g') when their mode is on.
-(declare-function bookmark-gt-browser-tabs-refresh
-                  "bookmark-gt-browser-tabs")
-(declare-function bookmark-gt-auto-update-tick
-                  "bookmark-gt-auto-update")
-;; Bulk setter behind `bookmark-gt-list-toggle-auto-update', which
-;; checks `fboundp' before calling.
-(declare-function bookmark-gt-auto-update-set
-                  "bookmark-gt-auto-update" (record flag &optional no-notify))
-
 ;;;; Customization
 
 (defcustom bookmark-gt-list-name-width 32
@@ -412,7 +401,8 @@ buffers not derived from `bookmark-gt-list-mode'."
   "o"     #'bookmark-gt-list-jump-other-window
   "C-o"   #'bookmark-gt-list-jump-other-window
   "TAB"   #'bookmark-gt-list-preview
-  "^"     #'bookmark-gt-list-toggle-auto-update
+  ;; Defined, with an autoload cookie, in `bookmark-gt-auto-update'.
+  "^"     'bookmark-gt-list-toggle-auto-update
   "T"     #'bookmark-gt-list-toggle-temp
   "H"     #'bookmark-gt-list-show-temp
   "i"   #'bookmark-gt-list-describe-record
@@ -623,20 +613,25 @@ mode defaults."
       (tabulated-list-print t))
     (pop-to-buffer-same-window buf)))
 
-(defun bookmark-gt-list--refresh-ephemeral ()
-  "Rebuild the ephemeral sources whose opt-in modes are enabled.
-Browser tabs and auto-update positions describe state outside
-`bookmark-alist', so they are rebuilt when the list is about to
-be read — both when it is opened and when it is reverted.
+(defvar bookmark-gt-list-before-read-hook nil
+  "Hook run before the list buffer reads `bookmark-alist'.
+Runs when `bookmark-gt-list' opens the buffer and when the buffer
+is reverted with `revert-buffer', before the rows are drawn.
+Called with no arguments.
 
-Opening matters as much as reverting: nothing else populates tab
-records between one read and the next, so a list opened without
-this shows whatever the last refresh left, or nothing at all in
-a session where no jump has happened yet."
-  (when (bound-and-true-p bookmark-gt-browser-tabs-mode)
-    (bookmark-gt-browser-tabs-refresh))
-  (when (bound-and-true-p bookmark-gt-auto-update-mode)
-    (bookmark-gt-auto-update-tick)))
+Functions here rebuild records that describe state outside
+`bookmark-alist', so that the list shows that state as it is now.
+`bookmark-gt-browser-tabs-mode' adds
+`bookmark-gt-browser-tabs-refresh', and
+`bookmark-gt-auto-update-mode' adds `bookmark-gt-auto-update-tick'.")
+
+(defun bookmark-gt-list--refresh-ephemeral ()
+  "Run `bookmark-gt-list-before-read-hook'.
+Called both when the list is opened and when it is reverted:
+records such as browser tabs are populated only by these
+refreshes, so a list opened without one would show whatever the
+last refresh left, or nothing in a session with no prior jump."
+  (run-hooks 'bookmark-gt-list-before-read-hook))
 
 (defun bookmark-gt-list--revert (&rest _args)
   "Revert function for the bookmark-gt list buffer.
@@ -1005,30 +1000,6 @@ reachable without depending on where point sits — point need
 not be inside the marked set at all.  With one record this is
 plain negation."
   (not (seq-every-p predicate records)))
-
-(defun bookmark-gt-list-toggle-auto-update ()
-  "Toggle `auto-update' on the marked bookmarks, or the one at point.
-With several rows marked, all of them are set to the same
-value: on unless every one of them already has the property, in
-which case all are turned off."
-  (interactive nil bookmark-gt-list-mode)
-  (unless (fboundp 'bookmark-gt-auto-update-set)
-    (user-error "The bookmark-gt-auto-update module is not loaded"))
-  (let* ((records (bookmark-gt-list--records-to-act-on))
-         ;; Read the property directly rather than through
-         ;; `bookmark-gt-auto-update-p', matching
-         ;; `bookmark-gt-list--auto-update-glyph': the list buffer
-         ;; renders the column without requiring that module.
-         (flag (bookmark-gt-list--toggle-target
-                records (lambda (r) (bookmark-prop-get r 'auto-update)))))
-    (dolist (record records)
-      (bookmark-gt-auto-update-set record flag t))
-    (bookmark-gt-list--finish records)
-    (message "%s auto-update on %s"
-             (if flag "Enabled" "Disabled")
-             (if (cdr records)
-                 (format "%d bookmarks" (length records))
-               (format "%S" (car (car records)))))))
 
 (defun bookmark-gt-list-toggle-temp ()
   "Toggle the temp property on the marked bookmarks, or the one at point.

@@ -234,7 +234,8 @@ read, rather than kept continuously in sync:
   ~bookmark-gt-jump-before-read-hook~, so the reader sees
   current tabs at each read.
 - Opening the ~*Bookmarks-gt List*~ buffer, and ~g~ (revert) in
-  it.
+  it.  The mode adds the same function to
+  ~bookmark-gt-list-before-read-hook~.
 - ~M-x bookmark-gt-browser-tabs-refresh~, on demand.
 - Mode enable, once, when a browser is already connected.
 
@@ -1340,7 +1341,7 @@ Every non-trivial mechanism is expected to have an extension point:
   One hook rather than one per command: an observer wanting
   every change would otherwise have to register into all of
   them.  bookmark-gt's own list-buffer refresh does not go
-  through it — that is a direct call.
+  through it.
 - ~bookmark-gt-jump-before-read-hook~ — runs once inside
   ~bookmark-gt-jump~, ~bookmark-gt-jump-other-window~, and
   ~bookmark-gt-jump-tagged~, immediately before the reader
@@ -1352,6 +1353,13 @@ Every non-trivial mechanism is expected to have an extension point:
   ~bookmark-gt-browser-tabs-refresh~ here so live browser tabs
   are current at each read.  Register your own pool refreshers
   (auto-update sweep, remote-tab poll, ...) here.
+- ~bookmark-gt-list-before-read-hook~ — runs when
+  ~bookmark-gt-list~ opens the list buffer and when the buffer is
+  reverted (~g~), before the rows are drawn.  Called with no
+  arguments.  ~bookmark-gt-browser-tabs-mode~ adds
+  ~bookmark-gt-browser-tabs-refresh~ and
+  ~bookmark-gt-auto-update-mode~ adds ~bookmark-gt-auto-update-tick~,
+  so the list shows current tabs and auto-update positions.
 - ~bookmark-gt-session-only-props~ — list of record keys whose
   values identify an object owned by another process (a browser
   tab id, a client name).  Clearing the temp flag (with

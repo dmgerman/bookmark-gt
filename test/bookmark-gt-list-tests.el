@@ -17,6 +17,7 @@
 (require 'cl-lib)
 (require 'test-helper)
 (require 'bookmark-gt-list)
+(require 'bookmark-gt-auto-update)
 
 (defmacro bookmark-gt-list-test--in-buffer (&rest body)
   "Open the list buffer, run BODY in it, kill on exit."
@@ -773,29 +774,28 @@ falling back to the row at point."
 
 ;;;; Ephemeral sources are rebuilt when the list is read
 
-(ert-deftest bookmark-gt-list-test-open-refreshes-ephemeral ()
-  "Opening the list refreshes browser tabs, not only reverting does.
+(ert-deftest bookmark-gt-list-test-open-runs-before-read-hook ()
+  "Opening the list runs `bookmark-gt-list-before-read-hook'.
 Nothing else populates tab records between reads, so a list
 opened without this shows nothing in a session where no jump has
 happened."
   (bookmark-gt-test-with-clean-bookmarks
-    (let ((refreshed 0))
-      (cl-letf (((symbol-function 'bookmark-gt-browser-tabs-refresh)
-                 (lambda (&rest _) (cl-incf refreshed))))
-        (let ((bookmark-gt-browser-tabs-mode t))
-          (bookmark-gt-list-test--in-buffer
-            (should (= refreshed 1))))))))
+    (let* ((refreshed 0)
+           (bookmark-gt-list-before-read-hook
+            (list (lambda () (cl-incf refreshed)))))
+      (bookmark-gt-list-test--in-buffer
+        (should (= refreshed 1))))))
 
-(ert-deftest bookmark-gt-list-test-revert-refreshes-ephemeral ()
+(ert-deftest bookmark-gt-list-test-revert-runs-before-read-hook ()
+  "Reverting the list runs `bookmark-gt-list-before-read-hook'."
   (bookmark-gt-test-with-clean-bookmarks
-    (let ((refreshed 0))
-      (cl-letf (((symbol-function 'bookmark-gt-browser-tabs-refresh)
-                 (lambda (&rest _) (cl-incf refreshed))))
-        (let ((bookmark-gt-browser-tabs-mode t))
-          (bookmark-gt-list-test--in-buffer
-            (setq refreshed 0)
-            (bookmark-gt-list--revert)
-            (should (= refreshed 1))))))))
+    (let* ((refreshed 0)
+           (bookmark-gt-list-before-read-hook
+            (list (lambda () (cl-incf refreshed)))))
+      (bookmark-gt-list-test--in-buffer
+        (setq refreshed 0)
+        (bookmark-gt-list--revert)
+        (should (= refreshed 1))))))
 
 ;;;; State persistence
 

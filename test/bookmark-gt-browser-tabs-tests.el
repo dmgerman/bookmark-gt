@@ -19,6 +19,7 @@
 (require 'cl-lib)
 (require 'test-helper)
 (require 'bookmark-gt-browser-tabs)
+(require 'bookmark-gt-jump)
 
 ;;;; Registry classification
 ;;
@@ -295,6 +296,28 @@ refresh and deletes every record that still carries it."
            (progn (bookmark-gt-browser-tab-names-test--store "Inbox" "https://b")
                   nil)
          (error err))))))
+
+;;;; Mode registration
+
+(ert-deftest bookmark-gt-browser-tabs-test-mode-adds-refresh-to-both-hooks ()
+  "The mode adds its refresh to the jump and list hooks, and removes it."
+  (bookmark-gt-test-with-clean-bookmarks
+    (dlet ((features (cons 'browser-gt features))
+           (bookmark-gt-jump-before-read-hook nil)
+           (bookmark-gt-list-before-read-hook nil)
+           (bookmark-gt-browser-tabs-mode nil))
+      (cl-letf (((symbol-function 'browser-gt-connected-clients)
+                 (lambda () nil)))
+        (bookmark-gt-browser-tabs-mode 1)
+        (should (memq #'bookmark-gt-browser-tabs-refresh
+                      bookmark-gt-jump-before-read-hook))
+        (should (memq #'bookmark-gt-browser-tabs-refresh
+                      bookmark-gt-list-before-read-hook))
+        (bookmark-gt-browser-tabs-mode -1)
+        (should-not (memq #'bookmark-gt-browser-tabs-refresh
+                          bookmark-gt-jump-before-read-hook))
+        (should-not (memq #'bookmark-gt-browser-tabs-refresh
+                          bookmark-gt-list-before-read-hook))))))
 
 (provide 'bookmark-gt-browser-tabs-tests)
 ;;; bookmark-gt-browser-tabs-tests.el ends here

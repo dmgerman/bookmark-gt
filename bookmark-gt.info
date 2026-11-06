@@ -375,6 +375,8 @@ rather than kept continuously in sync:
      ‘bookmark-gt-jump-before-read-hook’, so the reader sees current
      tabs at each read.
    • Opening the ‘*Bookmarks-gt List*’ buffer, and ‘g’ (revert) in it.
+     The mode adds the same function to
+     ‘bookmark-gt-list-before-read-hook’.
    • ‘M-x bookmark-gt-browser-tabs-refresh’, on demand.
    • Mode enable, once, when a browser is already connected.
 
@@ -1616,8 +1618,7 @@ Every non-trivial mechanism is expected to have an extension point:
 
      One hook rather than one per command: an observer wanting every
      change would otherwise have to register into all of them.
-     bookmark-gt's own list-buffer refresh does not go through it — that
-     is a direct call.
+     bookmark-gt's own list-buffer refresh does not go through it.
    • ‘bookmark-gt-jump-before-read-hook’ — runs once inside
      ‘bookmark-gt-jump’, ‘bookmark-gt-jump-other-window’, and
      ‘bookmark-gt-jump-tagged’, immediately before the reader displays.
@@ -1629,6 +1630,13 @@ Every non-trivial mechanism is expected to have an extension point:
      ‘bookmark-gt-browser-tabs-refresh’ here so live browser tabs are
      current at each read.  Register your own pool refreshers
      (auto-update sweep, remote-tab poll, ...) here.
+   • ‘bookmark-gt-list-before-read-hook’ — runs when ‘bookmark-gt-list’
+     opens the list buffer and when the buffer is reverted (‘g’), before
+     the rows are drawn.  Called with no arguments.
+     ‘bookmark-gt-browser-tabs-mode’ adds
+     ‘bookmark-gt-browser-tabs-refresh’ and
+     ‘bookmark-gt-auto-update-mode’ adds ‘bookmark-gt-auto-update-tick’,
+     so the list shows current tabs and auto-update positions.
    • ‘bookmark-gt-session-only-props’ — list of record keys whose values
      identify an object owned by another process (a browser tab id, a
      client name).  Clearing the temp flag (with
@@ -1841,56 +1849,56 @@ Node: Opt-in modes10261
 Node: bookmark-gt-auto-update-mode10612
 Node: bookmark-gt-default-tags-mode11598
 Node: bookmark-gt-browser-tabs-mode12815
-Node: User interface16261
-Node: The *Bookmarks-gt List* buffer16518
-Node: Columns17091
-Node: Keys18329
-Node: Acting on several bookmarks at once20217
-Node: Persisting view state24073
-Node: Jump to a bookmark bookmark-gt-jump25032
-Node: The annotation26459
-Ref: Relationship to marginalia-field-width28064
-Node: Elisp signatures29584
-Node: Non-file bookmark types32610
-Node: URL bookmarks — bookmark-gt-create-url33195
-Node: Dired bookmarks — bookmark-gt-handler-dired-jump33997
-Ref: Virtual dired35573
-Node: Function bookmarks — bookmark-gt-create-function36786
-Node: Keyboard-macro bookmarks — bookmark-gt-create-kmacro37620
-Node: Sequence bookmarks — bookmark-gt-create-sequence39299
-Node: File-type handlers — override the file-jump path per pattern40070
-Node: View bookmarks — save the list buffer's current view41446
-Node: Setting bookmarks42614
-Node: Tag reader42870
-Node: Bookmarks that share a name44963
-Node: Telling them apart on screen46636
-Node: Loading a file that breaks the setting47293
-Node: If you expected two records and see one48797
-Node: Which command reaches which record50585
-Node: Record identity52543
-Node: Changing an existing bookmark53536
-Node: bookmark-gt-update — point it at where I am54587
-Node: bookmark-gt-relocate — point it somewhere I name55573
-Node: bookmark-gt-rename56736
-Node: Deleting57218
-Node: In-file behaviors57713
-Node: In-buffer cycling57942
-Node: Per-bookmark highlighting58942
-Node: Region bookmarks60905
-Node: Trackers62429
-Node: Visit tracker62605
-Node: File-rename tracker63349
-Node: Extension API64336
-Node: Handler registry64537
-Node: Group registry67096
-Node: Extension points68760
-Node: Compatibility72048
-Node: Data compat with bookmark+72249
-Node: Migrating from bookmark+73592
-Node: Reference75936
-Node: Selected customization76099
-Node: Acknowledgements83405
-Node: License85739
+Node: User interface16347
+Node: The *Bookmarks-gt List* buffer16604
+Node: Columns17177
+Node: Keys18415
+Node: Acting on several bookmarks at once20303
+Node: Persisting view state24159
+Node: Jump to a bookmark bookmark-gt-jump25118
+Node: The annotation26545
+Ref: Relationship to marginalia-field-width28150
+Node: Elisp signatures29670
+Node: Non-file bookmark types32696
+Node: URL bookmarks — bookmark-gt-create-url33281
+Node: Dired bookmarks — bookmark-gt-handler-dired-jump34083
+Ref: Virtual dired35659
+Node: Function bookmarks — bookmark-gt-create-function36872
+Node: Keyboard-macro bookmarks — bookmark-gt-create-kmacro37706
+Node: Sequence bookmarks — bookmark-gt-create-sequence39385
+Node: File-type handlers — override the file-jump path per pattern40156
+Node: View bookmarks — save the list buffer's current view41532
+Node: Setting bookmarks42700
+Node: Tag reader42956
+Node: Bookmarks that share a name45049
+Node: Telling them apart on screen46722
+Node: Loading a file that breaks the setting47379
+Node: If you expected two records and see one48883
+Node: Which command reaches which record50671
+Node: Record identity52629
+Node: Changing an existing bookmark53622
+Node: bookmark-gt-update — point it at where I am54673
+Node: bookmark-gt-relocate — point it somewhere I name55659
+Node: bookmark-gt-rename56822
+Node: Deleting57304
+Node: In-file behaviors57799
+Node: In-buffer cycling58028
+Node: Per-bookmark highlighting59028
+Node: Region bookmarks60991
+Node: Trackers62515
+Node: Visit tracker62691
+Node: File-rename tracker63435
+Node: Extension API64422
+Node: Handler registry64623
+Node: Group registry67182
+Node: Extension points68846
+Node: Compatibility72554
+Node: Data compat with bookmark+72755
+Node: Migrating from bookmark+74098
+Node: Reference76442
+Node: Selected customization76605
+Node: Acknowledgements83911
+Node: License86245
 
 End Tag Table
 
