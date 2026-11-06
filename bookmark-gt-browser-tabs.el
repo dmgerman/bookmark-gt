@@ -90,10 +90,6 @@
 (declare-function browser-gt-browser-tabs "ext:browser-gt")
 (declare-function browser-gt-connected-clients "ext:browser-gt")
 
-;; Defined in `bookmark-gt-tags'; declared here so the byte-compiler
-;; treats it as dynamic when the refresh loop let-binds it.
-(defvar bookmark-gt-prompt-for-tags-flag)
-
 ;;;; Customization
 
 (defcustom bookmark-gt-browser-tabs-browsers nil
@@ -287,16 +283,13 @@ re-entrancy."
           (snapshot (bookmark-gt-browser-tabs--visit-snapshot))
           (count 0)
           (skipped 0))
-      ;; Silence the after-hook (would fire once per stored tab) and
-      ;; auto-save (would trigger mid-batch once modification-count
+      ;; Silence auto-save (would trigger mid-batch once modification-count
       ;; crosses `bookmark-save-flag') during the loop.  Temp records
       ;; are excluded from `bookmark-save' anyway, so a mid-batch
       ;; save is pure waste — and it produced spurious \"Cannot
       ;; syntax-propertize because of narrowing\" warnings from the
       ;; bookmark-file write path.
-      (let ((bookmark-save-flag nil)
-            ;; Silence per-tab tag prompt during the batch.
-            (bookmark-gt-prompt-for-tags-flag nil))
+      (let ((bookmark-save-flag nil))
         (bookmark-gt-browser-tabs--clear)
         (dolist (tab (bookmark-gt-browser-tabs--fetch))
           (let ((url (plist-get tab :url)))

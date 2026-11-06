@@ -12,8 +12,12 @@ File: bookmark-gt.info,  Node: Top,  Next: Install,  Up: (dir)
 bookmark-gt
 ***********
 
-A bookmark manager for Emacs, that replaces the the built-in
-‘bookmark.el’.  It is inspired by bookmark+
+A bookmark manager for Emacs, built on the built-in ‘bookmark.el’.  Its
+bookmarks are ‘bookmark.el’ records: they live in ‘bookmark-alist’ and
+are written to the bookmark file by ‘bookmark-save’, so the built-in
+bookmark commands operate on them.  bookmark-gt adds its features
+through advice and hooks on ‘bookmark.el’ that are installed only while
+‘bookmark-gt-mode’ is on.  It is inspired by bookmark+
 (https://www.emacswiki.org/emacs/BookmarkPlus).
 
    This is a quick demo of its features: <https://youtu.be/hitAyO8ArYM>
@@ -330,8 +334,9 @@ File: bookmark-gt.info,  Node: bookmark-gt-default-tags-mode,  Next: bookmark-gt
 2.2.2 ‘bookmark-gt-default-tags-mode’
 -------------------------------------
 
-Seeds the tag reader on ‘bookmark-gt-create’ with context-appropriate
-tags.  Configured via a small DSL:
+Seeds the tag reader with context-appropriate tags when a bookmark is
+created interactively (see *note Tag reader: Tag reader. for when the
+tag pipeline runs).  Configured via a small DSL:
 
      (setq bookmark-gt-default-tags "work")                    ; single tag
      (setq bookmark-gt-default-tags '("work" "urgent"))        ; list
@@ -1009,17 +1014,32 @@ a plain ‘completing-read’ against every tag that currently appears in
 The running accumulator is shown in the prompt as ~Tags [foo,bar] (M-RET
 or empty RET to finish): ~.
 
-   Every create command takes an optional TAGS list —
-‘bookmark-gt-create’, ‘bookmark-gt-create-url’, and the rest — which
-seeds the reader rather than replacing it: the tags are offered for
-editing, and what the reader returns is what is stored.
+   The creation commands — ‘bookmark-gt-create’,
+‘bookmark-gt-create-url’, ‘bookmark-gt-create-function’,
+‘bookmark-gt-create-kmacro’, and ‘bookmark-gt-create-sequence’ — compute
+the new bookmark's tags with the _tag pipeline_:
 
-   The reader is invoked by ‘bookmark-gt-create’ when
-‘bookmark-gt-prompt-for-tags-flag’ is non-nil (default).  Its initial
-input is the TAGS argument plus any tags provided by
-‘bookmark-gt-default-tags-mode’.  Functions on
-‘bookmark-gt-create-tag-reader-hook’ run after the reader and receive
-the tags it returns.
+  1. the default tags of ‘bookmark-gt-default-tags-mode’, when it is on;
+  2. the tag reader, when ‘bookmark-gt-prompt-for-tags-flag’ is non-nil
+     (default), with the tags from step 1 as its initial input;
+  3. the functions on ‘bookmark-gt-create-tag-reader-hook’, which
+     receive the tags from step 2.
+
+   The pipeline runs after the name has been accepted, so a name that
+‘bookmark-gt-allow-same-name-bookmarks’ refuses is reported before the
+tag prompt.
+
+   Each creation command takes an optional TAGS argument.  An
+interactive call passes ‘t’, which runs the pipeline.  From Lisp, pass a
+list of tags to store exactly those tags with no prompt, or ‘t’ to run
+the pipeline:
+
+     (bookmark-gt-create-url "https://example.org" "example" '("web"))  ; stores ("web")
+     (bookmark-gt-create-url "https://example.org" "example" t)         ; runs the pipeline
+
+   ‘bookmark-gt-create-non-file’, the Lisp API for creating a record
+with a given handler, never runs the pipeline: the record gets the
+‘tags’ entry of its PROPS argument, if any.
 
 
 File: bookmark-gt.info,  Node: Bookmarks that share a name,  Next: Changing an existing bookmark,  Prev: Tag reader,  Up: Setting bookmarks
@@ -1577,12 +1597,13 @@ Every non-trivial mechanism is expected to have an extension point:
      user.  Each hook is called with ‘(default-name context)’ and
      returns either a string (which replaces the default) or nil (to
      defer).  The first non-nil return wins.
-   • ‘bookmark-gt-create-tag-reader-hook’ — runs once inside
-     ‘bookmark-gt-create’ and ‘bookmark-gt-create-non-file’, after the
-     name is chosen and before the record is stored.  Chained: each hook
-     is called with ‘(record seed-tags)’ and returns a new seed-tags
-     list, which becomes the input to the next hook.  The hook is empty
-     by default.  Its first input is the tag list produced by
+   • ‘bookmark-gt-create-tag-reader-hook’ — the last step of the tag
+     pipeline, which runs when a creation command is called
+     interactively or with TAGS ‘t’ (see *note Tag reader: Tag reader.);
+     not run by ‘bookmark-gt-create-non-file’.  Chained: each hook is
+     called with ‘(record seed-tags)’ and returns a new seed-tags list,
+     which becomes the input to the next hook.  The hook is empty by
+     default.  Its first input is the tag list produced by
      ‘bookmark-gt-default-tags-mode’ (when on) and then the interactive
      tag reader (when ‘bookmark-gt-prompt-for-tags-flag’ is non-nil);
      neither of those is on the hook.
@@ -1745,7 +1766,7 @@ Variable                                  Default                               
 ‘bookmark-gt-auto-update-interval’        ‘60’                                                                 Seconds of idle time between ticks of ‘bookmark-gt-auto-update-mode’; each tick refreshes bookmarks carrying ‘auto-update’.
 ‘bookmark-gt-track-renames’               ‘t’                                                                  When non-nil, ‘rename-file’ rewrites any bookmark whose ‘filename’ matched the source path to the destination.
 ‘bookmark-gt-default-tags’                ‘nil’                                                                Under ‘bookmark-gt-default-tags-mode’, seeds the tag reader.  Value can be a string, a list of strings, or a function of the record; see the mode's section.
-‘bookmark-gt-prompt-for-tags-flag’        ‘t’                                                                  Whether the tag reader prompts on ‘bookmark-gt-create’.  Off suppresses the prompt globally; batch callers can let-bind ‘nil’.
+‘bookmark-gt-prompt-for-tags-flag’        ‘t’                                                                  Whether the tag pipeline prompts with the tag reader.  Off creates bookmarks without the tag prompt; default tags and ‘bookmark-gt-create-tag-reader-hook’ still apply.
 ‘bookmark-gt-allow-same-name-bookmarks’   ‘different-destination’                                              When ‘bookmark-gt-create’ may reuse a name already in use: ‘never’, ‘different-destination’ (allowed when the two point at different files or URLs), or ‘always’.  A refusal is an error, never a renamed bookmark.  See Bookmarks that share a name.
 ‘bookmark-gt-highlight-enable’            ‘t’                                                                  Per-bookmark line overlays in file-visiting buffers.  Off suppresses the overlays even while ‘bookmark-gt-mode’ is on.
 ‘bookmark-gt-auto-temp-names’             ‘("\\`org-capture-last-stored\\'" "\\`org-refile-last-stored\\'")’   Names (regexps) marked temporary when stored, so they are never written to the bookmark file.  Covers the bookmarks ‘org-capture’ and ‘org-refile’ re-store on every capture and refile.
@@ -1812,64 +1833,64 @@ GPL-3.0-or-later.  See ‘LICENSE’.
 
 Tag Table:
 Node: Top205
-Node: Install3965
-Node: Which version is installed6185
-Node: Getting started6727
-Node: Master switch bookmark-gt-mode6925
-Node: Opt-in modes9941
-Node: bookmark-gt-auto-update-mode10292
-Node: bookmark-gt-default-tags-mode11278
-Node: bookmark-gt-browser-tabs-mode12415
-Node: User interface15861
-Node: The *Bookmarks-gt List* buffer16118
-Node: Columns16691
-Node: Keys17929
-Node: Acting on several bookmarks at once19817
-Node: Persisting view state23673
-Node: Jump to a bookmark bookmark-gt-jump24632
-Node: The annotation26059
-Ref: Relationship to marginalia-field-width27664
-Node: Elisp signatures29184
-Node: Non-file bookmark types32210
-Node: URL bookmarks — bookmark-gt-create-url32795
-Node: Dired bookmarks — bookmark-gt-handler-dired-jump33597
-Ref: Virtual dired35173
-Node: Function bookmarks — bookmark-gt-create-function36386
-Node: Keyboard-macro bookmarks — bookmark-gt-create-kmacro37220
-Node: Sequence bookmarks — bookmark-gt-create-sequence38899
-Node: File-type handlers — override the file-jump path per pattern39670
-Node: View bookmarks — save the list buffer's current view41046
-Node: Setting bookmarks42214
-Node: Tag reader42470
-Node: Bookmarks that share a name43821
-Node: Telling them apart on screen45494
-Node: Loading a file that breaks the setting46151
-Node: If you expected two records and see one47655
-Node: Which command reaches which record49443
-Node: Record identity51401
-Node: Changing an existing bookmark52394
-Node: bookmark-gt-update — point it at where I am53445
-Node: bookmark-gt-relocate — point it somewhere I name54431
-Node: bookmark-gt-rename55594
-Node: Deleting56076
-Node: In-file behaviors56571
-Node: In-buffer cycling56800
-Node: Per-bookmark highlighting57800
-Node: Region bookmarks59763
-Node: Trackers61287
-Node: Visit tracker61463
-Node: File-rename tracker62207
-Node: Extension API63194
-Node: Handler registry63395
-Node: Group registry65954
-Node: Extension points67618
-Node: Compatibility70842
-Node: Data compat with bookmark+71043
-Node: Migrating from bookmark+72386
-Node: Reference74730
-Node: Selected customization74893
-Node: Acknowledgements82162
-Node: License84496
+Node: Install4285
+Node: Which version is installed6505
+Node: Getting started7047
+Node: Master switch bookmark-gt-mode7245
+Node: Opt-in modes10261
+Node: bookmark-gt-auto-update-mode10612
+Node: bookmark-gt-default-tags-mode11598
+Node: bookmark-gt-browser-tabs-mode12815
+Node: User interface16261
+Node: The *Bookmarks-gt List* buffer16518
+Node: Columns17091
+Node: Keys18329
+Node: Acting on several bookmarks at once20217
+Node: Persisting view state24073
+Node: Jump to a bookmark bookmark-gt-jump25032
+Node: The annotation26459
+Ref: Relationship to marginalia-field-width28064
+Node: Elisp signatures29584
+Node: Non-file bookmark types32610
+Node: URL bookmarks — bookmark-gt-create-url33195
+Node: Dired bookmarks — bookmark-gt-handler-dired-jump33997
+Ref: Virtual dired35573
+Node: Function bookmarks — bookmark-gt-create-function36786
+Node: Keyboard-macro bookmarks — bookmark-gt-create-kmacro37620
+Node: Sequence bookmarks — bookmark-gt-create-sequence39299
+Node: File-type handlers — override the file-jump path per pattern40070
+Node: View bookmarks — save the list buffer's current view41446
+Node: Setting bookmarks42614
+Node: Tag reader42870
+Node: Bookmarks that share a name44963
+Node: Telling them apart on screen46636
+Node: Loading a file that breaks the setting47293
+Node: If you expected two records and see one48797
+Node: Which command reaches which record50585
+Node: Record identity52543
+Node: Changing an existing bookmark53536
+Node: bookmark-gt-update — point it at where I am54587
+Node: bookmark-gt-relocate — point it somewhere I name55573
+Node: bookmark-gt-rename56736
+Node: Deleting57218
+Node: In-file behaviors57713
+Node: In-buffer cycling57942
+Node: Per-bookmark highlighting58942
+Node: Region bookmarks60905
+Node: Trackers62429
+Node: Visit tracker62605
+Node: File-rename tracker63349
+Node: Extension API64336
+Node: Handler registry64537
+Node: Group registry67096
+Node: Extension points68760
+Node: Compatibility72048
+Node: Data compat with bookmark+72249
+Node: Migrating from bookmark+73592
+Node: Reference75936
+Node: Selected customization76099
+Node: Acknowledgements83405
+Node: License85739
 
 End Tag Table
 

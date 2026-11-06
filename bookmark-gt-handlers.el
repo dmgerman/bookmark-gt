@@ -65,6 +65,7 @@
 (require 'kmacro)
 (require 'seq)
 (require 'bookmark-gt-core)
+(require 'bookmark-gt-tags)
 
 ;;;; Faces
 
@@ -643,8 +644,9 @@ Opens the URL via `browse-url'."
 (defun bookmark-gt-create-url (url &optional name tags)
   "Store a URL bookmark for URL under NAME.
 Interactive: prompts for URL (defaulting to any URL at point)
-and NAME (defaulting to URL).  TAGS is an optional initial tag
-list; when omitted, the tag-reader hook decides.
+and NAME (defaulting to URL), then runs the tag pipeline.  TAGS
+is the tag list to store, or t to run the tag pipeline; see
+`bookmark-gt-create'.
 
 Returns the stored (NAME . DATA) pair."
   (interactive
@@ -653,13 +655,11 @@ Returns the stored (NAME . DATA) pair."
                 (format-prompt "URL" default-url) nil nil default-url))
           (name (read-string
                  (format-prompt "Bookmark name" url) nil nil url)))
-     (list url name nil)))
-  (let ((props (list (cons 'url url))))
-    (when tags
-      (push (cons 'tags tags) props))
-    (bookmark-gt-create-non-file (or name url)
-                              'bookmark-gt-handler-url-jump
-                              props)))
+     (list url name t)))
+  (bookmark-gt--create-record (or name url)
+                              `((handler . bookmark-gt-handler-url-jump)
+                                (url . ,url))
+                              (bookmark-gt--create-tags tags)))
 
 ;;;; Built-in registrations
 
@@ -809,19 +809,18 @@ current; if the record has an annotation, it pops up as usual."
 (defun bookmark-gt-create-function (name fn &optional tags)
   "Store a function bookmark called NAME whose jump invokes FN.
 Interactive: prompts for NAME and a command via `read-command'.
-FN is any callable (a symbol or lambda).  TAGS is an optional
-initial tag list; when omitted, the tag-reader hook decides.
+FN is any callable (a symbol or lambda).  TAGS is the tag list
+to store, or t to run the tag pipeline; see `bookmark-gt-create'.
 
 Returns the stored (NAME . DATA) pair."
   (interactive
    (list (read-string "Function bookmark name: ")
          (read-command "Function to call on jump: ")
-         nil))
-  (let ((props (list (cons 'function fn))))
-    (when tags
-      (push (cons 'tags tags) props))
-    (bookmark-gt-create-non-file
-     name 'bookmark-gt-handler-function-jump props)))
+         t))
+  (bookmark-gt--create-record name
+                              `((handler . bookmark-gt-handler-function-jump)
+                                (function . ,fn))
+                              (bookmark-gt--create-tags tags)))
 
 ;;;; Keyboard-macro bookmarks — jump replays the recorded key vector
 ;;
@@ -931,8 +930,8 @@ string or vector, or which carry a `kmacro' property (as
 produced by `kmacro-name-last-macro').
 
 MACRO is stored under the `kmacro' alist key as a key vector.
-TAGS is an optional initial tag list; when omitted, the
-tag-reader hook decides.
+TAGS is the tag list to store, or t to run the tag pipeline; see
+`bookmark-gt-create'.
 
 Returns the stored (NAME . DATA) pair."
   (interactive
@@ -941,13 +940,11 @@ Returns the stored (NAME . DATA) pair."
           (name (read-string
                  (format-prompt "Kmacro bookmark name" default-name)
                  nil nil default-name)))
-     (list name mac nil)))
-  (let* ((vec (bookmark-gt--kmacro-as-vector macro))
-         (props (list (cons 'kmacro vec))))
-    (when tags
-      (push (cons 'tags tags) props))
-    (bookmark-gt-create-non-file
-     name 'bookmark-gt-handler-kmacro-jump props)))
+     (list name mac t)))
+  (bookmark-gt--create-record name
+                              `((handler . bookmark-gt-handler-kmacro-jump)
+                                (kmacro . ,(bookmark-gt--kmacro-as-vector macro)))
+                              (bookmark-gt--create-tags tags)))
 
 ;;;; Sequence bookmarks — jump each of a list of bookmarks in order
 
@@ -973,9 +970,9 @@ half finished."
   "Store a sequence bookmark called NAME that jumps BOOKMARKS in order.
 Interactive: prompts for NAME then reads bookmark names one at
 a time (empty input ends the list).  BOOKMARKS must be a
-non-empty list of existing bookmark names.  TAGS is an
-optional initial tag list; when omitted, the tag-reader hook
-decides.
+non-empty list of existing bookmark names.  TAGS is the tag
+list to store, or t to run the tag pipeline; see
+`bookmark-gt-create'.
 
 Returns the stored (NAME . DATA) pair."
   (interactive
@@ -992,14 +989,13 @@ Returns the stored (NAME . DATA) pair."
                    (setq done t)
                  (push b seq))))
            (nreverse seq))
-         nil))
+         t))
   (unless bookmarks
     (user-error "Sequence bookmark needs at least one bookmark"))
-  (let ((props (list (cons 'sequence bookmarks))))
-    (when tags
-      (push (cons 'tags tags) props))
-    (bookmark-gt-create-non-file
-     name 'bookmark-gt-handler-sequence-jump props)))
+  (bookmark-gt--create-record name
+                              `((handler . bookmark-gt-handler-sequence-jump)
+                                (sequence . ,bookmarks))
+                              (bookmark-gt--create-tags tags)))
 
 ;;;; Relocate
 ;;

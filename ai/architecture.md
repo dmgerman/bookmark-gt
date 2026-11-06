@@ -172,6 +172,32 @@ and history:
 `add-hook` on a bookmark-gt hook from bookmark-gt code, ask
 whether a direct call would work.  It almost always does.
 
+## Tag collection belongs to the commands
+
+The tag pipeline (`bookmark-gt--collect-tags` in
+`bookmark-gt-tags.el`: default tags, the reader, then
+`bookmark-gt-create-tag-reader-hook`) runs only when a creation
+command is called interactively or with TAGS `t`.
+`bookmark-gt--create-record` in core does not know the pipeline
+exists: its TAGS argument is either a list or a function, and the
+commands pass `bookmark-gt--collect-tags` through
+`bookmark-gt--create-tags`.
+
+Two reasons:
+
+- Dependency direction.  When core called the pipeline, core
+  forward-declared functions in `bookmark-gt-tags.el`, a module
+  that requires core.  The MELPA reviewer's dependency graph
+  showed this as a cycle.
+- Lisp callers must not be prompted.  When the pipeline ran on
+  every creation, a Lisp caller that had already read tags was
+  prompted again, and batch callers (browser-tabs) had to
+  let-bind `bookmark-gt-prompt-for-tags-flag` to nil.
+
+The pipeline function is called by `--create-record` after the
+name has been accepted, so a name refused by the same-name policy
+signals before the user is prompted for tags.
+
 ## Mutation notification path
 
 Every internal mutator ends with `(bookmark-gt--after-mutation

@@ -9,8 +9,14 @@
 #+TEXINFO_DIR_TITLE: bookmark-gt: (bookmark-gt)
 #+TEXINFO_DIR_DESC: Bookmark manager for Emacs.
 
-A bookmark manager for Emacs, that replaces the the built-in
-~bookmark.el~. It is inspired by [[https://www.emacswiki.org/emacs/BookmarkPlus][bookmark+]].
+A bookmark manager for Emacs, built on the built-in
+~bookmark.el~.  Its bookmarks are ~bookmark.el~ records: they
+live in ~bookmark-alist~ and are written to the bookmark file by
+~bookmark-save~, so the built-in bookmark commands operate on
+them.  bookmark-gt adds its features through advice and hooks
+on ~bookmark.el~ that are installed only while
+~bookmark-gt-mode~ is on.  It is inspired by
+[[https://www.emacswiki.org/emacs/BookmarkPlus][bookmark+]].
 
 This is a quick demo of its features:
 [[https://youtu.be/hitAyO8ArYM]]
@@ -188,8 +194,9 @@ programmatically with ~bookmark-gt-auto-update-set~.
 
 *** ~bookmark-gt-default-tags-mode~
 
-Seeds the tag reader on ~bookmark-gt-create~ with context-appropriate
-tags.  Configured via a small DSL:
+Seeds the tag reader with context-appropriate tags when a bookmark
+is created interactively (see [[*Tag reader][Tag reader]] for when the tag
+pipeline runs).  Configured via a small DSL:
 
 #+begin_src emacs-lisp
 (setq bookmark-gt-default-tags "work")                    ; single tag
@@ -808,18 +815,36 @@ Any non-empty ~RET~ accepts the current tag and prompts for
 another.  The running accumulator is shown in the prompt as
 ~Tags [foo,bar] (M-RET or empty RET to finish): ~.
 
-Every create command takes an optional TAGS list —
-~bookmark-gt-create~, ~bookmark-gt-create-url~, and the rest —
-which seeds the reader rather than replacing it: the tags are
-offered for editing, and what the reader returns is what is
-stored.
+The creation commands — ~bookmark-gt-create~,
+~bookmark-gt-create-url~, ~bookmark-gt-create-function~,
+~bookmark-gt-create-kmacro~, and ~bookmark-gt-create-sequence~ —
+compute the new bookmark's tags with the /tag pipeline/:
 
-The reader is invoked by ~bookmark-gt-create~ when
-~bookmark-gt-prompt-for-tags-flag~ is non-nil (default).  Its
-initial input is the TAGS argument plus any tags provided by
-~bookmark-gt-default-tags-mode~.  Functions on
-~bookmark-gt-create-tag-reader-hook~ run after the reader and
-receive the tags it returns.
+1. the default tags of ~bookmark-gt-default-tags-mode~, when it
+   is on;
+2. the tag reader, when ~bookmark-gt-prompt-for-tags-flag~ is
+   non-nil (default), with the tags from step 1 as its initial
+   input;
+3. the functions on ~bookmark-gt-create-tag-reader-hook~, which
+   receive the tags from step 2.
+
+The pipeline runs after the name has been accepted, so a name
+that ~bookmark-gt-allow-same-name-bookmarks~ refuses is reported
+before the tag prompt.
+
+Each creation command takes an optional TAGS argument.  An
+interactive call passes ~t~, which runs the pipeline.  From
+Lisp, pass a list of tags to store exactly those tags with no
+prompt, or ~t~ to run the pipeline:
+
+#+begin_src emacs-lisp
+(bookmark-gt-create-url "https://example.org" "example" '("web"))  ; stores ("web")
+(bookmark-gt-create-url "https://example.org" "example" t)         ; runs the pipeline
+#+end_src
+
+~bookmark-gt-create-non-file~, the Lisp API for creating a
+record with a given handler, never runs the pipeline: the record
+gets the ~tags~ entry of its PROPS argument, if any.
 
 ** Bookmarks that share a name
 
@@ -1293,14 +1318,15 @@ Every non-trivial mechanism is expected to have an extension point:
   user.  Each hook is called with ~(default-name context)~ and
   returns either a string (which replaces the default) or nil
   (to defer).  The first non-nil return wins.
-- ~bookmark-gt-create-tag-reader-hook~ — runs once inside
-  ~bookmark-gt-create~ and ~bookmark-gt-create-non-file~, after the
-  name is chosen and before the record is stored.  Chained:
-  each hook is called with ~(record seed-tags)~ and returns a
-  new seed-tags list, which becomes the input to the next hook.
-  The hook is empty by default.  Its first input is the tag
-  list produced by ~bookmark-gt-default-tags-mode~ (when on) and
-  then the interactive tag reader (when
+- ~bookmark-gt-create-tag-reader-hook~ — the last step of the
+  tag pipeline, which runs when a creation command is called
+  interactively or with TAGS ~t~ (see [[*Tag reader][Tag reader]]); not run by
+  ~bookmark-gt-create-non-file~.  Chained: each hook is called
+  with ~(record seed-tags)~ and returns a new seed-tags list,
+  which becomes the input to the next hook.  The hook is empty
+  by default.  Its first input is the tag list produced by
+  ~bookmark-gt-default-tags-mode~ (when on) and then the
+  interactive tag reader (when
   ~bookmark-gt-prompt-for-tags-flag~ is non-nil); neither of
   those is on the hook.
 - ~bookmark-gt-record-changed-hook~ — runs at the end of every
@@ -1442,7 +1468,7 @@ bookmark file before running.
 | ~bookmark-gt-auto-update-interval~      | ~60~                                                               | Seconds of idle time between ticks of ~bookmark-gt-auto-update-mode~; each tick refreshes bookmarks carrying ~auto-update~.                                                                                                                                                                    |
 | ~bookmark-gt-track-renames~             | ~t~                                                                | When non-nil, ~rename-file~ rewrites any bookmark whose ~filename~ matched the source path to the destination.                                                                                                                                                                                 |
 | ~bookmark-gt-default-tags~              | ~nil~                                                              | Under ~bookmark-gt-default-tags-mode~, seeds the tag reader.  Value can be a string, a list of strings, or a function of the record; see the mode's section.                                                                                                                                 |
-| ~bookmark-gt-prompt-for-tags-flag~      | ~t~                                                                | Whether the tag reader prompts on ~bookmark-gt-create~.  Off suppresses the prompt globally; batch callers can let-bind ~nil~.                                                                                                                                                                 |
+| ~bookmark-gt-prompt-for-tags-flag~      | ~t~                                                                | Whether the tag pipeline prompts with the tag reader.  Off creates bookmarks without the tag prompt; default tags and ~bookmark-gt-create-tag-reader-hook~ still apply.                                                                                                                        |
 | ~bookmark-gt-allow-same-name-bookmarks~ | ~different-destination~                                            | When ~bookmark-gt-create~ may reuse a name already in use: ~never~, ~different-destination~ (allowed when the two point at different files or URLs), or ~always~.  A refusal is an error, never a renamed bookmark.  See Bookmarks that share a name.                                              |
 | ~bookmark-gt-highlight-enable~          | ~t~                                                                | Per-bookmark line overlays in file-visiting buffers.  Off suppresses the overlays even while ~bookmark-gt-mode~ is on.                                                                                                                                                                       |
 | ~bookmark-gt-auto-temp-names~           | ~("\\`org-capture-last-stored\\'" "\\`org-refile-last-stored\\'")~ | Names (regexps) marked temporary when stored, so they are never written to the bookmark file.  Covers the bookmarks ~org-capture~ and ~org-refile~ re-store on every capture and refile.                                                                                                       |

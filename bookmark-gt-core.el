@@ -45,10 +45,6 @@
 ;; that this file calls at runtime.  `bookmark-gt.el' requires all
 ;; of them before use.
 (declare-function bookmark-gt-list-refresh "bookmark-gt-list")
-(declare-function bookmark-gt-tags-read "bookmark-gt-tags")
-(declare-function bookmark-gt-default-tags--hook "bookmark-gt-tags")
-(defvar bookmark-gt-prompt-for-tags-flag)
-(defvar bookmark-gt-default-tags-mode)
 
 ;;;; Field-access helpers with bookmark+ compat
 ;;
@@ -461,16 +457,16 @@ hook, so hooks refine what the user sees prefilled, they do not
 replace the prompt.")
 
 (defvar bookmark-gt-create-tag-reader-hook nil
-  "Abnormal chained hook that reads tags for a bookmark being created.
+  "Abnormal chained hook that computes tags for a bookmark being created.
+Run at the end of the tag pipeline, after default tags and the
+tag reader.  The pipeline runs when a creation command is called
+interactively, or from Lisp with TAGS t; see `bookmark-gt-create'.
+
 Each function is called with two arguments: RECORD (the record's
 alist) and SEED-TAGS (list of strings).  The return value is a
 new list of strings that becomes the SEED-TAGS for the next
 function.  The final result is stored on the record under the
-`tags' alist key.
-
-Hook order matters: default-tags style hooks that compute
-context-based seeds should be added earlier; interactive readers
-that use the seeds as prefill should be added later.")
+`tags' alist key.")
 
 (defvar bookmark-gt-record-changed-hook nil
   "Hook run after `bookmark-gt-set' stores a record.
@@ -589,22 +585,6 @@ each hook as its second argument."
   (or (run-hook-with-args-until-success
        'bookmark-gt-create-name-reader-hook default-name context)
       default-name))
-
-(defun bookmark-gt--collect-tags (record seed-tags)
-  "Return the final tag list for RECORD, starting from SEED-TAGS.
-The pipeline is: default-tags contribution when
-`bookmark-gt-default-tags-mode' is on, then the interactive
-reader when `bookmark-gt-prompt-for-tags-flag' is non-nil,
-then any third-party functions on the public
-`bookmark-gt-create-tag-reader-hook'."
-  (let ((tags seed-tags))
-    (when bookmark-gt-default-tags-mode
-      (setq tags (bookmark-gt-default-tags--hook record tags)))
-    (when bookmark-gt-prompt-for-tags-flag
-      (setq tags (bookmark-gt-tags-read "Tags" tags)))
-    (seq-reduce (lambda (acc fn) (funcall fn record acc))
-                bookmark-gt-create-tag-reader-hook
-                tags)))
 
 (defun bookmark-gt--with-tags (record tags)
   "Return RECORD's alist with TAGS attached under the `tags' key.
@@ -750,7 +730,7 @@ Returns the stripped name."
 
 The single creation path.  Applies the name-reader hook, then
 `bookmark-gt-allow-same-name-bookmarks' to decide the stored
-name, collects tags, pushes the record and notifies.  Both
+name, computes the tags, pushes the record and notifies.  Both
 `bookmark-gt-create' and `bookmark-gt-create-non-file' end here,
 so the same-name policy and the reporting exist once.
 
@@ -758,12 +738,14 @@ Reports when the stored name differs from the one asked for, or
 when it repeats an existing name: either way the user typed one
 thing and got another.
 
-TAGS seeds the tag pipeline.  When it is nil the seed comes from
-a `tags' key in DATA, which is how the typed creators pass theirs.
-Either way the key is removed from DATA first: the pipeline
-re-attaches the final list, and leaving the original in place
-would put two `tags' cells on the record, the stale one
-unreachable behind the new.
+TAGS is the tag list to store, or a function that computes it.
+A function is called with two arguments, DATA and the seed tags,
+after the name has been accepted, so a refused name signals
+before any tag prompt.  The seed tags are TAGS when it is a list;
+otherwise they come from a `tags' key in DATA.  Either way the key
+is removed from DATA first and the final list is attached once:
+leaving the original in place would put two `tags' cells on the
+record, the stale one unreachable behind the new.
 
 NO-NOTIFY skips the UI refresh and the change hook, for a caller
 mutating many records that will notify once at the end.
@@ -780,12 +762,12 @@ NO-CURRENT leaves `bookmark-current-bookmark' alone; see
   ;; `bookmark-store' loads for the same reason, and
   ;; `bookmark-gt--push-record' goes around it.
   (bookmark-maybe-load-default-file)
-  (let* ((seed (or tags (alist-get 'tags data)))
+  (let* ((seed (or (and (listp tags) tags) (alist-get 'tags data)))
          (data (assq-delete-all 'tags (copy-sequence data)))
          (refined (bookmark-gt--refine-name name data))
          (shared (bookmark-gt--records-named refined))
          (stored-name (bookmark-gt--check-name-available refined data))
-         (tags (bookmark-gt--collect-tags data seed))
+         (tags (if (functionp tags) (funcall tags data seed) seed))
          (final-data (bookmark-gt--with-tags data tags))
          (final-name (bookmark-gt--push-record stored-name final-data
                                                no-current))
@@ -806,7 +788,9 @@ NO-CURRENT leaves `bookmark-current-bookmark' alone; see
                                          no-current)
   "Create a non-file bookmark called NAME using HANDLER.
 PROPS is an alist of additional record entries (URL, page title,
-and so on).  NO-NOTIFY and NO-CURRENT are passed to
+and so on).  A `tags' entry in PROPS is stored as given; this
+function does not prompt for tags or apply default tags.
+NO-NOTIFY and NO-CURRENT are passed to
 `bookmark-gt--create-record'.  Returns the stored record."
   (bookmark-gt--create-record name
                               (cons (cons 'handler handler) props)

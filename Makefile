@@ -10,17 +10,17 @@ PACKAGE = bookmark-gt
 # Foundational files first so follow-on files can (require 'bookmark-gt)
 # without erroring when compiled in isolation.  Order:
 #   1. bookmark-gt.el          — entry, shared utils, autoloads, master switch
-#   2. bookmark-gt-core.el     — bookmark-gt-set, extension hooks, same-name disambig
-#   3. bookmark-gt-handlers.el — handler registry + non-file handlers
-#   4. bookmark-gt-tags.el     — tag storage, reader, default-tags DSL
+#   2. bookmark-gt-core.el     — records, extension hooks, same-name policy, notifier
+#   3. bookmark-gt-tags.el     — tag storage, reader, default-tags DSL, tag pipeline
+#   4. bookmark-gt-handlers.el — handler registry + non-file handlers
 #   5. bookmark-gt-list.el     — *Bookmarks-gt List* buffer (tabulated-list-mode)
 #   6. bookmark-gt-jump.el     — consult reader, marginalia annotator, orderless
 #   7. bookmark-gt-auto-update.el — idle timer, per-record state, refresh triggers
 #   8. bookmark-gt-browser-tabs.el — browser tabs as temp bookmarks
 EL_FILES = bookmark-gt.el \
            bookmark-gt-core.el \
-           bookmark-gt-handlers.el \
            bookmark-gt-tags.el \
+           bookmark-gt-handlers.el \
            bookmark-gt-list.el \
            bookmark-gt-jump.el \
            bookmark-gt-auto-update.el \

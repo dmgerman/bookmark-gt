@@ -227,13 +227,16 @@ existing names so a repeat is visible while typing.  Lisp callers
 pass a name string, or nil to accept the suggested name without
 prompting.
 
-TAGS is an optional initial tag list, seeding the tag reader the
-same way it does in `bookmark-gt-create-url' and the other typed
-creators.  When omitted, the tag pipeline decides on its own.
+TAGS is the tag list to store, or t to run the tag pipeline: the
+default tags of `bookmark-gt-default-tags-mode', the tag reader
+when `bookmark-gt-prompt-for-tags-flag' is non-nil, then
+`bookmark-gt-create-tag-reader-hook'.  Interactive calls pass t.
+The typed creators (`bookmark-gt-create-url' and the rest) take
+TAGS the same way.
 
 `bookmark-gt-allow-same-name-bookmarks' decides what happens when
 the name is already in use.  Returns the stored record."
-  (interactive (list bookmark-gt--prompt-name nil))
+  (interactive (list bookmark-gt--prompt-name t))
   (bookmark-maybe-load-default-file)
   (pcase-let* ((`(,data . ,suggested) (bookmark-gt--capture-here))
                (refined (bookmark-gt--refine-name suggested data))
@@ -253,7 +256,7 @@ the name is already in use.  Returns the stored record."
                    nil nil refined 'bookmark-history refined))
                  (name name)
                  (t refined))))
-    (bookmark-gt--create-record chosen data tags)))
+    (bookmark-gt--create-record chosen data (bookmark-gt--create-tags tags))))
 
 ;;;; Update
 ;;

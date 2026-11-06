@@ -34,10 +34,13 @@
 ;; (`bookmark-gt-tags-add', `-remove', `-set'), and the interactive
 ;; reader (`bookmark-gt-tags-read').
 ;;
-;; The reader is called directly by `bookmark-gt--collect-tags' when
-;; `bookmark-gt-prompt-for-tags-flag' is non-nil.  It is not added to
-;; `bookmark-gt-create-tag-reader-hook' — that hook is external surface
-;; and ships empty.
+;; It also provides the tag pipeline, `bookmark-gt--collect-tags':
+;; default tags, then the interactive reader when
+;; `bookmark-gt-prompt-for-tags-flag' is non-nil, then the functions
+;; on `bookmark-gt-create-tag-reader-hook' (external surface; ships
+;; empty).  The creation commands run the pipeline when called
+;; interactively or with TAGS t; the Lisp API
+;; (`bookmark-gt-create-non-file') stores the tags it is given.
 ;;
 ;; `bookmark-gt-default-tags-mode' seeds the reader with tags
 ;; computed from `bookmark-gt-default-tags', a small DSL:
@@ -246,27 +249,17 @@ list."
 ;;;; Prompt gate
 ;;
 ;; `bookmark-gt--collect-tags' calls `bookmark-gt-tags-read' with
-;; the seed tags (including any default tags) as initial input.
-;; The call is gated by `bookmark-gt-prompt-for-tags-flag' — a defcustom so
-;; users can disable prompts globally, and batch callers
-;; (`bookmark-gt-browser-tabs-refresh', tests) let-bind it to
-;; nil around their loops.  Previously this check was
-;; `called-interactively-p 'any', which is unreliable when the
-;; hook is invoked via funcall through seq-reduce (the
-;; interactive frame of `bookmark-gt-create' does not always reach
-;; the check).
+;; the seed tags (including any default tags) as initial input,
+;; when `bookmark-gt-prompt-for-tags-flag' is non-nil.
 
 (defcustom bookmark-gt-prompt-for-tags-flag t
-  "Non-nil means the tag reader prompts on `bookmark-gt-create'.
-Set to nil to suppress the prompt globally, or let-bind around
-a batch operation that stores many records without user
-interaction."
+  "Non-nil means the tag pipeline prompts with the tag reader.
+The pipeline runs when a creation command such as
+`bookmark-gt-create' is called interactively.  Set to nil to
+create bookmarks without the tag prompt; default tags and
+`bookmark-gt-create-tag-reader-hook' still apply."
   :type 'boolean
   :group 'bookmark-gt)
-
-;; No enable/disable functions here — the interactive tag
-;; reader is called directly by `bookmark-gt--collect-tags'
-;; and gated by `bookmark-gt-prompt-for-tags-flag'.
 
 ;;;; Default tags: customization
 
@@ -360,6 +353,30 @@ Called directly by `bookmark-gt--collect-tags' when
   "Global minor mode that applies `bookmark-gt-default-tags' on set."
   :global t
   :group 'bookmark-gt)
+
+;;;; Tag pipeline
+
+(defun bookmark-gt--collect-tags (record seed-tags)
+  "Return the final tag list for RECORD, starting from SEED-TAGS.
+The pipeline is: default tags when `bookmark-gt-default-tags-mode'
+is on, then the interactive reader when
+`bookmark-gt-prompt-for-tags-flag' is non-nil, then the functions
+on `bookmark-gt-create-tag-reader-hook'."
+  (let* ((with-defaults (if bookmark-gt-default-tags-mode
+                            (bookmark-gt-default-tags--hook record seed-tags)
+                          seed-tags))
+         (read (if bookmark-gt-prompt-for-tags-flag
+                   (bookmark-gt-tags-read "Tags" with-defaults)
+                 with-defaults)))
+    (seq-reduce (lambda (acc fn) (funcall fn record acc))
+                bookmark-gt-create-tag-reader-hook
+                read)))
+
+(defun bookmark-gt--create-tags (tags)
+  "Return the TAGS argument of a creation command for the record store.
+TAGS t means run the tag pipeline, so the result is
+`bookmark-gt--collect-tags'; a list is returned unchanged."
+  (if (eq tags t) #'bookmark-gt--collect-tags tags))
 
 (provide 'bookmark-gt-tags)
 

@@ -10,6 +10,19 @@
   no longer exists: remove any ~(require 'bookmark-gt-default-tags)~
   from your init file.  ~bookmark-gt-default-tags-mode~ and
   ~bookmark-gt-default-tags~ keep their names and behavior.
+- Breaking: the TAGS argument of ~bookmark-gt-create~,
+  ~bookmark-gt-create-url~, ~bookmark-gt-create-function~,
+  ~bookmark-gt-create-kmacro~ and ~bookmark-gt-create-sequence~
+  is now either a list of tags, stored as given without a
+  prompt, or ~t~, which runs the tag pipeline (default tags, the
+  tag reader, ~bookmark-gt-create-tag-reader-hook~).  Interactive
+  calls pass ~t~.  Previously a Lisp call ran the pipeline with
+  TAGS as the reader's initial input, so a caller that had
+  already read tags was prompted a second time.
+- Breaking: ~bookmark-gt-create-non-file~ no longer runs the tag
+  pipeline.  It stores the ~tags~ entry of PROPS as given; default
+  tags and ~bookmark-gt-create-tag-reader-hook~ are not applied.
+  Browser-tab bookmarks therefore no longer receive default tags.
 
 ** Documentation
 

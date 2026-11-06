@@ -15,6 +15,7 @@
 (require 'cl-lib)
 (require 'test-helper)
 (require 'bookmark-gt-core)
+(require 'bookmark-gt-handlers)
 
 ;;;; Same-name disambiguation
 ;;
@@ -115,7 +116,7 @@ projects."
               (lambda (_rec _seed) (list "one")))
     (add-hook 'bookmark-gt-create-tag-reader-hook
               (lambda (_rec seed) (append seed (list "two"))) 90)
-    (let* ((result (bookmark-gt-create-non-file "foo" 'ignore nil))
+    (let* ((result (bookmark-gt-create-url "https://example.org" "foo" t))
            (data (cdr result)))
       (should (equal (alist-get 'tags data) '("one" "two"))))))
 

@@ -141,33 +141,65 @@
       (should (equal (bookmark-gt-tags-of (car bookmark-alist))
                      '("proj" "urgent"))))))
 
-;;;; TAGS passed to a create command seeds the reader
+;;;; TAGS passed to a create command
 
-(ert-deftest bookmark-gt-tags-test-create-seeds-the-reader ()
-  "The TAGS argument reaches the tag reader as its seed."
+(ert-deftest bookmark-gt-tags-test-create-list-is-stored-without-prompt ()
+  "A TAGS list is stored as given; the tag reader does not run."
   (bookmark-gt-test-with-clean-bookmarks
-    (let ((bookmark-gt-prompt-for-tags-flag t)
-          seen)
+    (let ((bookmark-gt-prompt-for-tags-flag t))
       (cl-letf (((symbol-function 'bookmark-gt-tags-read)
-                 (lambda (_prompt seed) (setq seen seed) seed)))
+                 (lambda (&rest _) (error "Reader must not run"))))
         (bookmark-gt-create-url "https://example.org" "site"
-                                (list "web" "reference")))
-      (should (equal seen '("web" "reference"))))))
+                                (list "web" "reference"))))
+    (should (equal (bookmark-gt-tags-of (bookmark-get-bookmark "site"))
+                   '("web" "reference")))))
 
-(ert-deftest bookmark-gt-tags-test-create-stores-one-tags-cell ()
-  "The pipeline replaces the seed rather than shadowing it.
-Two `tags' cells would leave the caller's list on the record but
-unreachable, since `bookmark-prop-get' takes the first."
+(ert-deftest bookmark-gt-tags-test-create-t-runs-the-reader ()
+  "TAGS t runs the tag pipeline, and the reader's result is stored."
   (bookmark-gt-test-with-clean-bookmarks
     (let ((bookmark-gt-prompt-for-tags-flag t))
       (cl-letf (((symbol-function 'bookmark-gt-tags-read)
                  (lambda (_prompt _seed) '("chosen"))))
-        (bookmark-gt-create-url "https://example.org" "site"
-                                (list "web"))))
+        (bookmark-gt-create-url "https://example.org" "site" t)))
+    (should (equal (bookmark-gt-tags-of (bookmark-get-bookmark "site"))
+                   '("chosen")))))
+
+(ert-deftest bookmark-gt-tags-test-create-stores-one-tags-cell ()
+  "The pipeline result replaces a `tags' entry in DATA.
+Two `tags' cells would leave the stale list on the record but
+unreachable, since `bookmark-prop-get' takes the first."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt--create-record "site"
+                                '((handler . bookmark-gt-handler-url-jump)
+                                  (url . "https://example.org")
+                                  (tags . ("web")))
+                                (lambda (_data seed) (cons "chosen" seed)))
     (let ((record (bookmark-get-bookmark "site")))
-      (should (equal (bookmark-gt-tags-of record) '("chosen")))
+      (should (equal (bookmark-gt-tags-of record) '("chosen" "web")))
       (should (= 1 (seq-count (lambda (cell) (eq (car-safe cell) 'tags))
                               (cdr record)))))))
+
+(ert-deftest bookmark-gt-tags-test-refused-name-signals-before-pipeline ()
+  "A name the same-name policy refuses signals before the tag prompt."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((bookmark-gt-allow-same-name-bookmarks 'never)
+          (bookmark-gt-prompt-for-tags-flag t))
+      (bookmark-gt-create-url "https://a.example" "site" nil)
+      (cl-letf (((symbol-function 'bookmark-gt-tags-read)
+                 (lambda (&rest _) (error "Reader must not run"))))
+        (should-error (bookmark-gt-create-url "https://b.example" "site" t)
+                      :type 'user-error)))))
+
+(ert-deftest bookmark-gt-tags-test-create-non-file-skips-pipeline ()
+  "`bookmark-gt-create-non-file' applies neither default tags nor the reader."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((bookmark-gt-default-tags '("auto"))
+          (bookmark-gt-default-tags-mode t)
+          (bookmark-gt-prompt-for-tags-flag t))
+      (cl-letf (((symbol-function 'bookmark-gt-tags-read)
+                 (lambda (&rest _) (error "Reader must not run"))))
+        (bookmark-gt-create-non-file "x" 'h '((tags . ("given"))))))
+    (should (equal (bookmark-gt-tags-of (car bookmark-alist)) '("given")))))
 
 (ert-deftest bookmark-gt-tags-test-create-accepts-tags ()
   "`bookmark-gt-create' takes TAGS like the typed creators do."
@@ -251,14 +283,14 @@ unreachable, since `bookmark-prop-get' takes the first."
     (should (equal (bookmark-gt-default-tags--hook nil '("dup"))
                    '("dup")))))
 
-;;;; Default tags: end-to-end via bookmark-gt-create-non-file
+;;;; Default tags: end-to-end via a creation command
 
 (ert-deftest bookmark-gt-default-tags-test-applied-during-set ()
-  "With the mode on, `bookmark-gt-create-non-file' applies defaults."
+  "With the mode on, the tag pipeline applies defaults."
   (bookmark-gt-test-with-clean-bookmarks
     (let ((bookmark-gt-default-tags '("auto"))
           (bookmark-gt-default-tags-mode t))
-      (bookmark-gt-create-non-file "x" 'h nil)
+      (bookmark-gt-create-url "https://example.org" "x" t)
       (should (equal (bookmark-gt-tags-of (car bookmark-alist))
                      '("auto"))))))
 
@@ -272,7 +304,7 @@ unreachable, since `bookmark-prop-get' takes the first."
            ;; default-tags contribution runs first and returns
            ;; ("auto"), then this appends.
            (list (lambda (_rec seed) (append seed '("manual"))))))
-      (bookmark-gt-create-non-file "x" 'h nil)
+      (bookmark-gt-create-url "https://example.org" "x" t)
       (should (equal (bookmark-gt-tags-of (car bookmark-alist))
                      '("auto" "manual"))))))
 
