@@ -8,8 +8,10 @@
 ;;
 ;; Tests for the browser-tab handler classify + jump dispatch, the
 ;; store helper (record shape), the accept-filter DSL, and the
-;; clear helper.  browser-gt is mocked via `cl-letf' so these tests
-;; run without the real websocket bridge.
+;; clear helper, and how a refresh handles repeated tab titles
+;; under `bookmark-gt-allow-same-name-bookmarks'.  browser-gt is
+;; mocked via `cl-letf' so these tests run without the real
+;; websocket bridge.
 
 ;;; Code:
 
@@ -241,6 +243,58 @@ refresh and deletes every record that still carries it."
       (should-not (search-forward "browser-gt" nil t))
       (goto-char (point-min))
       (should (search-forward "https://example.org" nil t)))))
+
+;;;; Tab name conflicts
+
+(defun bookmark-gt-browser-tab-names-test--store (title url)
+  "Store a tab named TITLE at URL, returning non-nil when stored."
+  (bookmark-gt-browser-tabs--store
+   (list :title title :url url :id (random 100000)
+         :browser-gt-browser "test")))
+
+(ert-deftest bookmark-gt-browser-tab-names-test-always-stores-both ()
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((bookmark-gt-allow-same-name-bookmarks 'always))
+      (should (bookmark-gt-browser-tab-names-test--store "Inbox" "https://a"))
+      (should (bookmark-gt-browser-tab-names-test--store "Inbox" "https://b"))
+      (should (= 2 (length (bookmark-gt--records-named "Inbox")))))))
+
+(ert-deftest bookmark-gt-browser-tab-names-test-different-url-is-stored ()
+  "Same title, different URL: two destinations, both kept."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((bookmark-gt-allow-same-name-bookmarks 'different-destination))
+      (should (bookmark-gt-browser-tab-names-test--store "Inbox" "https://a"))
+      (should (bookmark-gt-browser-tab-names-test--store "Inbox" "https://b"))
+      (should (= 2 (length (bookmark-gt--records-named "Inbox")))))))
+
+(ert-deftest bookmark-gt-browser-tab-names-test-same-url-is-skipped ()
+  "The same page open twice is one bookmark, not an error."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((bookmark-gt-allow-same-name-bookmarks 'different-destination))
+      (should (bookmark-gt-browser-tab-names-test--store "Inbox" "https://a"))
+      (should-not (bookmark-gt-browser-tab-names-test--store "Inbox" "https://a"))
+      (should (= 1 (length (bookmark-gt--records-named "Inbox")))))))
+
+(ert-deftest bookmark-gt-browser-tab-names-test-never-keeps-the-first ()
+  "With `never', the first tab of a title is stored and the rest skipped."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((bookmark-gt-allow-same-name-bookmarks 'never))
+      (should (bookmark-gt-browser-tab-names-test--store "Inbox" "https://a"))
+      (should-not (bookmark-gt-browser-tab-names-test--store "Inbox" "https://b"))
+      (let ((kept (bookmark-gt--records-named "Inbox")))
+        (should (= 1 (length kept)))
+        (should (equal (bookmark-gt-url-of (car kept)) "https://a"))))))
+
+(ert-deftest bookmark-gt-browser-tab-names-test-refresh-never-signals ()
+  "A conflict skips the tab; it does not abandon the refresh."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((bookmark-gt-allow-same-name-bookmarks 'never))
+      (bookmark-gt-browser-tab-names-test--store "Inbox" "https://a")
+      (should-not
+       (condition-case err
+           (progn (bookmark-gt-browser-tab-names-test--store "Inbox" "https://b")
+                  nil)
+         (error err))))))
 
 (provide 'bookmark-gt-browser-tabs-tests)
 ;;; bookmark-gt-browser-tabs-tests.el ends here
