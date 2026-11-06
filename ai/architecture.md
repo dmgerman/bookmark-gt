@@ -249,9 +249,18 @@ metadata (`:type`, `:name`, `:group`, `:face`, `:narrow-char`,
   entry covers records that were never migrated.
 
 Unknown handlers auto-classify via `bookmark-gt-handler-classify`'s
-derive-fallback, which strips common suffixes
+derive-fallback.  It uses the handler's `bookmark-handler-type`
+symbol property when that is a non-empty string (loading an
+autoloaded handler first, as `bookmark-type-from-full-record`
+does); otherwise it strips common suffixes
 (`-bookmark-jump-handler`, `-bookmark-jump`, `-jump-handler`,
-`--handle-bookmark`) and title-cases the leading segment.
+`--handle-bookmark`) and title-cases the leading segment.  A
+derived type can collide with a registered one when the leading
+segment names another type: unregistered,
+`org-roam-gt-bookmark-jump` would derive type `org` and satisfy
+`bookmark-gt-handler-org-p`.  That handler is therefore
+registered explicitly (type `org-roam`, group `doc`); register
+any handler whose group or type must not depend on the fallback.
 
 ## Same-name policy
 

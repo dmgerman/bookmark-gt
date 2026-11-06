@@ -93,6 +93,64 @@
   (let ((entry (bookmark-gt--handler-derive-entry nil)))
     (should (equal (plist-get (cdr entry) :name) "Unknown"))))
 
+(ert-deftest bookmark-gt-test-derive-entry-prefers-declared-type ()
+  "A handler's `bookmark-handler-type' wins over the derived name."
+  (let ((handler (make-symbol "some-pkg-bookmark-jump")))
+    (put handler 'bookmark-handler-type "Some package")
+    (let ((entry (bookmark-gt--handler-derive-entry handler)))
+      (should (equal (plist-get (cdr entry) :name) "Some package"))
+      (should (eq (plist-get (cdr entry) :type) 'some\ package)))))
+
+(ert-deftest bookmark-gt-test-derive-entry-org-roam-gt ()
+  "`org-roam-gt-bookmark-jump' classifies as Org-roam, not Org."
+  (let ((handler (make-symbol "org-roam-gt-bookmark-jump")))
+    (put handler 'bookmark-handler-type "Org-roam")
+    (let ((entry (bookmark-gt--handler-derive-entry handler)))
+      (should (equal (plist-get (cdr entry) :name) "Org-roam"))
+      (should (eq (plist-get (cdr entry) :type) 'org-roam)))))
+
+(ert-deftest bookmark-gt-test-derive-entry-ignores-invalid-declared-type ()
+  "A non-string or empty `bookmark-handler-type' uses the derived name."
+  (dolist (declared '(nil "" org-roam 42))
+    (let ((handler (make-symbol "some-pkg-bookmark-jump")))
+      (put handler 'bookmark-handler-type declared)
+      (let ((entry (bookmark-gt--handler-derive-entry handler)))
+        (should (equal (plist-get (cdr entry) :name) "Some"))
+        (should (eq (plist-get (cdr entry) :type) 'some))))))
+
+(ert-deftest bookmark-gt-test-derive-entry-loads-autoloaded-handler ()
+  "An autoloaded handler is loaded to read its declared type."
+  (let ((file (make-temp-file "bookmark-gt-test-handler" nil ".el"))
+        (handler 'bookmark-gt-test--autoloaded-bookmark-jump))
+    (unwind-protect
+        (progn
+          (with-temp-file file
+            (insert "(defun bookmark-gt-test--autoloaded-bookmark-jump (_b) nil)\n"
+                    "(put 'bookmark-gt-test--autoloaded-bookmark-jump\n"
+                    "     'bookmark-handler-type \"Autoloaded\")\n"))
+          (autoload handler file)
+          (should (autoloadp (symbol-function handler)))
+          (let ((entry (bookmark-gt--handler-derive-entry handler)))
+            (should (equal (plist-get (cdr entry) :name) "Autoloaded"))
+            (should (eq (plist-get (cdr entry) :type) 'autoloaded)))
+          (should-not (autoloadp (symbol-function handler))))
+      (fmakunbound handler)
+      (put handler 'bookmark-handler-type nil)
+      (delete-file file))))
+
+(ert-deftest bookmark-gt-test-classify-org-roam-gt ()
+  "An org-roam-gt record is type `org-roam' in group `doc', not Org."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-create-non-file "node" 'org-roam-gt-bookmark-jump
+                                 '((id . "some-node-id")))
+    (let ((record (car bookmark-alist)))
+      (should (eq (bookmark-gt-handler-type record) 'org-roam))
+      (should (equal (bookmark-gt-handler-name record) "Org-roam"))
+      (should (eq (bookmark-gt-handler-group record) 'doc))
+      (should (eq (bookmark-gt-handler-face record) 'bookmark-gt-face-org))
+      (should (bookmark-gt-handler-org-roam-p record))
+      (should-not (bookmark-gt-handler-org-p record)))))
+
 (ert-deftest bookmark-gt-test-classify-unknown-falls-back ()
   "An unregistered handler still classifies (via derive)."
   (bookmark-gt-test-with-clean-bookmarks

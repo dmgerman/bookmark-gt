@@ -260,24 +260,35 @@ Stripped from an unknown HANDLER symbol before deriving a type
 name — so `magit--handle-bookmark' becomes `magit', and
 `nov-bookmark-jump-handler' becomes `nov'.")
 
+(defun bookmark-gt--handler-declared-type (handler)
+  "Return the `bookmark-handler-type' HANDLER declares, or nil.
+That symbol property is how a package names its bookmark type
+for `bookmark-bmenu-list'.  An autoloaded HANDLER is loaded
+first, since the property is set by the file defining it."
+  (when (and handler (symbolp handler))
+    (when (autoloadp (symbol-function handler))
+      (autoload-do-load (symbol-function handler) handler))
+    (let ((type (get handler 'bookmark-handler-type)))
+      (and (stringp type) (not (string-empty-p type)) type))))
+
 (defun bookmark-gt--handler-derive-entry (handler)
   "Synthesize a registry entry for an unknown HANDLER symbol.
-The `:name' is derived by stripping bookmark-handler suffixes
-from the symbol name and title-casing the leading segment.
-`:type' is the derived name interned as a lowercase symbol.
-`:face' falls back to `default'."
+The `:name' is the `bookmark-handler-type' HANDLER declares,
+when it declares one.  Otherwise it is derived by stripping
+bookmark-handler suffixes from the symbol name and title-casing
+the leading segment.  `:type' is the name interned as a
+lowercase symbol.  `:face' falls back to `default'."
   (let* ((raw (if handler (symbol-name handler) ""))
          (stripped (replace-regexp-in-string
                     bookmark-gt-handler--suffix-strip-re "" raw))
          (leading (car (split-string stripped "-")))
-         (name (if (string-empty-p leading) "Unknown" (capitalize leading))))
+         (name (or (bookmark-gt--handler-declared-type handler)
+                   (if (string-empty-p leading) "Unknown" (capitalize leading)))))
     (cons handler
           (list :type (intern (downcase name))
                 :name name
                 :face 'default
-                :narrow-char (if (string-empty-p leading)
-                                 ?\s
-                               (aref (downcase leading) 0))
+                :narrow-char (aref (downcase name) 0)
                 :doc "Auto-detected type."))))
 
 ;;;; Lookup
@@ -341,6 +352,10 @@ handler is unknown (derive-fallback)."
 (defun bookmark-gt-handler-org-p (record)
   "Return non-nil when RECORD is an Org bookmark."
   (eq (bookmark-gt-handler-type record) 'org))
+
+(defun bookmark-gt-handler-org-roam-p (record)
+  "Return non-nil when RECORD is an org-roam node bookmark."
+  (eq (bookmark-gt-handler-type record) 'org-roam))
 
 (defun bookmark-gt-handler-pdf-p (record)
   "Return non-nil when RECORD is a pdf-tools bookmark."
@@ -697,6 +712,15 @@ Returns the stored (NAME . DATA) pair."
  (list :type 'org :name "Org" :group 'doc
        :face 'bookmark-gt-face-org :narrow-char ?o
        :doc "Heading or item bookmarked from Org mode."))
+
+;; Org-roam — node bookmarks from org-roam-gt, found by node id.
+;; Registered so the type is `org-roam' (not the derived `org')
+;; and the group is `doc'.
+(bookmark-gt-handler-register
+ '(org-roam-gt-bookmark-jump)
+ (list :type 'org-roam :name "Org-roam" :group 'doc
+       :face 'bookmark-gt-face-org :narrow-char ?r
+       :doc "Node bookmarked from org-roam-gt."))
 
 ;; PDF.
 (bookmark-gt-handler-register

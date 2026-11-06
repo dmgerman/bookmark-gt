@@ -1202,7 +1202,8 @@ symbol.  Each entry:
 Multiple handler symbols may share the same ~:type~ (URL has
 three handler-symbol aliases, browser-tab has two, etc.).
 Entries are included for: file, URL, EWW, Dired, Info, Org,
-PDF, browser-tab, Magit, Help, Image, EPUB (nov.el).
+Org-roam (org-roam-gt), PDF, browser-tab, Magit, Help, Image,
+EPUB (nov.el).
 
 Register a new handler (or an alias for an existing type):
 
@@ -1225,16 +1226,21 @@ jump handler — the current default.  Useful for e.g.
 rendering a URL in an EWW buffer as preview while ~RET~ still
 opens the external browser.
 
-Unknown handler symbols are auto-classified via a fallback that
-strips common suffixes (~-bookmark-jump-handler~, ~-bookmark-jump~,
+Unknown handler symbols are auto-classified.  When the handler
+declares a type name in its ~bookmark-handler-type~ symbol
+property (the property ~bookmark-bmenu-list~ reads), that name
+is the type: a ~foo-bookmark-jump~ that declares "Foo notes"
+shows up as type "Foo notes".  An autoloaded handler is loaded
+first to read the property.  Otherwise the fallback strips
+common suffixes (~-bookmark-jump-handler~, ~-bookmark-jump~,
 ~-jump-handler~, ~--handle-bookmark~) and title-cases the leading
-segment.  So ~foo-bookmark-jump~ shows up as type "Foo" without
-any registration.  Its group defaults to ~other~.
+segment, so ~foo-bookmark-jump~ shows up as type "Foo" without
+any registration.  Either way, the group defaults to ~other~.
 
 Type predicates — one per registered type:
 ~bookmark-gt-handler-file-p~, ~-url-p~, ~-eww-p~, ~-dired-p~,
-~-info-p~, ~-org-p~, ~-pdf-p~, ~-browser-tab-p~, ~-magit-p~,
-~-help-p~, ~-image-p~, ~-epub-p~, ~-function-p~,
+~-info-p~, ~-org-p~, ~-org-roam-p~, ~-pdf-p~, ~-browser-tab-p~,
+~-magit-p~, ~-help-p~, ~-image-p~, ~-epub-p~, ~-function-p~,
 ~-sequence-p~, ~-kmacro-p~, ~-view-p~.  Each does
 ~(eq (bookmark-gt-handler-type record) 'TYPE)~.
 
@@ -1249,14 +1255,14 @@ time — they are not stored on the record, never written to disk.
 
 Six built-in groups are provided:
 
-| Symbol | Name  | Narrow char | Types                               |
-|--------+-------+-------------+-------------------------------------|
-| ~web~    | Web   | ~w~           | url, eww, browser-tab               |
-| ~file~   | File  | ~f~           | file, dired                         |
-| ~doc~    | Doc   | ~d~           | info, org, pdf, help, epub          |
-| ~code~   | Code  | ~c~           | magit                               |
-| ~media~  | Media | ~m~           | image                               |
-| ~other~  | Other | ~o~           | catch-all for unregistered handlers |
+| Symbol  | Name  | Narrow char | Types                                |
+|---------+-------+-------------+--------------------------------------|
+| ~web~   | Web   | ~w~         | url, eww, browser-tab                |
+| ~file~  | File  | ~f~         | file, dired                          |
+| ~doc~   | Doc   | ~d~         | info, org, org-roam, pdf, help, epub |
+| ~code~  | Code  | ~c~         | magit                                |
+| ~media~ | Media | ~m~         | image                                |
+| ~other~ | Other | ~o~         | catch-all for unregistered handlers  |
 
 ~bookmark-gt-group-alist~ is the registry (group symbol →
 :name/:narrow-char/:doc plist).  Register a new group:
