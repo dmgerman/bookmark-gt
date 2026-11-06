@@ -125,9 +125,9 @@ patch bindings via `define-key`.
 
 | File | Contents |
 |---|---|
-| `bookmark-gt.el` | Master module; requires the rest; defines `bookmark-gt-mode` (the global switch that installs every advice/hook). |
-| `bookmark-gt-core.el` | Records, mutation notifier, extension hooks (empty at distribution), same-name policy, region bookmarks, visit tracker, rename tracker, highlight overlays, cycling, `bookmark-gt-set`, `bookmark-gt-relocate`. |
-| `bookmark-gt-handlers.el` | Handler registry, groups, face definitions, URL / Dired / function / sequence handlers and setters. |
+| `bookmark-gt.el` | Master module; requires the rest; defines `bookmark-gt-mode` (the global switch that installs every advice/hook), `bookmark-gt-create`, `bookmark-gt-update`, and the `bookmark-store` advice. |
+| `bookmark-gt-core.el` | Records, mutation notifier, extension hooks (empty at distribution), same-name policy, region bookmarks, visit tracker, rename tracker, highlight overlays, cycling. |
+| `bookmark-gt-handlers.el` | Handler registry, groups, face definitions, URL / Dired / function / sequence handlers and setters, `bookmark-gt-relocate`. |
 | `bookmark-gt-tags.el` | Tag reader, tag mutation API, defcustom `bookmark-gt-prompt-for-tags-flag`. |
 | `bookmark-gt-default-tags.el` | Opt-in mode that seeds the tag reader from context. |
 | `bookmark-gt-list.el` | `*Bookmarks-gt List*` buffer (tabulated-list-mode derivative). |

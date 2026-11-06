@@ -1484,8 +1484,8 @@ Each entry:
 
    Multiple handler symbols may share the same ‘:type’ (URL has three
 handler-symbol aliases, browser-tab has two, etc.).  Entries are
-included for: file, URL, EWW, Dired, Info, Org, PDF, browser-tab, Magit,
-Help, Image, EPUB (nov.el).
+included for: file, URL, EWW, Dired, Info, Org, Org-roam (org-roam-gt),
+PDF, browser-tab, Magit, Help, Image, EPUB (nov.el).
 
    Register a new handler (or an alias for an existing type):
 
@@ -1504,17 +1504,22 @@ preview falls back to ‘bookmark-jump-other-window’ on the record's own
 jump handler — the current default.  Useful for e.g.  rendering a URL in
 an EWW buffer as preview while ‘RET’ still opens the external browser.
 
-   Unknown handler symbols are auto-classified via a fallback that
-strips common suffixes (‘-bookmark-jump-handler’, ‘-bookmark-jump’,
-‘-jump-handler’, ‘--handle-bookmark’) and title-cases the leading
-segment.  So ‘foo-bookmark-jump’ shows up as type "Foo" without any
-registration.  Its group defaults to ‘other’.
+   Unknown handler symbols are auto-classified.  When the handler
+declares a type name in its ‘bookmark-handler-type’ symbol property (the
+property ‘bookmark-bmenu-list’ reads), that name is the type: a
+‘foo-bookmark-jump’ that declares "Foo notes" shows up as type "Foo
+notes".  An autoloaded handler is loaded first to read the property.
+Otherwise the fallback strips common suffixes (‘-bookmark-jump-handler’,
+‘-bookmark-jump’, ‘-jump-handler’, ‘--handle-bookmark’) and title-cases
+the leading segment, so ‘foo-bookmark-jump’ shows up as type "Foo"
+without any registration.  Either way, the group defaults to ‘other’.
 
    Type predicates — one per registered type:
 ‘bookmark-gt-handler-file-p’, ‘-url-p’, ‘-eww-p’, ‘-dired-p’, ‘-info-p’,
-‘-org-p’, ‘-pdf-p’, ‘-browser-tab-p’, ‘-magit-p’, ‘-help-p’, ‘-image-p’,
-‘-epub-p’, ‘-function-p’, ‘-sequence-p’, ‘-kmacro-p’, ‘-view-p’.  Each
-does ‘(eq (bookmark-gt-handler-type record) 'TYPE)’.
+‘-org-p’, ‘-org-roam-p’, ‘-pdf-p’, ‘-browser-tab-p’, ‘-magit-p’,
+‘-help-p’, ‘-image-p’, ‘-epub-p’, ‘-function-p’, ‘-sequence-p’,
+‘-kmacro-p’, ‘-view-p’.  Each does ‘(eq (bookmark-gt-handler-type
+record) 'TYPE)’.
 
 
 File: bookmark-gt.info,  Node: Group registry,  Next: Extension points,  Prev: Handler registry,  Up: Extension API
@@ -1532,10 +1537,10 @@ they are not stored on the record, never written to disk.
    Six built-in groups are provided:
 
 Symbol    Name    Narrow char   Types
-----------------------------------------------------------------------
+-----------------------------------------------------------------------
 ‘web’     Web     ‘w’           url, eww, browser-tab
 ‘file’    File    ‘f’           file, dired
-‘doc’     Doc     ‘d’           info, org, pdf, help, epub
+‘doc’     Doc     ‘d’           info, org, org-roam, pdf, help, epub
 ‘code’    Code    ‘c’           magit
 ‘media’   Media   ‘m’           image
 ‘other’   Other   ‘o’           catch-all for unregistered handlers
@@ -1851,15 +1856,15 @@ Node: Visit tracker61289
 Node: File-rename tracker62033
 Node: Extension API63020
 Node: Handler registry63221
-Node: Group registry65418
-Node: Extension points67071
-Node: Compatibility70195
-Node: Data compat with bookmark+70396
-Node: Migrating from bookmark+71739
-Node: Reference74083
-Node: Selected customization74246
-Node: Acknowledgements81515
-Node: License83849
+Node: Group registry65780
+Node: Extension points67444
+Node: Compatibility70568
+Node: Data compat with bookmark+70769
+Node: Migrating from bookmark+72112
+Node: Reference74456
+Node: Selected customization74619
+Node: Acknowledgements81888
+Node: License84222
 
 End Tag Table
 

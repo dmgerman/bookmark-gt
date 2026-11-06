@@ -977,6 +977,69 @@ Returns the stored (NAME . DATA) pair."
     (bookmark-gt-create-non-file
      name 'bookmark-gt-handler-sequence-jump props)))
 
+;;;; Relocate
+;;
+;; Interactive "change where this bookmark points" command.
+;; File records read a new path via `read-file-name'; records
+;; carrying a `url' key read a new URL via `read-string'.
+;; Position is left unchanged — the common trigger for
+;; relocation is a file rename, where the offset is still valid.
+;; For a genuinely different location the user can jump into
+;; the new file, place point, and use `bookmark-gt-update';
+;; the same-name-overwrite policy updates `position' in place.
+
+;;;###autoload
+(defun bookmark-gt-relocate (&optional bookmark)
+  "Change the target of BOOKMARK.
+File bookmarks prompt for a new filename with `read-file-name'
+and keep the current position.  Records with a `url' key
+prompt for a new URL.  Records with neither signal a
+`user-error'.  Fires `bookmark-gt-record-changed-hook'.
+
+BOOKMARK is a record, a name, or an id; nil prompts.  A name
+shared by several bookmarks asks which one rather than taking
+the first."
+  (interactive)
+  (let* ((entry    (bookmark-gt--resolve bookmark "Relocate bookmark"))
+         (label    (bookmark-name-from-full-record entry))
+         (filename (bookmark-prop-get entry 'filename))
+         (url      (bookmark-prop-get entry 'url)))
+    (cond
+     (filename
+      (let* ((new (expand-file-name
+                   (read-file-name
+                    (format "Relocate `%s' to file: " label)
+                    (file-name-directory filename)
+                    filename nil (file-name-nondirectory filename))))
+             (was (bookmark-gt-handler-name entry))
+             (now (bookmark-gt-handler-name
+                   (cons label (cons (cons 'filename new)
+                                     (assq-delete-all
+                                      'filename
+                                      (copy-sequence (cdr entry))))))))
+        ;; Relocate moves a bookmark of one kind to another target
+        ;; of that kind.  Pointing a PDF record at an org file
+        ;; would leave the PDF handler on a file it cannot open;
+        ;; changing a bookmark's type is what `bookmark-gt-update'
+        ;; is for.
+        (unless (equal was now)
+          (user-error
+           "`%s' is a %s bookmark; %s would make it a %s bookmark — use `%s'"
+           label was (abbreviate-file-name new) now "bookmark-gt-update"))
+        (bookmark-prop-set entry 'filename new)))
+     (url
+      (let ((new (read-string
+                  (format "Relocate `%s' URL: " label) url)))
+        (bookmark-prop-set entry 'url new)))
+     (t
+      (user-error
+       "bookmark-gt-relocate: `%s' has neither `filename' nor `url'"
+       label)))
+    (unless (bookmark-gt-temp-p entry)
+      (bookmark-gt--note-modification))
+    (bookmark-gt--after-mutation entry 'relocate)
+    entry))
+
 (provide 'bookmark-gt-handlers)
 
 

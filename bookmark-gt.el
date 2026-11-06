@@ -39,8 +39,9 @@
 ;; `ai/architecture.md' in the source repository.
 ;;
 ;; This file is the entry point.  It provides the master switch
-;; `bookmark-gt-mode' and shared utilities used by the other
-;; bookmark-gt-*.el files.
+;; `bookmark-gt-mode', the commands that capture the current
+;; location (`bookmark-gt-create', `bookmark-gt-update'), and the
+;; `bookmark-store' advice.
 
 ;;; Acknowledgements:
 ;;
@@ -99,6 +100,207 @@ own variable."
 (require 'bookmark-gt-auto-update)
 (require 'bookmark-gt-default-tags)
 (require 'bookmark-gt-browser-tabs)
+
+;;;; Storing through `bookmark-store'
+
+(defun bookmark-gt--store-advice (orig-fn name alist no-overwrite)
+  "Apply bookmark-gt\='s policies to `bookmark-store'.
+ORIG-FN is `bookmark-store'; NAME, ALIST and NO-OVERWRITE are its
+arguments.
+
+The built-in replaces any record of the same name.  That is
+right when a package re-stores its own bookmark, and wrong when
+the name came from the user: burly asks for a name, so storing a
+window layout under one an existing bookmark uses would replace
+that bookmark, whatever
+`bookmark-gt-allow-same-name-bookmarks\=' says.
+
+A store onto a name already in use therefore either replaces the
+record of its own kind (`bookmark-gt--store-replaceable-record\='),
+adds a second record when the setting permits one, or signals
+when it does not.  Storing under an unused name is untouched, as
+is a caller that already passed NO-OVERWRITE."
+  ;; The decision below reads `bookmark-alist', while ORIG-FN's own
+  ;; load runs a step later, so a store arriving before anything
+  ;; has read the file would be judged against an empty list and
+  ;; take the unused-name branch whatever the file holds.
+  (bookmark-maybe-load-default-file)
+  (let ((records (and (not no-overwrite)
+                      (stringp name)
+                      (bookmark-gt--records-named name))))
+    (cond
+     ((null records) (funcall orig-fn name alist no-overwrite))
+     ((bookmark-gt--store-replaceable-record name alist)
+      (bookmark-gt--store-replace
+       (bookmark-gt--store-replaceable-record name alist) name alist))
+     ((bookmark-gt-name-available-p name alist)
+      ;; The setting permits another bookmark of this name, so the
+      ;; existing ones are left alone.
+      (funcall orig-fn name alist 'no-overwrite))
+     (t
+      (user-error
+       "A %s bookmark named `%s' exists; storing a %s bookmark under that name would replace it"
+       (bookmark-gt-handler-name (car records)) name
+       (bookmark-gt-handler-name (cons name alist)))))))
+
+;;;; Public: interactive entry point
+
+;; NAME's sentinel distinguishes an interactive call from a Lisp
+;; call passing nil.  `called-interactively-p' cannot do this
+;; reliably here: invoking `bookmark-gt-create' as a transient suffix
+;; (as in a `transient-define-prefix' menu) makes it return nil
+;; even though the user invoked the command interactively.
+;; `bookmark-gt-tags.el' hit the same issue with its tag reader
+;; and moved off `called-interactively-p'; this sentinel is the
+;; equivalent fix for the name prompt.
+(defconst bookmark-gt--prompt-name (make-symbol "bookmark-gt--prompt-name")
+  "Sentinel NAME value that requests the interactive name prompt.
+`bookmark-gt-create' produces this value from its `interactive'
+spec.  Lisp callers should pass a name string, or nil to accept
+the suggested name without prompting.")
+
+(defun bookmark-gt--capture-here ()
+  "Return (DATA . SUGGESTED-NAME) describing the current location.
+DATA is a record alist; SUGGESTED-NAME is the name the location
+suggests for itself.  Shared by `bookmark-gt-create', which
+stores DATA as a new record, and `bookmark-gt-update', which
+puts it onto an existing one."
+  (let* ((region-active (and bookmark-gt-use-region (use-region-p)))
+         ;; `bookmark-make-record' names the record after
+         ;; `bookmark-current-bookmark' when the buffer's
+         ;; `bookmark-make-record-function' supplies no name, and
+         ;; lists it first under `defaults'.  That variable holds
+         ;; the last bookmark jumped to or stored in this buffer,
+         ;; which has nothing to do with the location being
+         ;; bookmarked now, so it is bound to nil over the record
+         ;; construction.
+         (raw-record (let ((bookmark-current-bookmark nil))
+                       (if region-active
+                           ;; Capture context around region-start (not
+                           ;; wherever point happens to be within the
+                           ;; region) so the built-in front/rear
+                           ;; context strings anchor to the region's
+                           ;; beginning.
+                           (save-excursion
+                             (goto-char (region-beginning))
+                             (bookmark-make-record))
+                         (bookmark-make-record))))
+         (data (if (stringp (car raw-record)) (cdr raw-record) raw-record))
+         (data (bookmark-gt--record-with-region data))
+         ;; bookmark-gt owns the Dired handler; when capturing from
+         ;; a Dired buffer, force our handler so the record is
+         ;; unambiguous on disk regardless of what Dired's
+         ;; `bookmark-make-record-function' produced.  Also splice
+         ;; in the dired state (marks, inserted/hidden subdirs, ls
+         ;; switches, `dired-directory') so jumps restore what the
+         ;; user saw.  Existing keys with the same name are removed
+         ;; first, so re-capturing refreshes the state instead of
+         ;; accumulating stale copies.
+         (data
+          (if (derived-mode-p 'dired-mode)
+              (let* ((state (bookmark-gt--dired-collect-state))
+                     (state-keys (mapcar #'car state))
+                     (stripped (seq-remove
+                                (lambda (cell)
+                                  (memq (car-safe cell) state-keys))
+                                data))
+                     (rehandled (cons (cons 'handler
+                                            'bookmark-gt-handler-dired-jump)
+                                      (assq-delete-all 'handler stripped))))
+                (append rehandled state))
+            data)))
+    (cons data
+          (or (and (stringp (car raw-record)) (car raw-record))
+              (car (bookmark-prop-get raw-record 'defaults))
+              (buffer-name)))))
+
+;;;###autoload
+(defun bookmark-gt-create (&optional name tags)
+  "Create a bookmark at the current location.
+
+Always creates.  To change where an existing bookmark points,
+use `bookmark-gt-update' (to here) or `bookmark-gt-relocate' (to
+a target you type).
+
+NAME is the bookmark name.  Interactive calls prompt for it with
+the suggested name as editable initial input, completing over the
+existing names so a repeat is visible while typing.  Lisp callers
+pass a name string, or nil to accept the suggested name without
+prompting.
+
+TAGS is an optional initial tag list, seeding the tag reader the
+same way it does in `bookmark-gt-create-url' and the other typed
+creators.  When omitted, the tag pipeline decides on its own.
+
+`bookmark-gt-allow-same-name-bookmarks' decides what happens when
+the name is already in use.  Returns the stored record."
+  (interactive (list bookmark-gt--prompt-name nil))
+  (bookmark-maybe-load-default-file)
+  (pcase-let* ((`(,data . ,suggested) (bookmark-gt--capture-here))
+               (refined (bookmark-gt--refine-name suggested data))
+               (chosen
+                (cond
+                 ((eq name bookmark-gt--prompt-name)
+                  ;; The suggested name is inserted as editable
+                  ;; initial input rather than offered as a
+                  ;; minibuffer default: RET accepts it, point sits
+                  ;; at its end for a small edit, and `C-a C-k'
+                  ;; rewrites it.  Completion is over the existing
+                  ;; names, so reusing one is visible before it
+                  ;; happens rather than reported afterwards.
+                  (completing-read
+                   "Create bookmark: "
+                   (mapcar #'bookmark-name-from-full-record bookmark-alist)
+                   nil nil refined 'bookmark-history refined))
+                 (name name)
+                 (t refined))))
+    (bookmark-gt--create-record chosen data tags)))
+
+;;;; Update
+;;
+;; "This bookmark now lives where I am."  Re-captures the location
+;; and puts it onto an existing record, which is why it is not a
+;; create: the record keeps its name, id, tags, annotation and
+;; history.  Only what describes *where* is replaced.
+
+;;;###autoload
+(defun bookmark-gt-update (&optional bookmark)
+  "Change BOOKMARK to point at the current location.
+
+BOOKMARK is a record, a name, or an id; nil prompts.  The
+bookmark keeps its name, id, tags, annotation, creation time and
+visit history — see `bookmark-gt-preserved-props'.  Everything
+describing where it points is replaced, which also removes the
+leftovers of a previous type.
+
+Signals for bookmarks with no buffer location — URL, function,
+kmacro and sequence — since there is nothing at point to capture
+for them; use `bookmark-gt-relocate' to retarget those.
+
+Asks for confirmation when the bookmark\='s type would change."
+  (interactive)
+  (bookmark-maybe-load-default-file)
+  (let ((record (bookmark-gt--resolve bookmark "Update bookmark")))
+    (unless (bookmark-gt--buffer-backed-p record)
+      (user-error
+       "`%s' has no buffer location; retarget it with `%s'"
+       (bookmark-name-from-full-record record) "bookmark-gt-relocate"))
+    (pcase-let* ((`(,data . ,_) (bookmark-gt--capture-here))
+                 (saved (bookmark-gt--preserved-props record))
+                 (was (bookmark-gt-handler-name record))
+                 (now (bookmark-gt-handler-name (cons "x" data))))
+      (when (and (not (equal was now))
+                 (not (yes-or-no-p
+                       (format "`%s' is a %s bookmark; make it a %s bookmark? "
+                               (bookmark-name-from-full-record record)
+                               was now))))
+        (user-error "Not updated"))
+      (setcdr record data)
+      (bookmark-gt--restore-preserved record saved)
+      (bookmark-gt--after-mutation record 'update)
+      (message "`%s' now points here"
+               (bookmark-name-from-full-record record))
+      record)))
 
 ;;;###autoload
 (defvar-keymap bookmark-gt-mode-map
