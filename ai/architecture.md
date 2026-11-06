@@ -205,8 +205,13 @@ entry OPERATION)`, where OPERATION names what happened —
 `create`, `update`, `relocate`, `rename`, `tags`, `temp`,
 `auto-update`, `delete`.  The helper:
 
-1. Calls `bookmark-gt-list-refresh` — redraws every live list
-   buffer.  No-op when no list buffer exists.
+1. Runs `bookmark-gt--alist-changed-hook`, an internal normal
+   hook.  Its only function is `bookmark-gt-list-refresh`, added
+   by `bookmark-gt-list-mode` when the first list buffer is
+   created; it redraws every live list buffer and does nothing
+   when there is none.  Core runs a hook here instead of calling
+   the list because `bookmark-gt-list.el` requires core: a direct
+   call would be a call into a module that depends on core.
 2. Calls `bookmark-gt-highlight-refresh entry` — no-op unless
    `entry` has a `filename` that matches a live buffer.
 3. Runs `bookmark-gt-record-changed-hook` for third-party
@@ -214,9 +219,11 @@ entry OPERATION)`, where OPERATION names what happened —
    distribution).
 
 Batch callers that would otherwise notify per-record pass
-`NO-NOTIFY` non-nil to `bookmark-gt-create-non-file` and call
-`bookmark-gt-list-refresh` once at end.  See
-`bookmark-gt-browser-tabs-refresh` for the pattern.
+`NO-NOTIFY` non-nil to `bookmark-gt-create-non-file` and redraw
+once at the end: `bookmark-gt-browser-tabs-refresh` calls
+`bookmark-gt-list-refresh` (browser-tabs requires the list), and
+`bookmark-gt-migrate`, which requires only core, runs
+`bookmark-gt--alist-changed-hook`.
 
 ## Modification accounting is separate from notification
 

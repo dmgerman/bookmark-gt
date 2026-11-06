@@ -536,6 +536,10 @@ Sorting: click a column header, or press `S' for column-at-point sort.
   (setq bookmark-gt-list--marks (make-hash-table :test #'eq))
   (setq tabulated-list-sort-key '("Name" . nil))
   (setq tabulated-list-entries #'bookmark-gt-list--entries)
+  ;; Global, not buffer-local: core runs the hook from whatever
+  ;; buffer a mutation happens in.  `bookmark-gt-list-refresh'
+  ;; redraws every list buffer and does nothing when there is none.
+  (add-hook 'bookmark-gt--alist-changed-hook #'bookmark-gt-list-refresh)
   (setq-local tabulated-list-printer #'bookmark-gt-list--print-entry)
   (setq-local revert-buffer-function #'bookmark-gt-list--revert)
   (setq-local bookmark-make-record-function
@@ -588,8 +592,8 @@ replaced, and restores the row's visual offset from
 ;;;###autoload
 (defun bookmark-gt-list-refresh (&rest _)
   "Redraw every live `bookmark-gt-list-mode' buffer.
-Callable directly, and used as the observer on
-`bookmark-gt-record-changed-hook' (extra hook arguments are ignored)."
+Callable directly; `bookmark-gt-list-mode' also adds it to
+`bookmark-gt--alist-changed-hook'.  Arguments are ignored."
   (dolist (buf (buffer-list))
     (with-current-buffer buf
       (when (derived-mode-p 'bookmark-gt-list-mode)

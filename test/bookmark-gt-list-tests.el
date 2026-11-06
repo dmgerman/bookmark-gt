@@ -972,5 +972,19 @@ Cleans up the buffer and file on exit."
         (should (equal tabulated-list-sort-key (cons "Name" nil)))
         (should (null bookmark-gt-list--filters))))))
 
+;;;; Registration on the internal alist-changed hook
+
+(ert-deftest bookmark-gt-list-test-mode-adds-refresh-to-alist-changed-hook ()
+  "Entering the list mode adds the refresh to core's internal hook."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((bookmark-gt--alist-changed-hook nil))
+      (unwind-protect
+          (progn
+            (bookmark-gt-list)
+            (should (memq #'bookmark-gt-list-refresh
+                          bookmark-gt--alist-changed-hook)))
+        (when (get-buffer bookmark-gt-list-buffer-name)
+          (kill-buffer bookmark-gt-list-buffer-name))))))
+
 (provide 'bookmark-gt-list-tests)
 ;;; bookmark-gt-list-tests.el ends here

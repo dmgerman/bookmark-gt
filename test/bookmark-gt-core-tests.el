@@ -130,6 +130,26 @@ projects."
         (should (= (length seen) 1))
         (should (eq (car seen) result))))))
 
+;;;; Internal alist-changed hook
+
+(ert-deftest bookmark-gt-test-alist-changed-hook-runs-on-create ()
+  "Creating a record runs `bookmark-gt--alist-changed-hook' once."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let* ((count 0)
+           (bookmark-gt--alist-changed-hook
+            (list (lambda () (setq count (1+ count))))))
+      (bookmark-gt-create-non-file "foo" 'ignore nil)
+      (should (= count 1)))))
+
+(ert-deftest bookmark-gt-test-alist-changed-hook-skipped-with-no-notify ()
+  "NO-NOTIFY leaves `bookmark-gt--alist-changed-hook' to the caller."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let* ((count 0)
+           (bookmark-gt--alist-changed-hook
+            (list (lambda () (setq count (1+ count))))))
+      (bookmark-gt-create-non-file "foo" 'ignore nil t)
+      (should (= count 0)))))
+
 ;;;; Save / load round-trip
 
 (ert-deftest bookmark-gt-test-save-load-plain-record ()

@@ -146,8 +146,7 @@ Returns the number of records changed.  Does NOT save; run
     (when (> changed 0)
       (setq bookmark-alist-modification-count
             (1+ bookmark-alist-modification-count))
-      (when (fboundp 'bookmark-gt-list-refresh)
-        (bookmark-gt-list-refresh)))
+      (run-hooks 'bookmark-gt--alist-changed-hook))
     (message
      "Migrated %d record(s).  Run `bookmark-save' to commit."
      changed)

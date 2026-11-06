@@ -41,11 +41,6 @@
 (require 'bookmark)
 (require 'seq)
 
-;; Byte-compile visibility for symbols provided by sibling modules
-;; that this file calls at runtime.  `bookmark-gt.el' requires all
-;; of them before use.
-(declare-function bookmark-gt-list-refresh "bookmark-gt-list")
-
 ;;;; Field-access helpers with bookmark+ compat
 ;;
 ;; bookmark+ stores a placeholder string in the `filename' slot of
@@ -469,9 +464,17 @@ function.  The final result is stored on the record under the
 `tags' alist key.")
 
 (defvar bookmark-gt-record-changed-hook nil
-  "Hook run after `bookmark-gt-set' stores a record.
-Called with one argument: the stored (NAME . DATA) pair.
-Return values are ignored.")
+  "Abnormal hook run after bookmark-gt changes a bookmark record.
+Called with two arguments: the record, and a symbol naming the
+change, one of `create', `update', `relocate', `rename', `tags',
+`temp', `auto-update' or `delete'.  Return values are ignored.")
+
+(defvar bookmark-gt--alist-changed-hook nil
+  "Normal hook run after bookmark-gt changes `bookmark-alist'.
+Internal: bookmark-gt modules that display bookmarks add their
+redraw function here, so that core does not call them.  The
+functions on it are listed in ai/architecture.md.  External code
+uses `bookmark-gt-record-changed-hook' instead.")
 
 ;;;; Same-name disambiguation
 ;;
@@ -1180,10 +1183,11 @@ OPERATION is one of `create', `update', `relocate', `rename',
 `update'.
 
 Stamps `last-modified' on ENTRY when it names a specific record,
-refreshes list buffers and highlight overlays, then runs
-`bookmark-gt-record-changed-hook' with both values."
+runs `bookmark-gt--alist-changed-hook', refreshes highlight
+overlays, then runs `bookmark-gt-record-changed-hook' with both
+values."
   (bookmark-gt--stamp-modified entry)
-  (bookmark-gt-list-refresh)
+  (run-hooks 'bookmark-gt--alist-changed-hook)
   (bookmark-gt-highlight-refresh entry)
   (run-hook-with-args 'bookmark-gt-record-changed-hook
                       entry (or operation 'update)))
