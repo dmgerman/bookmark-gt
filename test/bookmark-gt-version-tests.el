@@ -33,7 +33,7 @@
   (dolist (feature '(bookmark-gt-core bookmark-gt-handlers
                      bookmark-gt-tags bookmark-gt-list
                      bookmark-gt-jump bookmark-gt-auto-update
-                     bookmark-gt-default-tags bookmark-gt-browser-tabs))
+                     bookmark-gt-browser-tabs))
     (let ((header (lm-with-file (find-library-name (symbol-name feature))
                     (lm-header "version"))))
       (should-not header))))

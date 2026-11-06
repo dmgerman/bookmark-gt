@@ -98,7 +98,6 @@ own variable."
 (require 'bookmark-gt-list)
 (require 'bookmark-gt-jump)
 (require 'bookmark-gt-auto-update)
-(require 'bookmark-gt-default-tags)
 (require 'bookmark-gt-browser-tabs)
 
 ;;;; Storing through `bookmark-store'

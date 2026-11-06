@@ -46,8 +46,7 @@
 ;; of them before use.
 (declare-function bookmark-gt-list-refresh "bookmark-gt-list")
 (declare-function bookmark-gt-tags-read "bookmark-gt-tags")
-(declare-function bookmark-gt-default-tags--hook
-                  "bookmark-gt-default-tags")
+(declare-function bookmark-gt-default-tags--hook "bookmark-gt-tags")
 (defvar bookmark-gt-prompt-for-tags-flag)
 (defvar bookmark-gt-default-tags-mode)
 

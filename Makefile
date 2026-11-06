@@ -12,12 +12,11 @@ PACKAGE = bookmark-gt
 #   1. bookmark-gt.el          — entry, shared utils, autoloads, master switch
 #   2. bookmark-gt-core.el     — bookmark-gt-set, extension hooks, same-name disambig
 #   3. bookmark-gt-handlers.el — handler registry + non-file handlers
-#   4. bookmark-gt-tags.el     — tag storage, reader, hook registration
+#   4. bookmark-gt-tags.el     — tag storage, reader, default-tags DSL
 #   5. bookmark-gt-list.el     — *Bookmarks-gt List* buffer (tabulated-list-mode)
 #   6. bookmark-gt-jump.el     — consult reader, marginalia annotator, orderless
 #   7. bookmark-gt-auto-update.el — idle timer, per-record state, refresh triggers
-#   8. bookmark-gt-default-tags.el — default-tags DSL, tag-reader hook
-#   9. bookmark-gt-browser-tabs.el — browser tabs as temp bookmarks
+#   8. bookmark-gt-browser-tabs.el — browser tabs as temp bookmarks
 EL_FILES = bookmark-gt.el \
            bookmark-gt-core.el \
            bookmark-gt-handlers.el \
@@ -25,7 +24,6 @@ EL_FILES = bookmark-gt.el \
            bookmark-gt-list.el \
            bookmark-gt-jump.el \
            bookmark-gt-auto-update.el \
-           bookmark-gt-default-tags.el \
            bookmark-gt-browser-tabs.el \
            bookmark-gt-migrate.el
 
