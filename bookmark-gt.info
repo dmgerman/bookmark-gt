@@ -343,9 +343,11 @@ tags.  Configured via a small DSL:
                     '("web"))
                    (t nil))))
 
-   Errors in the function form are demoted to a warning; nothing is
-applied without user confirmation.  The user always sees the defaults as
-prefill in the tag reader and can edit or clear them.
+   Errors in the function form are demoted to a warning, and no default
+tags are applied.  When ‘bookmark-gt-prompt-for-tags-flag’ is non-nil
+(default), the defaults are the tag reader's initial input and the user
+can edit or clear them; when it is nil, the defaults are stored without
+a prompt.
 
 
 File: bookmark-gt.info,  Node: bookmark-gt-browser-tabs-mode,  Prev: bookmark-gt-default-tags-mode,  Up: Opt-in modes
@@ -1013,9 +1015,11 @@ seeds the reader rather than replacing it: the tags are offered for
 editing, and what the reader returns is what is stored.
 
    The reader is invoked by ‘bookmark-gt-create’ when
-‘bookmark-gt-prompt-for-tags-flag’ is non-nil (default) and seeds itself
-with any tags provided by ‘bookmark-gt-default-tags-mode’ or another
-‘bookmark-gt-create-tag-reader-hook’ contributor.
+‘bookmark-gt-prompt-for-tags-flag’ is non-nil (default).  Its initial
+input is the TAGS argument plus any tags provided by
+‘bookmark-gt-default-tags-mode’.  Functions on
+‘bookmark-gt-create-tag-reader-hook’ run after the reader and receive
+the tags it returns.
 
 
 File: bookmark-gt.info,  Node: Bookmarks that share a name,  Next: Changing an existing bookmark,  Prev: Tag reader,  Up: Setting bookmarks
@@ -1577,10 +1581,11 @@ Every non-trivial mechanism is expected to have an extension point:
      ‘bookmark-gt-create’ and ‘bookmark-gt-create-non-file’, after the
      name is chosen and before the record is stored.  Chained: each hook
      is called with ‘(record seed-tags)’ and returns a new seed-tags
-     list, which becomes the input to the next hook.
-     ‘bookmark-gt-default-tags-mode’ registers here to seed the list
-     from context; the interactive tag reader registers here to prompt
-     the user for edits.
+     list, which becomes the input to the next hook.  The hook is empty
+     by default.  Its first input is the tag list produced by
+     ‘bookmark-gt-default-tags-mode’ (when on) and then the interactive
+     tag reader (when ‘bookmark-gt-prompt-for-tags-flag’ is non-nil);
+     neither of those is on the hook.
    • ‘bookmark-gt-record-changed-hook’ — runs at the end of every change
      to a bookmark record.  Called with two arguments: the record, and a
      symbol naming what happened — ‘create’, ‘update’, ‘relocate’,
@@ -1814,57 +1819,57 @@ Node: Master switch bookmark-gt-mode6925
 Node: Opt-in modes9941
 Node: bookmark-gt-auto-update-mode10292
 Node: bookmark-gt-default-tags-mode11278
-Node: bookmark-gt-browser-tabs-mode12310
-Node: User interface15756
-Node: The *Bookmarks-gt List* buffer16013
-Node: Columns16586
-Node: Keys17824
-Node: Acting on several bookmarks at once19712
-Node: Persisting view state23568
-Node: Jump to a bookmark bookmark-gt-jump24527
-Node: The annotation25954
-Ref: Relationship to marginalia-field-width27559
-Node: Elisp signatures29079
-Node: Non-file bookmark types32105
-Node: URL bookmarks — bookmark-gt-create-url32690
-Node: Dired bookmarks — bookmark-gt-handler-dired-jump33492
-Ref: Virtual dired35068
-Node: Function bookmarks — bookmark-gt-create-function36281
-Node: Keyboard-macro bookmarks — bookmark-gt-create-kmacro37115
-Node: Sequence bookmarks — bookmark-gt-create-sequence38794
-Node: File-type handlers — override the file-jump path per pattern39565
-Node: View bookmarks — save the list buffer's current view40941
-Node: Setting bookmarks42109
-Node: Tag reader42365
-Node: Bookmarks that share a name43647
-Node: Telling them apart on screen45320
-Node: Loading a file that breaks the setting45977
-Node: If you expected two records and see one47481
-Node: Which command reaches which record49269
-Node: Record identity51227
-Node: Changing an existing bookmark52220
-Node: bookmark-gt-update — point it at where I am53271
-Node: bookmark-gt-relocate — point it somewhere I name54257
-Node: bookmark-gt-rename55420
-Node: Deleting55902
-Node: In-file behaviors56397
-Node: In-buffer cycling56626
-Node: Per-bookmark highlighting57626
-Node: Region bookmarks59589
-Node: Trackers61113
-Node: Visit tracker61289
-Node: File-rename tracker62033
-Node: Extension API63020
-Node: Handler registry63221
-Node: Group registry65780
-Node: Extension points67444
-Node: Compatibility70568
-Node: Data compat with bookmark+70769
-Node: Migrating from bookmark+72112
-Node: Reference74456
-Node: Selected customization74619
-Node: Acknowledgements81888
-Node: License84222
+Node: bookmark-gt-browser-tabs-mode12415
+Node: User interface15861
+Node: The *Bookmarks-gt List* buffer16118
+Node: Columns16691
+Node: Keys17929
+Node: Acting on several bookmarks at once19817
+Node: Persisting view state23673
+Node: Jump to a bookmark bookmark-gt-jump24632
+Node: The annotation26059
+Ref: Relationship to marginalia-field-width27664
+Node: Elisp signatures29184
+Node: Non-file bookmark types32210
+Node: URL bookmarks — bookmark-gt-create-url32795
+Node: Dired bookmarks — bookmark-gt-handler-dired-jump33597
+Ref: Virtual dired35173
+Node: Function bookmarks — bookmark-gt-create-function36386
+Node: Keyboard-macro bookmarks — bookmark-gt-create-kmacro37220
+Node: Sequence bookmarks — bookmark-gt-create-sequence38899
+Node: File-type handlers — override the file-jump path per pattern39670
+Node: View bookmarks — save the list buffer's current view41046
+Node: Setting bookmarks42214
+Node: Tag reader42470
+Node: Bookmarks that share a name43821
+Node: Telling them apart on screen45494
+Node: Loading a file that breaks the setting46151
+Node: If you expected two records and see one47655
+Node: Which command reaches which record49443
+Node: Record identity51401
+Node: Changing an existing bookmark52394
+Node: bookmark-gt-update — point it at where I am53445
+Node: bookmark-gt-relocate — point it somewhere I name54431
+Node: bookmark-gt-rename55594
+Node: Deleting56076
+Node: In-file behaviors56571
+Node: In-buffer cycling56800
+Node: Per-bookmark highlighting57800
+Node: Region bookmarks59763
+Node: Trackers61287
+Node: Visit tracker61463
+Node: File-rename tracker62207
+Node: Extension API63194
+Node: Handler registry63395
+Node: Group registry65954
+Node: Extension points67618
+Node: Compatibility70842
+Node: Data compat with bookmark+71043
+Node: Migrating from bookmark+72386
+Node: Reference74730
+Node: Selected customization74893
+Node: Acknowledgements82162
+Node: License84496
 
 End Tag Table
 

@@ -1,6 +1,22 @@
 #+TITLE: bookmark-gt — ChangeLog
 #+STARTUP: overview
 
+* Unreleased
+
+** Changed
+
+- ~bookmark-gt-default-tags.el~ is merged into
+  ~bookmark-gt-tags.el~.  The feature ~bookmark-gt-default-tags~
+  no longer exists: remove any ~(require 'bookmark-gt-default-tags)~
+  from your init file.  ~bookmark-gt-default-tags-mode~ and
+  ~bookmark-gt-default-tags~ keep their names and behavior.
+
+** Documentation
+
+- The manual now states the order of the tag pipeline: default
+  tags, then the tag reader, then
+  ~bookmark-gt-create-tag-reader-hook~.
+
 * 0.9.1 — 2026-10-19
 
 ** Fixed

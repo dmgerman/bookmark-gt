@@ -203,10 +203,11 @@ tags.  Configured via a small DSL:
               (t nil))))
 #+end_src
 
-Errors in the function form are demoted to a warning; nothing
-is applied without user confirmation.  The user always sees
-the defaults as prefill in the tag reader and can edit or
-clear them.
+Errors in the function form are demoted to a warning, and no
+default tags are applied.  When ~bookmark-gt-prompt-for-tags-flag~
+is non-nil (default), the defaults are the tag reader's initial
+input and the user can edit or clear them; when it is nil, the
+defaults are stored without a prompt.
 
 *** ~bookmark-gt-browser-tabs-mode~
 
@@ -814,10 +815,11 @@ offered for editing, and what the reader returns is what is
 stored.
 
 The reader is invoked by ~bookmark-gt-create~ when
-~bookmark-gt-prompt-for-tags-flag~ is non-nil (default) and
-seeds itself with any tags provided by
-~bookmark-gt-default-tags-mode~ or another
-~bookmark-gt-create-tag-reader-hook~ contributor.
+~bookmark-gt-prompt-for-tags-flag~ is non-nil (default).  Its
+initial input is the TAGS argument plus any tags provided by
+~bookmark-gt-default-tags-mode~.  Functions on
+~bookmark-gt-create-tag-reader-hook~ run after the reader and
+receive the tags it returns.
 
 ** Bookmarks that share a name
 
@@ -1296,9 +1298,11 @@ Every non-trivial mechanism is expected to have an extension point:
   name is chosen and before the record is stored.  Chained:
   each hook is called with ~(record seed-tags)~ and returns a
   new seed-tags list, which becomes the input to the next hook.
-  ~bookmark-gt-default-tags-mode~ registers here to seed the
-  list from context; the interactive tag reader registers here
-  to prompt the user for edits.
+  The hook is empty by default.  Its first input is the tag
+  list produced by ~bookmark-gt-default-tags-mode~ (when on) and
+  then the interactive tag reader (when
+  ~bookmark-gt-prompt-for-tags-flag~ is non-nil); neither of
+  those is on the hook.
 - ~bookmark-gt-record-changed-hook~ — runs at the end of every
   change to a bookmark record.  Called with two arguments: the
   record, and a symbol naming what happened — ~create~,

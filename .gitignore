@@ -12,3 +12,4 @@ bookmark-gt.texi
 ai/rip
 .elpa-melpa/
 .melpazoid/
+*.profraw

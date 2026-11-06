@@ -2,7 +2,7 @@
 
 Instructions for future agents editing this package.  The
 package's user-facing documentation lives in `readme.org` (and
-its generated `docs/bookmark-gt.info` / `docs/bookmark-gt.pdf`);
+its generated `bookmark-gt.info` and `dir` at the repo root);
 this file is only for agents.
 
 ## Read first
@@ -88,8 +88,8 @@ patch bindings via `define-key`.
 ### Documentation
 
 - Source of truth: `readme.org` at the repo root.
-- Build: `make info pdf` (writes `docs/bookmark-gt.info` and
-  `docs/bookmark-gt.pdf`; intermediates are removed on success).
+- Build: `make info` (writes `bookmark-gt.info` and `dir` at the
+  repo root; both are committed).
 - After any user-facing change (new command, new defcustom, new
   key), update `readme.org` and rebuild the docs.
 
