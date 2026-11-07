@@ -117,7 +117,7 @@ patch bindings via `define-key`.
 3. Add an interactive setter if the type isn't produced by an
    existing `bookmark-make-record-function`.
 4. Add tests under `test/` (classify + jump behavior).
-5. Document in `readme.org` under **Non-file bookmark types**.
+5. Document in `readme.org` under **Bookmark types besides files**.
 
 ### Adding a list-buffer command
 

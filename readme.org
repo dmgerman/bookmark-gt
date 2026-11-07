@@ -9,69 +9,50 @@
 #+TEXINFO_DIR_TITLE: bookmark-gt: (bookmark-gt)
 #+TEXINFO_DIR_DESC: Bookmark manager for Emacs.
 
-A bookmark manager for Emacs, built on the built-in
-~bookmark.el~.  Its bookmarks are ~bookmark.el~ records: they
-live in ~bookmark-alist~ and are written to the bookmark file by
-~bookmark-save~, so the built-in bookmark commands operate on
-them.  bookmark-gt adds its features through advice and hooks
-on ~bookmark.el~ that are installed only while
-~bookmark-gt-mode~ is on.  It is inspired by
-[[https://www.emacswiki.org/emacs/BookmarkPlus][bookmark+]].
+bookmark-gt extends the built-in =bookmark.el= and is fully compatible with it.  When enabled, the standard bookmark keys run the corresponding
+bookmark-gt commands.  Its bookmarks are ordinary =bookmark.el= records, thus a bookmark file
+written by bookmark-gt can still be read by the built-in bookmark package.
 
-This is a quick demo of its features:
-[[https://youtu.be/hitAyO8ArYM]]
+bookmark-gt is inspired by [[https://www.emacswiki.org/emacs/BookmarkPlus][bookmark+]].
 
-Along its most important features:
+bookmark-gt's main features are:
 
-- tag support
-  - including default tags
-- ability to name several bookmarks with the same name differentiated by tags
-- a rich bookmark list buffer for bookmark management
-  - bulk management
-  - searching
-  - filtering
-- automatic renaming of targets of bookmarks if they are moved inside emacs
-- marginalia/vertico/consult support for bookmark jumping
-- temporary bookmarks (not saved to disk)
-- autoupdate bookmarks (keep track of where you are when reading a long document)
-- several handlers for bookmarks
-  - dired
-  - macros
-   sequences of bookmarks
+- tags, including default tags computed from the location being
+  bookmarked;
+- several bookmarks with the same name, distinguished by their
+  destination;
+- a bookmark list buffer for searching, filtering and updating
+  many bookmarks at once;
+- bookmarks that follow their file when it is renamed inside Emacs;
+- a jump reader that works with marginalia, vertico, consult and
+  orderless;
+- temporary bookmarks, which are never saved to disk;
+- auto-update bookmarks, which keep track of where you are in a
+  long document;
+- bookmark types for URLs, Dired buffers, functions, keyboard
+  macros and sequences of bookmarks.
 
-Bookmark files created with =bookmark-gt= can be read by the
-built-in bookmark package: bookmark-gt's own record keys are
-ordinary alist entries, which =bookmark.el= ignores.
-
-=bookmark-gt= reads files created by =bookmark+=, and
-=bookmark-gt-migrate= converts =bookmark+= records to
-bookmark-gt's conventions.  Migration is one-way.  A file that
-bookmark-gt has written is not guaranteed to round-trip back
-into =bookmark+= with all of that package's own metadata
-intact — in particular, bookmark-gt strips text properties from
-bookmark names when storing (as =bookmark.el= does), which
-removes the =bmkp-full-record= property =bookmark+= attaches
-there.
+A short demo: [[https://youtu.be/hitAyO8ArYM]]
 
 * Install
 
-Using use-package with a local directory
+With use-package and a local checkout:
 
 #+begin_src emacs-lisp
 (use-package bookmark-gt
   :straight nil
   :load-path "~/.emacs.d/modules/bookmark-gt"
-  :bind (("C-x r u" . bookmark-gt-create-url)  ; new: bookmark a URL
-         ("C-x r U" . bookmark-gt-update))     ; new: move a bookmark here
+  :bind (("C-x r u" . bookmark-gt-create-url)  ; bookmark a URL
+         ("C-x r U" . bookmark-gt-update))     ; move a bookmark to point
   :config
   (bookmark-gt-mode 1))
 #+end_src
 
-While ~bookmark-gt-mode~ is on it remaps the built-in bookmark
-commands, so the standard keys reach bookmark-gt without being
-rebound:
+bookmark-gt requires Emacs 30.1 or later.  While ~bookmark-gt-mode~
+is on, the built-in bookmark keys are remapped to run the corresponding
+bookmark-gt functions:
 
-| Key     | Built-in            | Reaches            |
+| Key     | Built-in            | Runs               |
 |---------+---------------------+--------------------|
 | ~C-x r m~ | ~bookmark-set~        | ~bookmark-gt-create~ |
 | ~C-x r b~ | ~bookmark-jump~       | ~bookmark-gt-jump~   |
@@ -79,129 +60,104 @@ rebound:
 | ~M-x~     | ~bookmark-delete~     | ~bookmark-gt-delete~ |
 | ~M-x~     | ~bookmark-rename~     | ~bookmark-gt-rename~ |
 
-Turning the mode off restores the built-ins.  Only the
-*commands* are remapped; the functions behind them are
-unchanged, so a package that stores bookmarks from Lisp keeps
-the behavior it expects.
+Turning the mode off restores the original key bindings.
 
-Requires Emacs 30.1+.  Soft-deps (loaded when present, package works
-without them):
+The following packages are optional; bookmark-gt uses them when
+they are installed and works without them:
 
-- ~marginalia~ — bookmark completion annotator (tags · type · path).
-- ~consult~ — jump reader UI (falls back to plain ~completing-read~).
-- ~orderless~ — enables the ~@type~ / ~+group~ / ~;tag~ narrowing particles.
-- ~browser-gt~ — required only for the browser-tabs feature. See below
-
-The bindings above rebind the standard ~C-x r m~, ~C-x r l~,
-and ~C-x r b~ to the bookmark-gt equivalents.  In particular:
-prefer ~bookmark-gt-jump~ over the built-in ~bookmark-jump~
-— the bookmark-gt reader adds type / tag narrowing, marginalia
-annotations, MRU-first sort, and an active-tag filter chip
-directly in the prompt.  Non-interactive callers should use
-~bookmark-gt-jump~ (or its ~-other-window~ / ~-tagged~
-variants) so those features are always available.
+- ~marginalia~ adds tags, type and location to each candidate in
+  the jump reader;
+- ~consult~ provides the jump reader's interface (without it,
+  bookmark-gt uses ~completing-read~);
+- ~orderless~ enables the ~@type~, ~+group~ and ~;tag~ narrowing
+  particles in the jump reader;
+- ~browser-gt~ is required only by ~bookmark-gt-browser-tabs-mode~.
 
 ** Which version is installed
 
-~M-x bookmark-gt-version~ displays the installed version
-followed by the Emacs version in parentheses — the line to
-include in a bug report.  With a prefix argument (~C-u M-x
-bookmark-gt-version~) the same text is inserted at point, so it
-can be pasted into an issue without retyping.  From Lisp the
-function returns the bare version string, the value of the
-~bookmark-gt-version~ variable.
+~M-x bookmark-gt-version~ shows the installed version followed by
+the Emacs version, which is the line to include in a bug report.
+With a prefix argument it inserts that text at point instead.
+From Lisp it returns the version string, which is also the value
+of the variable ~bookmark-gt-version~.
 
 * Getting started
 
-** Master switch: ~bookmark-gt-mode~
+** ~bookmark-gt-mode~
 
-Global minor mode.  Enables every bookmark-gt feature; when
-off, no advice or hook is installed and the built-in
-~bookmark.el~ operates unmodified.
+~bookmark-gt-mode~ is a global minor mode that turns on every
+bookmark-gt feature described in this manual.  When ~bookmark-gt-mode~ is off,
+the built-in
+=bookmark.el= behaves as it does without bookmark-gt.
 
-When enabled:
+While ~bookmark-gt-mode~ is on, the following features are available:
 
-- *Creating.*  ~bookmark-gt-create~ reads tags, applies
-  the same-name policy, and assigns bookmark-gt's Dired
-  handler when the current buffer is Dired.  Its name prompt
-  starts out holding the suggested name — derived from the
-  location being bookmarked, not from the last bookmark
-  jumped to — as editable text: ~RET~ accepts it, point is at
-  its end for a small edit, and ~C-a C-k~ replaces it.  Names matching
-  ~bookmark-gt-auto-temp-names~ (e.g.
-  ~org-capture-last-stored~) are marked temporary at store
-  time, which excludes them from ~bookmark-save~ output.
-- *Jump operations.*  Every jump increments the record's
-  ~visits~ property and updates ~last-visited~.  File
-  bookmarks display as line overlays in their visited
-  buffers.  Region bookmarks reselect their region on jump.
-  URL and browser-tab handlers suppress the built-in
-  annotation-buffer display.
-- *Jump reader.*  ~bookmark-gt-jump~ is the recommended
-  replacement for the built-in ~bookmark-jump~.  It sorts
-  candidates MRU-first using the ~visits~ / ~last-visited~
-  values above, integrates with ~marginalia~ annotations
-  and the ~orderless~ narrowing particles (~@TYPE~ / ~+GROUP~ /
-  ~;TAG~) when those packages are loaded, and
-  supports a mid-read tag filter (~M-t~ adds, ~M-d~ pops,
-  ~M-D~ clears).
-- *File-type dispatch.*  File bookmarks whose ~filename~
-  matches a regexp in ~bookmark-gt-file-type-handlers~ are
-  handled by the associated function instead of the built-in
-  ~find-file~ path.
-- *File-rename tracking.*  ~rename-file~ (including from
-  Dired's ~R~) rewrites every bookmark whose ~filename~
-  equals the source path to the destination.
-- *Temporary bookmarks.*  A bookmark marked temporary exists
-  for the duration of the Emacs session.  It appears in the
-  list buffer and the jump reader like any other bookmark, but
-  it is never written to the bookmark file, and it never marks
-  the bookmark file as out of date: adding temporary
-  bookmarks, or refreshing the browser-tab list, causes
-  neither an auto-save nor a write when you quit Emacs.
+- ~bookmark-gt-create~ creates bookmarks.  It prompts for the
+  name with a suggestion derived from the location being
+  bookmarked (not from the last bookmark you jumped to), already
+  inserted as editable text, so ~RET~ accepts it and ~C-a C-k~
+  replaces it.  It then prompts for tags, applies the same-name
+  policy, and uses bookmark-gt's Dired handler when the current
+  buffer is a Dired buffer.  Bookmarks whose names match
+  ~bookmark-gt-auto-temp-names~, such as
+  ~org-capture-last-stored~, are made temporary when they are
+  stored.
+- Every jump increments the bookmark's ~visits~ count and sets its
+  ~last-visited~ time. This information is used to enable a most-recently-used ordering of the bookmarks.
+- ~bookmark-gt-jump~ replaces ~bookmark-jump~.  It lists the most
+  recently used bookmarks first, shows marginalia annotations and
+  accepts orderless narrowing particles (such as ~;TAG~, ~@TYPE~ and ~+GROUP~) when those packages are
+  loaded, and lets you filter by tag while it is reading (~M-t~
+  adds a tag filter, ~M-d~ removes the last one, ~M-D~ removes all
+  of them).
+- You can specify how a file bookmark is opened.
+  A file bookmark whose ~filename~ matches a regexp in
+  ~bookmark-gt-file-type-handlers~ is opened by the function
+  associated with that regexp instead of by ~find-file~.
+- When a file is renamed with ~rename-file~ (which Dired's ~R~
+  uses), every bookmark pointing at the old name is changed to
+  point at the new one.
+- Temporary bookmarks exist only for the current Emacs session.
+  They appear in the list buffer and the jump reader like any
+  other bookmark, but they are never written to the bookmark
+  file, and creating them never causes the file to be saved.
   Making a temporary bookmark permanent, or a permanent one
-  temporary, changes what a save would write and is recorded
-  as an edit like any other.
+  temporary, is a change to the bookmark file like any other.
 
-Disabling the mode removes every advice and hook that
-enabling installed.  The three opt-in modes described below
-(auto-update, default-tags, browser-tabs) each add further
-behavior and are controlled independently.
+Turning the mode off removes every advice and hook it installed.
+The three optional modes below are turned on and off separately.
 
-** Opt-in modes
+** Optional modes
 
-Three independent global minor modes, off by default.  Enable
-each only if you use the feature.
+The following global minor modes are off by default.
 
 *** ~bookmark-gt-auto-update-mode~
 
-Bookmarks carrying the ~auto-update~ alist property get their
-position refreshed to the visiting buffer's current point on every
-idle tick.  Useful for e-readers, long-form documents,
-~pdf-tools~ page tracking.
+A bookmark with the ~auto-update~ property is moved to the current
+position of the buffer that visits its file, which is useful for
+keeping your place in a book, a long document or a PDF.  The
+position is updated when Emacs has been idle for
+~bookmark-gt-auto-update-interval~ seconds (default 60), when the
+buffer is killed, when the window configuration changes, and when
+the list buffer is opened or reverted.
 
-Triggers: an idle timer (~bookmark-gt-auto-update-interval~,
-default 60 s), plus ~kill-buffer-hook~ and
-~window-state-change-hook~ to capture buffer closes and window
-switches without waiting for the next idle tick.  Pressing ~g~
-in the list buffer also triggers a refresh before the buffer
-redraws.
-
-Toggle the property with =^= in the list buffer — on the marked
-rows, or on the row at point when none are marked — or with
-~M-x bookmark-gt-auto-update-toggle NAME~.  Set it
-programmatically with ~bookmark-gt-auto-update-set~.
+To set or clear the property, press ~^~ in the list buffer (it
+acts on the marked rows, or on the row at point when none is
+marked), or use ~M-x bookmark-gt-auto-update-toggle~.  From Lisp,
+use ~bookmark-gt-auto-update-set~.
 
 *** ~bookmark-gt-default-tags-mode~
 
-Seeds the tag reader with context-appropriate tags when a bookmark
-is created interactively (see [[*Tag reader][Tag reader]] for when the tag
-pipeline runs).  Configured via a small DSL:
+This mode proposes tags for a new bookmark based on its location.
+The proposed tags become the initial input of the tag prompt, where
+you can edit or clear them (see [[*Tag reader][Tag reader]]).  The tags come from
+~bookmark-gt-default-tags~, which can be a single tag, a list of
+tags, or a function of the newly created record that returns either:
 
 #+begin_src emacs-lisp
-(setq bookmark-gt-default-tags "work")                    ; single tag
-(setq bookmark-gt-default-tags '("work" "urgent"))        ; list
-(setq bookmark-gt-default-tags                            ; function
+(setq bookmark-gt-default-tags "work")                    ; one tag
+(setq bookmark-gt-default-tags '("work" "urgent"))        ; several tags
+(setq bookmark-gt-default-tags                            ; a function
       (lambda (record)
         (cond ((string-prefix-p "/proj/" (bookmark-gt-filename-of record))
                '("project"))
@@ -210,343 +166,208 @@ pipeline runs).  Configured via a small DSL:
               (t nil))))
 #+end_src
 
-Errors in the function form are demoted to a warning, and no
-default tags are applied.  When ~bookmark-gt-prompt-for-tags-flag~
-is non-nil (default), the defaults are the tag reader's initial
-input and the user can edit or clear them; when it is nil, the
-defaults are stored without a prompt.
+If the function signals an error, bookmark-gt shows a warning and
+proposes no tags.  If ~bookmark-gt-prompt-for-tags-flag~ is nil,
+there is no tag prompt and the proposed tags are stored as they
+are.
 
 *** ~bookmark-gt-browser-tabs-mode~
 
-Exposes the browser's open tabs as bookmarks (temporary — not
-saved to disk).  Requires ~browser-gt~ to be installed and connected.
+This mode shows the tabs open in your browser as temporary URL bookmarks.  It requires
+~browser-gt~ to be installed and connected to the browser.
 
-Making a tab bookmark permanent (~T~ in the list buffer)
-converts it into a plain URL bookmark, saved like any other.  The
-tab is still open, so the next refresh adds it back to the list
-as a temporary bookmark.
+The tab bookmarks are rebuilt each time they are about to be shown:
+when ~bookmark-gt-jump~ starts reading, when the list buffer is
+opened or reverted with ~g~, when the mode is turned on while a
+browser is connected, and when you run
+~M-x bookmark-gt-browser-tabs-refresh~.  There is no timer.  A
+refresh never prompts for tags and never causes the bookmark file
+to be saved, since tab bookmarks are temporary.
 
-Tab records are rebuilt at the moments they are about to be
-read, rather than kept continuously in sync:
+Making a tab bookmark permanent with ~T~ in the list buffer turns it
+into an ordinary URL bookmark that is saved like any other; because
+the tab is still open, the next refresh adds a temporary bookmark
+for it again.  Deleting a tab bookmark deletes only the bookmark, and
+the next refresh adds it again while the tab is open; as with every
+bookmark-gt bookmark, deleting it does not affect what it points to.
+Turning the mode off deletes the tab bookmarks it created, and
+leaves alone the bookmarks of other packages that use browser-gt.
 
-- Every ~bookmark-gt-jump~ call.  The mode adds
-  ~bookmark-gt-browser-tabs-refresh~ to
-  ~bookmark-gt-jump-before-read-hook~, so the reader sees
-  current tabs at each read.
-- Opening the ~*Bookmarks-gt List*~ buffer, and ~g~ (revert) in
-  it.  The mode adds the same function to
-  ~bookmark-gt-list-before-read-hook~.
-- ~M-x bookmark-gt-browser-tabs-refresh~, on demand.
-- Mode enable, once, when a browser is already connected.
+A tab bookmark's ~visits~ and ~last-visited~ count the jumps
+bookmark-gt made to it, not the browser's own record of when the
+tab was used, so a tab you have never jumped to is listed after
+those you have.  These values are kept when the tab bookmarks are
+rebuilt, matched by browser name and tab id, but they are lost when
+the browser restarts, when the mode is turned off, and when Emacs
+exits.
 
-There is no timer and no subscription to browser connect and
-disconnect events.  Tabs open, close and change title without
-any client connecting, so an event-driven refresh could not keep
-the records current anyway — and it rebuilt records nothing was
-about to display.  Refreshing where they are read is both
-simpler and more accurate.
-
-Turning the mode off removes the jump-before-read hook and
-clears the tab records added by this mode.
-Records owned by other browser-gt-related packages
-(~browser-gt-tab-manager-bookmark-jump~ etc.) are left alone.
-
-Deleting a browser-tab bookmark from the
-~*Bookmarks-gt List*~ buffer removes only the bookmark record;
-the browser tab itself stays open and the next refresh will
-re-add the record.  Closing the tab in the browser is a
-separate operation.  This matches the rest of bookmark-gt:
-deleting a bookmark never touches the resource it points to
-(no file is deleted, no buffer is killed, no URL is
-un-visited).
-
-A full refresh runs as one batch: no tag prompt per tab, no
-auto-save while it runs, and no pending write when it
-finishes.  Tab records are temporary, so a refresh — however
-many tabs it stores — never writes the bookmark file.
-
-On a tab record, ~visits~ and ~last-visited~ mean what they
-mean on every other record: the jumps ~bookmark-gt~ itself
-made to it.  The browser's own notion of when a tab was last
-focused is not used.  A tab that has never been jumped to has
-no ~last-visited~, so MRU sort in ~bookmark-gt-jump~ places it
-after every tab that has.
-
-Because a refresh deletes each tab record and stores a fresh
-one, both props are carried across the rebuild and re-attached
-to the record for the same tab.  The carryover is keyed on the
-browser name together with the browser's tab id, so tab 7 in
-one browser is not confused with tab 7 in another.  It does
-not span a browser restart (tab ids are reassigned), turning
-~bookmark-gt-browser-tabs-mode~ off and on, or exiting Emacs —
-tab records are temporary and never reach the bookmark file,
-so their visit history is a within-session quantity.
-
-Customizable:
-
-- ~bookmark-gt-browser-tabs-browsers~ — list of browser clients to
-  query, nil = all connected.
-- ~bookmark-gt-browser-tabs-filter~ — nil / regexp / predicate
-  applied per tab before storing.
+Two options select which tabs are shown:
+~bookmark-gt-browser-tabs-browsers~ lists the browser clients to
+ask (nil asks every connected browser), and
+~bookmark-gt-browser-tabs-filter~ is nil to keep every tab, a
+regexp that the tab's URL must match, or a predicate called with
+the tab.
 
 * User interface
 
 ** The ~*Bookmarks-gt List*~ buffer
 
-~M-x bookmark-gt-list~ opens the buffer.  It is a
-~tabulated-list-mode~ derivative — click a column header to
-sort, press ~S~ for column-at-point sort, and ~s~ (specific to
-bookmark-gt) to cycle the sort column through the marker and
-data columns.
+~M-x bookmark-gt-list~ opens the list buffer.  It is a
+~tabulated-list-mode~ buffer, so you can sort by clicking a column
+header or with ~S~ on a column; ~s~ cycles the sort through all the
+columns, including the marker columns.
 
 *** Columns
 
 | Col | Header | Meaning                                                                                                                |
 |-----+--------+------------------------------------------------------------------------------------------------------------------------|
-|   0 | ~*~      | Selection: ~*~ if marked with =m=, ~D~ if flagged for deletion with =d=, blank else                                            |
-|   1 | ~^~      | Auto-update: ~^~ if the record carries the ~auto-update~ prop, blank else                                                  |
-|   2 | ~t~      | Temp: ~t~ if the record carries ~bmkp-temp~, blank else                                                                    |
-|   3 | Name   | Truncated at ~bookmark-gt-list-name-width~ (default 32) with an ellipsis                                                 |
-|   4 | Type   | From the handler registry — File, URL, EWW, Dired, Info, Org, PDF, BrowserTab, Function, Sequence, Kmacro, BkView, ... |
-|   5 | Group  | Aggregate category — Web, File, Doc, Code, Media, Other                                                                |
-|   6 | Tags   | ~,~-joined, truncated at ~bookmark-gt-list-tags-width~ (default 24)                                                        |
-|   7 | Loc    | ~filename~, or the URL if non-file                                                                                       |
+|   0 | ~*~      | ~*~ if the row is marked with =m=, ~D~ if it is flagged for deletion with =d=                                                |
+|   1 | ~^~      | ~^~ if the bookmark has the ~auto-update~ property                                                                          |
+|   2 | ~t~      | ~t~ if the bookmark is temporary                                                                                           |
+|   3 | Name   | The name, truncated at ~bookmark-gt-list-name-width~ (default 32)                                                         |
+|   4 | Type   | File, URL, EWW, Dired, Info, Org, PDF, BrowserTab, Function, Sequence, Kmacro, BkView, ...                             |
+|   5 | Group  | Web, File, Doc, Code, Media or Other                                                                                   |
+|   6 | Tags   | The tags, separated by commas, truncated at ~bookmark-gt-list-tags-width~ (default 24)                                   |
+|   7 | Loc    | The file name, or the URL for a bookmark without a file                                                                |
 
-The Name of a bookmark whose file no longer exists on disk
-renders with a strikethrough (~bookmark-gt-face-missing-file~).
-Remote (Tramp) paths are not probed — the existence check is
-local only.
+The name of a bookmark whose file no longer exists is shown struck
+through (face ~bookmark-gt-face-missing-file~).  Remote (Tramp)
+files are not checked.
 
 *** Keys
 
-| Key     | Action                                                                                       |
-|---------+----------------------------------------------------------------------------------------------|
-| ~RET~     | Jump                                                                                         |
-| ~o~       | Jump in another window                                                                       |
-| ~C-o~     | Same as ~o~                                                                                    |
-| ~TAB~     | Preview in another window (leaves point in the list)                                         |
-| ~m~       | Mark row (numeric prefix: mark N rows down)                                                  |
-| ~d~       | Flag row for deletion                                                                        |
-| ~x~       | Delete every flagged row (prompts for confirmation)                                          |
-| ~u~       | Unmark row                                                                                   |
-| ~U~       | Unmark every row                                                                             |
-| ~^~       | Toggle ~auto-update~ (selection-scoped)                                                        |
-| ~T~       | Toggle temp (selection-scoped)                                                               |
-| ~H~       | Toggle display of temporary bookmarks in this buffer                                         |
-| ~r~       | Rename bookmark                                                                              |
-| ~R~       | Relocate (change filename or URL)                                                            |
-| ~t e~     | Edit tags, selection-scoped (editable comma-separated list; add and remove in one prompt)    |
-| ~t a~     | Add tags, selection-scoped (sequential reader with completion; empty RET / M-RET ends)       |
-| ~t r~     | Remove tags, selection-scoped (sequential reader; completion restricted to the tags present) |
-| ~a~       | Edit annotation                                                                              |
-| ~/~       | Filter (choose by-type / by-tag / by-name-regexp / unfilter)                                 |
-| ~s~       | Cycle sort column                                                                            |
-| ~V~       | Reset view (sort → Name, clear filters, restore `bookmark-gt-list-default-show-temp`)        |
-| ~g~       | Revert: refresh browser tabs and auto-update positions (if their modes are on), then redraw  |
-| ~C-x C-s~ | Save the bookmark file (`bookmark-save`)                                                     |
-| ~i~       | Inspect record (pretty-print alist in a popup)                                               |
-| ~q~       | Quit                                                                                         |
+| Key       | Action                                                                                   |
+|-----------+------------------------------------------------------------------------------------------|
+| ~RET~       | Jump                                                                                     |
+| ~o~, ~C-o~    | Jump in another window                                                                   |
+| ~TAB~       | Show the bookmark in another window, leaving point in the list                           |
+| ~m~         | Mark the row (with a numeric prefix, mark N rows)                                        |
+| ~u~         | Unmark the row                                                                           |
+| ~U~         | Unmark every row                                                                         |
+| ~d~         | Flag the row for deletion                                                                |
+| ~x~         | Delete the flagged rows, after confirmation                                              |
+| ~^~         | Toggle ~auto-update~ (selection)                                                           |
+| ~T~         | Toggle temporary (selection)                                                             |
+| ~t e~       | Edit tags as a comma-separated list, adding and removing in one prompt (selection)       |
+| ~t a~       | Add tags, one per prompt; empty ~RET~ or ~M-RET~ ends (selection)                            |
+| ~t r~       | Remove tags, completing over the tags present (selection)                                |
+| ~r~         | Rename                                                                                   |
+| ~R~         | Relocate: change the file name or URL                                                    |
+| ~a~         | Edit the annotation                                                                      |
+| ~i~         | Show the record                                                                          |
+| ~H~         | Show or hide temporary bookmarks in this buffer                                          |
+| ~/~         | Filter by type, group, tag or name regexp, or remove the filters                         |
+| ~s~         | Cycle the sort column                                                                    |
+| ~V~         | Reset the view: sort by name, no filters, default display of temporary bookmarks         |
+| ~g~         | Refresh browser tabs and auto-update positions (if those modes are on), then redraw      |
+| ~C-x C-s~   | Save the bookmark file                                                                   |
+| ~q~         | Quit                                                                                     |
 
-Selection marks are stored in a buffer-local hash keyed by
-record cons identity — they survive sort, revert, and
-after-hook re-renders.
+Marks belong to the bookmark, not to the line, so they are kept
+when the buffer is sorted, reverted or redrawn after a change.
 
 *** Acting on several bookmarks at once
 
-The commands labelled /selection-scoped/ above act on every row
-marked with ~m~.  With no row marked they act on the bookmark
-at point, so the single-bookmark case needs no marking.
+The commands marked /selection/ in the table act on every row
+marked with ~m~, or on the row at point when no row is marked.  For
+example, after marking a few rows, ~t a~ adds the tags you type to
+all of them, ~t r~ removes tags from all of them, and ~t e~ replaces
+their tag lists.  The prompts say how many bookmarks are affected,
+and ~t e~ and ~t r~ offer every tag that appears on any of the
+marked bookmarks.
 
-Mark a few rows with ~m~, then ~t a~ adds the tags you type to
-all of them, ~t r~ removes from all of them, and ~t e~ replaces
-the tag list on all of them.  The prompts report how many
-bookmarks are involved.  For ~t e~ and ~t r~ the tags offered
-are the union across the marked rows: a tag on any one of them
-is available, and removing a tag that a given record does not
-carry leaves that record unchanged.
+~T~ and ~^~ set the same value on every marked row: they turn the
+property on for all of them, unless all of them already have it, in
+which case they turn it off for all of them.  A mixed selection
+therefore becomes uniform on the first press.
 
-The two toggles set the whole selection to a single value
-rather than flipping each row independently: ~T~ and ~^~ turn
-the property *on* for every marked row unless all of them
-already have it, in which case they turn it *off* for every
-marked row.  A selection with the property on some rows and
-off on others therefore becomes uniform on the first press,
-and both target states remain reachable by pressing again.
-This does not depend on where point sits — point need not be
-on a marked row at all.
+A selection command clears the marks when it finishes.  If you end
+a tag prompt without typing anything, nothing changes and the marks
+are kept.
 
-Completing one of these commands clears the selection, so the
-next command starts from a clean slate rather than inheriting a
-set of marks you have stopped thinking about.  Ending a tag
-reader without entering anything changes nothing and leaves the
-marks in place, so an accidental ~RET~ does not cost you the
-selection.
+Commands act only on the rows the buffer shows.  A marked row that
+is hidden by a filter or by ~H~ is left alone and keeps its mark,
+so you can apply a command to part of a selection by narrowing the
+view first.  Tags offered by ~t e~ and ~t r~, and the value a toggle
+sets, are also computed from the visible rows only.  If every
+marked row is hidden, the command stops with "No selected bookmarks
+in this view" instead of acting on the row at point.
 
-The deletion flag ~D~ (set with ~d~) is a separate mark, and
-~x~ remains the only command that acts on it.  Flagging rows
-with ~d~ does not make them a selection for ~t a~, ~T~, or the
-other selection-scoped commands, and deselecting after a
-completed command leaves the ~D~ flags untouched.
+The deletion flag ~D~ is separate from the selection: ~x~ is the
+only command that uses it, and the selection commands ignore it.
+~x~ deletes only the flagged rows the buffer shows, and refuses
+when all of them are hidden.
 
-~x~ obeys the same view bounding: it deletes the flagged rows
-the buffer currently shows, counts only those in its
-confirmation prompt, and leaves hidden flagged rows — and their
-flags — alone.  With every flagged row hidden it refuses, the
-same way the selection-scoped commands do.  Narrow the view,
-and what ~x~ can delete is exactly what you can see.
+~r~, ~R~, ~a~, ~i~ and the jump commands act on the row at point and
+ignore the marks.
 
-A selection is bounded by what the buffer displays.  Rows
-hidden by an active filter or by ~H~ are never acted on, even
-if they were marked before being hidden, and their marks are
-left alone: lift the filter and they are still marked, ready
-for a second command.  So narrowing with ~/~ after marking is a
-way to apply a command to part of a selection and keep the rest
-for later.
+*** Keeping the view
 
-This bounding covers everything a command derives from the
-selection, not just which records it writes to — the union of
-tags offered by ~t e~ and ~t r~, and the on/off value a toggle
-settles on, are computed from the visible rows alone.
-
-When the filter hides every marked row, the command fails
-immediately with =No selected bookmarks in this view=, before
-prompting for anything.  It does not fall back to the bookmark
-at point: you asked for the selection, and acting on the row at
-point instead would modify a bookmark you did not select, while
-reporting success over an empty selection would suggest the
-marked bookmarks had been dealt with.  The marks are left
-intact — widen the filter and run the command again.
-
-The fallback to the bookmark at point applies only when nothing
-is marked at all.
-
-~r~ (rename), ~R~ (relocate), ~a~ (annotate), ~i~ (inspect),
-and the jump commands remain row-scoped: each acts on the
-bookmark at point and ignores marks, since each needs a value
-that is specific to one record.
-
-*** Persisting view state
-
-The list buffer's sort column, ~show-temp~ toggle, and active
-filters are preserved across repeated invocations of
-~bookmark-gt-list~ within a session.
-
-To also carry the view across Emacs sessions, set
-~bookmark-gt-list-persist-state~ to a non-nil value.  When
-enabled, the three values are written to
-~bookmark-gt-list-state-file~ (default:
-~(locate-user-emacs-file "bookmark-gt-list-state")~) on every
-state-changing command and on ~kill-emacs-hook~, and re-read on
-the next `bookmark-gt-list-mode' entry.
+The sort column, the display of temporary bookmarks and the active
+filters are kept when you call ~bookmark-gt-list~ again in the same
+session.  To keep them across Emacs sessions as well, set
+~bookmark-gt-list-persist-state~:
 
 #+begin_src emacs-lisp
 (setq bookmark-gt-list-persist-state t)
 #+end_src
 
-Selection marks and point are never persisted.  Use ~V~ or
-~M-x bookmark-gt-list-reset-view~ to restore defaults; the
-reset itself is persisted when the file is enabled.
+The view is then saved to ~bookmark-gt-list-state-file~ (by default
+~(locate-user-emacs-file "bookmark-gt-list-state")~) after every
+change to it and when Emacs exits, and read the next time the list
+buffer is created.  Marks and the position of point are not saved.
+~V~ (~bookmark-gt-list-reset-view~) restores the default view.
 
-** Jump to a bookmark: ~bookmark-gt-jump~
+** Jumping: ~bookmark-gt-jump~
 
-Recommended replacement for the built-in ~bookmark-jump~.
-The same command binds naturally to ~C-x r b~ (see Install)
-and is the entry point every other bookmark-gt UI (list
-buffer, view bookmarks, external commands) routes through.
-Interactive uses, key bindings, and Lisp callers that need
-type / tag narrowing, MRU sort, or the mid-read tag filter
-should call this instead of ~bookmark-jump~.
+~bookmark-gt-jump~ replaces ~bookmark-jump~, and ~C-x r b~ runs it
+while ~bookmark-gt-mode~ is on.  It uses ~consult--read~ when
+consult is loaded and ~completing-read~ otherwise.  When orderless
+is loaded, three particles narrow the candidates:
 
-Uses ~consult--read~ when consult is loaded, falls back to
-~completing-read~ otherwise.  Both accept three narrowing
-particles when orderless is loaded:
+- ~@TYPE~ keeps bookmarks of TYPE (~@URL~, ~@Info~, ~@PDF~, ...);
+- ~+GROUP~ keeps bookmarks in GROUP (~+Web~, ~+File~, ~+Doc~, ...);
+- ~;TAG~ keeps bookmarks that have TAG.
 
-- ~@TYPE~ — narrow to bookmarks of TYPE (~url~, ~eww~, ~file~,
-  ~dired~, ~info~, ~org~, ~pdf~, ~browser-tab~, ~magit~, ~help~,
-  ~image~, ~epub~, or any registered/derived type).
-- ~+GROUP~ — narrow to bookmarks in GROUP (~web~, ~file~, ~doc~,
-  ~code~, ~media~, ~other~, or any registered group).
-- ~;TAG~ — narrow to bookmarks carrying TAG.
+Particles are case-sensitive unless ~completion-ignore-case~ is
+non-nil, so by default you type the names as they are displayed.
 
-Particles are matched case-sensitively unless
-~completion-ignore-case~ is non-nil: with the default value,
-type ~@URL~ and ~+Web~ as the names are displayed.
-
-Mid-read tag filter:
-
-- ~M-t~ — add a tag filter and restart the read.  Active
-  filters are shown as labels in the prompt.
-- ~M-d~ — pop the most recent tag filter.
-- ~M-D~ — clear every active tag filter.
+While reading, ~M-t~ adds a tag filter and restarts the read,
+showing the active filters in the prompt; ~M-d~ removes the most
+recent filter, and ~M-D~ removes all of them.
 
 *** The annotation
 
-With ~marginalia~ loaded, each candidate carries three fields:
-its tags, its type, and its location — the ~filename~ or the
-URL.
+With marginalia loaded, each candidate shows its tags, its type and
+its location (the file name or the URL).  The annotation starts at
+the first multiple of 10 columns past the widest candidate name, and
+names are truncated at ~bookmark-gt-jump-name-max-width~ (default
+58), so the annotation always starts at the same column during one
+read.  bookmark-gt positions the annotation itself, so
+~marginalia-align~ and ~marginalia-align-offset~ do not apply to it.
 
-The location field is sized from the space the other columns
-leave free:
+The location takes the columns the name, tags and type leave free,
+so it is wider on a wide frame.  Its width is limited by
+~bookmark-gt-jump-location-max-width~: an integer is a number of
+columns (default 100), a float is a fraction of
+~marginalia-field-width~ as marginalia computes it for the current
+display (at most 80), and nil means no limit other than the free
+space.  The limit keeps a location that is very long but not
+informative, such as a window configuration stored in a URL, from
+taking every free column.  A file location is truncated on the left
+so that the file name stays visible, and a URL on the right so that
+the scheme and host stay visible.
 
-: window width − annotation start column − tags − type − separators
+~marginalia-field-width~ itself does not limit these fields,
+because bookmark-gt gives marginalia the widths as column counts.
+As a result the annotation can be wider than the half of the window
+that marginalia normally allows.
 
-bookmark-gt starts the annotation at a column it computes from
-the widest candidate in the read: the smallest multiple of 10
-greater than that candidate's width, so at least one column
-separates the two.  Candidate names are capped at
-~bookmark-gt-jump-name-max-width~, so the free width is known
-and the location field uses it.  Because bookmark-gt sets the
-column itself, ~marginalia-align~ and ~marginalia-align-offset~
-do not apply to the jump reader's rows.  It therefore widens on a wide
-frame and narrows on a small one, without a fixed fraction.
-The width is measured once per read, so every row of one
-display computes the same layout.
+*** Using ~bookmark-gt~ from Lisp
 
-~bookmark-gt-jump-location-max-width~ bounds it, default 100
-columns.  A bound is worth having because a wide location is
-not always an informative one: a record whose location holds
-machine state rather than a destination — a window
-configuration serialized into a URL, for example — runs to
-hundreds of characters and would otherwise occupy every free
-column.  Set it to ~nil~ for no bound beyond the free space, to
-an integer for a column count, or to a float for a fraction of
-~marginalia-field-width~.
 
-Which end of the location is kept depends on the record.  File
-bookmarks are truncated from the left, so the file name
-survives; other bookmarks are truncated from the right, so a
-URL keeps its scheme and host.
-
-**** Relationship to ~marginalia-field-width~
-
-~marginalia-field-width~ (default 80) does not bound a
-bookmark-gt annotation.  Marginalia treats a field width as a
-column count when it is an integer and as a fraction of
-~marginalia-field-width~ when it is a float; bookmark-gt passes
-integers for all three fields — the tag and type widths are
-measured from the data, and the location width is computed from
-the free space.  Raising ~marginalia-field-width~ therefore has
-no effect here.
-
-The one exception is a float ~bookmark-gt-jump-location-max-width~.
-That is a fraction of ~marginalia-field-width~ as marginalia has
-already reduced it for the current display, namely
-~(min (/ window-width 2) 80)~ — not of the raw setting.
-
-This is also a deliberate departure from marginalia's own
-policy.  Marginalia keeps annotations within half the window so
-that a wide annotation cannot displace the candidate names,
-which it must do conservatively because it does not know how
-wide the candidates are.  bookmark-gt does know — names are
-capped by ~bookmark-gt-jump-name-max-width~ and the candidate
-list is complete before the read opens — so it measures the free
-space instead, and the location field may extend past half the
-window.  What bounds it is the free space and
-~bookmark-gt-jump-location-max-width~.
-
-*** Elisp signatures
-
-All three entry points take keyword arguments only:
+~bookmark-gt~ provides an API to create custom bookmark jumping functions.
+The three entry points take keyword arguments only:
 
 #+begin_src emacs-lisp
 (cl-defun bookmark-gt-jump
@@ -560,218 +381,158 @@ All three entry points take keyword arguments only:
     (&key tag bookmark bookmarks-list bookmarks-filter sort-by preselect))
 #+end_src
 
-- ~:BOOKMARK~ — bookmark name or record.  When nil, prompt.
-- ~:DISPLAY-FUNCTION~ — a function of one argument (a buffer);
-  passed to `bookmark-jump' as its display func.
-- ~:BOOKMARKS-LIST~ — alist to use as the candidate pool.
-  Defaults to `bookmark-alist'.  Ignored when ~:BOOKMARK~ is
-  supplied.
-- ~:BOOKMARKS-FILTER~ — predicate on a record; a candidate is
-  kept when the predicate returns non-nil.  Ignored when
-  ~:BOOKMARK~ is supplied.
-- ~:SORT-BY~ — ~mru~ (by ~last-visited~ desc), ~visits~ (by
-  ~visits~ desc), or nil (preserve pool order).  Defaults to
-  ~bookmark-gt-jump-default-sort~ (~mru~ by default).
-- ~:PRESELECT~ — positive integer.  When set (and vertico is
-  loaded), the reader positions the cursor on the N-th
-  candidate via a one-shot minibuffer-setup hook.  Useful for a
-  "jump back to previous" workflow: with MRU sort and
-  ~:preselect 1~, RET selects the second-most-recent record.
-- ~:TAG~ (required for ~-tagged~) — string seeding the reader's
-  active tag filter.
-
-Candidate row layout is customizable via
-~bookmark-gt-jump-candidate-format-function~ (default:
-~bookmark-gt-jump-candidate-default~).  A custom function
-receives the record and must return a propertized string with
-the ~bookmark-gt-record~ and ~bookmark-gt-name~ text properties,
-and optionally ~bookmark-gt-particles~ — see the
-default function's docstring for the contract.
-
-~bookmark-gt-record~ is what the reader uses to identify the
-selection, so a custom formatter that omits it makes the reader
-fall back to matching by name, which cannot tell two same-named
-bookmarks apart.
-
-Examples:
+- ~:BOOKMARK~ is a bookmark name or record to jump to without
+  prompting.
+- ~:DISPLAY-FUNCTION~ is called with the target buffer, as in
+  ~bookmark-jump~.
+- ~:BOOKMARKS-LIST~ is the alist to choose from (default
+  ~bookmark-alist~), and ~:BOOKMARKS-FILTER~ is a predicate that a
+  record must satisfy to be offered.  Both are ignored when
+  ~:BOOKMARK~ is given.
+- ~:SORT-BY~ is ~mru~ (most recently visited first), ~visits~ (most
+  visited first) or nil (the order of the list).  It defaults to
+  ~bookmark-gt-jump-default-sort~, which is ~mru~.
+- ~:PRESELECT~ is a positive integer N.  When vertico is in use, the
+  reader starts with the N-th candidate selected, so with MRU
+  sorting ~:preselect 1~ selects the bookmark you visited before the
+  last one.
+- ~:TAG~ (for ~bookmark-gt-jump-tagged~) is the tag filter the read
+  starts with.
 
 #+begin_src emacs-lisp
-;; Jump directly to a known bookmark
+;; Jump to a known bookmark
 (bookmark-gt-jump :bookmark "my-bookmark")
 
-;; Jump with a custom display function (other-frame etc.)
+;; Display the target in another frame
 (bookmark-gt-jump :display-function #'switch-to-buffer-other-frame)
 
-;; Prompt but only among file bookmarks
+;; Choose among file bookmarks only
 (bookmark-gt-jump :bookmarks-filter #'bookmark-gt-handler-file-p)
 
-;; Prompt among a custom subset alist
-(bookmark-gt-jump :bookmarks-list my-project-bookmarks)
-
-;; Prompt among project files tagged "urgent"
+;; Choose among file bookmarks tagged "urgent"
 (bookmark-gt-jump-tagged :tag "urgent"
                          :bookmarks-filter #'bookmark-gt-handler-file-p)
 #+end_src
 
-** Non-file bookmark types
+~bookmark-gt-jump-candidate-format-function~ (default
+~bookmark-gt-jump-candidate-default~) builds each candidate string
+from a record.  A replacement must put the record in the
+~bookmark-gt-record~ text property and the name in
+~bookmark-gt-name~, and may put the narrowing particles in
+~bookmark-gt-particles~; see the default function's docstring.
+Without ~bookmark-gt-record~, the reader has to find the selected
+bookmark by name, and cannot tell apart two bookmarks with the same
+name.
 
-*** URL bookmarks — ~bookmark-gt-create-url~
+** Bookmark types besides files
 
-Interactive:
+*** URL bookmarks: ~bookmark-gt-create-url~
 
-#+begin_example
-M-x bookmark-gt-create-url RET
-URL: https://example.org RET
-Bookmark name: Example RET
-#+end_example
-
-Elisp:
+~M-x bookmark-gt-create-url~ prompts for a URL (defaulting to the
+URL at point), a name and tags. It can also be called from Lisp:
 
 #+begin_src emacs-lisp
 (bookmark-gt-create-url "https://example.org" "Example" '("web" "reference"))
 #+end_src
 
-The URL bookmark's handler (~bookmark-gt-handler-url-jump~) reads
-the ~url~ property off the record and opens it with ~browse-url~,
-so URL bookmarks follow whatever ~browse-url-browser-function~ and
-~browse-url-handlers~ you have configured — the same routing as
-every other link you open in Emacs.
+Jumping opens the URL with ~browse-url~, so it follows your
+~browse-url-browser-function~ and ~browse-url-handlers~ settings.
 
-*** Dired bookmarks — ~bookmark-gt-handler-dired-jump~
+*** Dired bookmarks
 
-The built-in ~dired.el~ does not provide a bookmark handler.
-bookmark-gt provides one that opens the recorded target and
-restores the buffer state.  The setter captures, and the jump
-handler restores:
+The built-in Dired has no bookmark handler, so bookmark-gt provides
+~bookmark-gt-handler-dired-jump~.  A Dired bookmark records, and its
+jump restores:
 
-- ~dired-directory~ — the original value, so plain paths,
-  wildcard patterns (e.g. ~/tmp/*.el~), and explicit file lists
-  round-trip verbatim;
-- ~dired-marked~ — files marked in the buffer, keyed by mark
-  character (uses ~dired-remember-marks~ /
-  ~dired-mark-remembered~ — the same primitives bookmark+
-  uses);
-- ~dired-subdirs~ — subdirectories inserted with ~i~;
-- ~dired-hidden-dirs~ — subdirectories currently hidden (~$~);
-- ~dired-switches~ — ~dired-actual-switches~ in effect.
+- ~dired-directory~, so plain directories, wildcards such as
+  ~/tmp/*.el~ and explicit file lists are all restored as they were;
+- ~dired-marked~, the marked files and their mark characters;
+- ~dired-subdirs~, the subdirectories inserted with ~i~;
+- ~dired-hidden-dirs~, the subdirectories hidden with ~$~;
+- ~dired-switches~, the ~ls~ switches in effect.
 
-The alist keys match bookmark+'s (~bmkp-jump-dired~), so
-records interchange on disk in either direction: a Dired
-bookmark written by bookmark+ restores under bookmark-gt with
-all its state, and vice-versa.  Records with the bookmark+
-handler symbol classify as Dired via the registry alias; you
-can also convert them to bookmark-gt form with
-~M-x bookmark-gt-migrate-from-bookmark-plus~ (see
-[[Migrating from bookmark+]]).
+These keys are the ones bookmark+ uses (~bmkp-jump-dired~), so Dired
+bookmarks can be moved between the two packages in either direction.
+Records with bookmark+'s handler are classified as Dired, and
+~M-x bookmark-gt-migrate-from-bookmark-plus~ converts them to
+bookmark-gt's handler (see [[Migrating from bookmark+]]).
 
-**** Virtual dired
+**** Virtual Dired
 
-Setting a bookmark from a virtual-dired buffer (~M-x
-dired-virtual~ or the ~V~ command in ~dired-x~) additionally
-inlines the buffer's textual listing under a ~dired-listing~
-key, and marks the record with ~dired-virtual t~.  On jump,
-the handler creates a fresh buffer, inserts the listing, and
-calls ~dired-virtual~ to reconstruct the same view — even if
-the source directory no longer exists.
+A bookmark created in a virtual Dired buffer (~M-x dired-virtual~,
+or ~V~ in ~dired-x~) also stores the buffer's listing under
+~dired-listing~ and sets ~dired-virtual~.  Jumping recreates the
+same buffer from the stored listing, even if the directory no
+longer exists.  bookmark+ does not do this; it opens the directory
+as an ordinary Dired buffer.
 
-This is not a bookmark+ compatibility feature: bookmark+ does
-not preserve virtual-dired contents and re-opens the recorded
-directory as real dired.  The bookmark-gt behavior is opt-in
-via the buffer being virtual; you do nothing special to set
-one.
+Because the bookmark file is read whole at startup and written whole
+on every save, the listing is limited to
+~bookmark-gt-dired-virtual-max-size~ bytes (default 524288, that is
+512 KB).  Creating a bookmark in a larger virtual Dired buffer is an
+error.
 
-The listing is bounded by
-~bookmark-gt-dired-virtual-max-size~ (bytes; default 524288 =
-512 KB).  Setting a larger virtual-dired buffer signals
-~user-error~ — raise the cap in the defcustom, or bookmark a
-smaller portion.  The rationale for the cap: the bookmark
-file is loaded whole at startup and rewritten whole on every
-save, so an inlined multi-megabyte listing multiplies that
-cost on every unrelated bookmark change.
+*** Function bookmarks: ~bookmark-gt-create-function~
 
-*** Function bookmarks — ~bookmark-gt-create-function~
-
-A function bookmark stores a callable (a symbol or lambda)
-under the ~function~ alist key.  Jumping invokes the callable.
-
-Interactive:
-
-#+begin_example
-M-x bookmark-gt-create-function RET
-Function bookmark name: rebuild-project RET
-Function to call on jump: my-project-rebuild RET
-#+end_example
-
-Elisp:
+A function bookmark stores a function (a symbol or a lambda) under
+the ~function~ key, and jumping calls it.  ~M-x
+bookmark-gt-create-function~ prompts for the name and the command.
+From Lisp:
 
 #+begin_src emacs-lisp
 (bookmark-gt-create-function "rebuild" #'my-project-rebuild)
-(bookmark-gt-create-function "flip-theme"
-                          (lambda () (my-toggle-theme)))
+(bookmark-gt-create-function "flip-theme" (lambda () (my-toggle-theme)))
 #+end_src
 
-*** Keyboard-macro bookmarks — ~bookmark-gt-create-kmacro~
+*** Keyboard-macro bookmarks: ~bookmark-gt-create-kmacro~
 
-A kmacro bookmark stores a key-event vector under the
-~kmacro~ alist key and replays it on jump via
-~execute-kbd-macro~ (with ~current-prefix-arg~ as the repeat
-count).
+A keyboard-macro bookmark stores a vector of key events under the
+~kmacro~ key, and jumping replays it with ~execute-kbd-macro~, using
+the prefix argument as the repeat count.
 
-Interactive: prompts for the macro via a single completion
-whose candidates are the current named keyboard macros plus
-a ~[last-kbd-macro]~ sentinel that stands for the anonymous
-most-recent macro.  The sentinel is the default when
-~last-kbd-macro~ is defined; otherwise the first named macro
-is the default.  Errors when neither exists.
-
-Named keyboard macros are any symbols whose ~symbol-function~
-is a string or vector, or which carry a ~kmacro~ property (as
-produced by ~M-x kmacro-name-last-macro~).
-
-Elisp:
+~M-x bookmark-gt-create-kmacro~ offers your named keyboard macros,
+plus ~[last-kbd-macro]~ for the most recently defined one, which is
+the default when it exists; it is an error if there is no macro at
+all.  A named macro is a symbol whose function definition is a
+string or vector, or that has a ~kmacro~ property, as created by
+~M-x kmacro-name-last-macro~.  From Lisp:
 
 #+begin_src emacs-lisp
 (bookmark-gt-create-kmacro "type-hi" [?h ?i])
 (bookmark-gt-create-kmacro "type-abc" "abc")   ; parsed by `read-kbd-macro'
 #+end_src
 
-Unlike bookmark+, which overloads the function-bookmark
-handler (its ~bmkp-jump-function~ dispatches by payload type),
-bookmark-gt gives kmacros their own type and handler so the
-list buffer, narrow, and filter can distinguish them.
-Trade-off: kmacro records are NOT interchangeable on disk with
-bookmark+ (a bookmark+ macro record still classifies as Function
-under bookmark-gt because the record's handler symbol is
-~bmkp-jump-function~).
+bookmark+ stores keyboard macros as function bookmarks.  bookmark-gt
+gives them a type of their own so that the list buffer and the jump
+reader can distinguish them, which means a bookmark+ macro bookmark
+is shown as a Function bookmark in bookmark-gt.
 
-*** Sequence bookmarks — ~bookmark-gt-create-sequence~
+*** Sequence bookmarks: ~bookmark-gt-create-sequence~
 
-A sequence bookmark stores a list of bookmark names under the
-~sequence~ alist key.  Jumping visits each in order via
-~bookmark-jump~.
-
-Interactive: prompts for the sequence name, then reads
-existing bookmark names one at a time until you enter empty
-input.
-
-Elisp:
+A sequence bookmark jumps to a list of bookmarks in order.  ~M-x
+bookmark-gt-create-sequence~ prompts for its name and then for
+existing bookmarks, one per prompt, until you enter an empty input.
+From Lisp:
 
 #+begin_src emacs-lisp
 (bookmark-gt-create-sequence "morning-workspace"
-                          '("inbox" "todo.org" "calendar"))
+                             '("inbox" "todo.org" "calendar"))
 #+end_src
 
-*** File-type handlers — override the file-jump path per pattern
+The members are stored under the ~sequence~ key.  A member name that
+matches exactly one bookmark is replaced by that bookmark's id (see
+[[Record identity]]), so the sequence still works after the member is
+renamed.
 
-~bookmark-gt-file-type-handlers~ is an alist mapping a
-filename regexp to a bookmark handler function.  When jumping
-a file bookmark whose ~filename~ matches, the mapped function
-is called with the bookmark record instead of the built-in
-~find-file~ path.  The function's contract is the same as any
-`bookmark.el' handler: one argument, the record.
+*** File-type handlers
 
-Typical use: open certain file types with an external program
-instead of an Emacs buffer.
+~bookmark-gt~ provides a way to specify how to open bookmarks.
+~bookmark-gt-file-type-handlers~ maps file-name regexps to bookmark
+handler functions.  Jumping to a file bookmark whose ~filename~
+matches one of the regexps calls the associated function with the
+record, instead of visiting the file.  The first matching entry is
+used.  For example, to open PDF and video files with macOS's ~open~
+command:
 
 #+begin_src emacs-lisp
 (defun my-mac-open (bookmark)
@@ -780,155 +541,118 @@ instead of an Emacs buffer.
                 (bookmark-prop-get bookmark 'filename)))
 
 (setq bookmark-gt-file-type-handlers
-      '(("\\.pdf\\'"          . my-mac-open)
-        ("\\.\\(mp4\\|mkv\\)\\'" . my-mac-open)))
+      '(("\\.pdf\\'"               . my-mac-open)
+        ("\\.\\(mp4\\|mkv\\)\\'"   . my-mac-open)))
 #+end_src
 
-Entries are tried in list order; the first matching regexp
-wins.  The advice on ~bookmark-default-handler~ is installed
-by ~bookmark-gt-mode~ and removed when the mode turns off.
+*** View bookmarks
 
-*** View bookmarks — save the list buffer's current view
+It is possible to create a bookmark to the current state of the ~*Bookmarks-gt List*~ buffer.
 
-A view bookmark captures the presentation state of the
-~*Bookmarks-gt List*~ buffer — active filters, sort key, and
-the show-temp toggle — under the ~filters~, ~sort-key~, and
-~show-temp~ alist keys.  Jumping opens the list buffer (if
-needed), restores the state, and redraws.
+A view bookmark stores the list buffer's filters, sort column and
+display of temporary bookmarks (under the ~filters~, ~sort-key~ and
+~show-temp~ keys).  To create one, set up the list buffer the way
+you want it and run ~M-x bookmark-gt-create~ there.  Jumping to it
+opens the list buffer with that view.  Marks and the position of
+point are not stored.
 
-To save: open the list, set the filters/sort/show-temp you
-want, then ~M-x bookmark-gt-create~.  The list mode installs
-its own ~bookmark-make-record-function~, so the standard set
-command captures a view record automatically — no dedicated
-command is needed.  Marks and point are intentionally not
-saved; they are per-session, not part of the view.
-
-Elisp: construct the record via ~bookmark-gt-create-non-file~
-with handler ~bookmark-gt-handler-view-jump~ and the three
-props; see ~bookmark-gt-list--make-record~ for the shape.
-
-* Setting bookmarks
+* Creating and changing bookmarks
 
 ** Tag reader
 
-~bookmark-gt-tags-read~ prompts for tags one at a time.  Each
-prompt is a plain ~completing-read~ against every tag that
-currently appears in ~bookmark-alist~, ordered
-most-recently-used first (based on ~bookmark-gt-tags-history~;
-completion history is the MRU signal).
+~bookmark-gt-tags-read~ asks for tags one at a time, completing over
+the tags already in use, most recently used first.  Each non-empty
+~RET~ adds a tag and asks for the next; an empty ~RET~ finishes, and
+~M-RET~ adds the current input and finishes.  The prompt shows the
+tags entered so far, as in ~Tags [foo,bar] (M-RET or empty RET to
+finish):~.
 
-Terminators:
-- Empty ~RET~ — finish, return the accumulated list.
-- ~M-RET~ — submit the current input (if non-empty), then finish.
-
-Any non-empty ~RET~ accepts the current tag and prompts for
-another.  The running accumulator is shown in the prompt as
-~Tags [foo,bar] (M-RET or empty RET to finish): ~.
-
-The creation commands — ~bookmark-gt-create~,
+The creation commands (~bookmark-gt-create~,
 ~bookmark-gt-create-url~, ~bookmark-gt-create-function~,
-~bookmark-gt-create-kmacro~, and ~bookmark-gt-create-sequence~ —
-compute the new bookmark's tags with the /tag pipeline/:
+~bookmark-gt-create-kmacro~ and ~bookmark-gt-create-sequence~)
+compute the tags of a new bookmark in three steps:
 
-1. the default tags of ~bookmark-gt-default-tags-mode~, when it
-   is on;
-2. the tag reader, when ~bookmark-gt-prompt-for-tags-flag~ is
-   non-nil (default), with the tags from step 1 as its initial
-   input;
+1. if ~bookmark-gt-default-tags-mode~ is on, the default tags;
+2. if ~bookmark-gt-prompt-for-tags-flag~ is non-nil (the default),
+   the tag reader, starting with the tags from step 1;
 3. the functions on ~bookmark-gt-create-tag-reader-hook~, which
    receive the tags from step 2.
 
-The pipeline runs after the name has been accepted, so a name
-that ~bookmark-gt-allow-same-name-bookmarks~ refuses is reported
-before the tag prompt.
+These steps run after the name has been accepted, so a name that
+~bookmark-gt-allow-same-name-bookmarks~ refuses is reported before
+you are asked for tags.
 
-Each creation command takes an optional TAGS argument.  An
-interactive call passes ~t~, which runs the pipeline.  From
-Lisp, pass a list of tags to store exactly those tags with no
-prompt, or ~t~ to run the pipeline:
+From Lisp, the TAGS argument of a creation command is either a list
+of tags, which is stored as given with no prompt, or ~t~, which runs
+the three steps (interactive calls pass ~t~):
 
 #+begin_src emacs-lisp
 (bookmark-gt-create-url "https://example.org" "example" '("web"))  ; stores ("web")
-(bookmark-gt-create-url "https://example.org" "example" t)         ; runs the pipeline
+(bookmark-gt-create-url "https://example.org" "example" t)         ; runs the steps
 #+end_src
 
-~bookmark-gt-create-non-file~, the Lisp API for creating a
-record with a given handler, never runs the pipeline: the record
-gets the ~tags~ entry of its PROPS argument, if any.
+~bookmark-gt-create-non-file~, which creates a record with a given
+handler, never runs these steps; the record gets the ~tags~ entry
+of its PROPS argument, if any.
 
 ** Bookmarks that share a name
 
-A bookmark name is a label, not an identifier.  Two bookmarks may
-share one — a ~todo~ in each of several projects is the case this
-exists for.  What they cannot share is a name *and* a
-destination: that pair is almost always a second bookmark created
-by accident, in a place that already has one.
-
-~bookmark-gt-allow-same-name-bookmarks~ decides when
+A bookmark name is a label, not an identifier, so several bookmarks
+may share one, such as a ~todo~ bookmark in each of several
+projects.  Two bookmarks with the same name and the same destination,
+however, are almost always a mistake.
+~bookmark-gt-allow-same-name-bookmarks~ decides whether
 ~bookmark-gt-create~ may reuse a name:
 
-| Value                           | Creating with a name already in use                                             |
-|---------------------------------+---------------------------------------------------------------------------------|
-| ~never~                           | refused                                                                         |
-| ~different-destination~ (default) | allowed when the two point at different files or URLs; refused for the same one |
-| ~always~                          | allowed                                                                         |
+| Value                           | Creating with a name already in use                                         |
+|---------------------------------+-----------------------------------------------------------------------------|
+| ~never~                           | refused                                                                     |
+| ~different-destination~ (default) | allowed if the two point at different files or URLs, refused if at the same |
+| ~always~                          | allowed                                                                     |
 
-A refusal is an error naming the conflict.  The bookmark is not
-stored under an altered name: appending ~<2>~ would make names
-unique behind your back, which is exactly what allowing shared
-names exists to avoid.  When you meant to move the existing
-bookmark rather than add one, the error says so — use
-~bookmark-gt-update~.
+The destination is the file or URL, not the position, so two
+bookmarks at different places in one file have the same destination.
+A refused name is an error that names the conflicting bookmark; the
+new bookmark is not stored under a modified name.  If you meant to
+move the existing bookmark, use ~bookmark-gt-update~, as the error
+message suggests.
 
-Destination means the target, not the position.  Two bookmarks in
-one file at different points share a destination.
+The names in ~bookmark-gt-unique-names~ (by default those of
+~org-capture~ and ~org-refile~) always identify a single bookmark,
+whatever the setting.  For handlers in
+~bookmark-gt-unique-name-handlers~, storing a bookmark with the name
+of an existing bookmark of the same handler replaces it.
 
-*** Telling them apart on screen
+*** Telling them apart
 
-Records sharing a name are displayed with a ~<N>~ suffix — ~todo~,
-~todo<2>~ — the convention Emacs uses for buffers it cannot
-otherwise distinguish.
-
-The suffix is computed for display and never stored.  The name in
-the bookmark file is the one you typed, so deleting or renaming
-one of the records renumbers the rest rather than leaving a stale
-suffix behind, and nothing you did not type ends up in your
-bookmark file.
+Bookmarks that share a name are displayed with a suffix, as in
+~todo~ and ~todo<2>~, the way Emacs names buffers.  The suffix is
+only displayed: the bookmark file contains the name you typed, so
+deleting or renaming one of the bookmarks renumbers the others.
 
 *** Loading a file that breaks the setting
 
-~bookmark-gt-create~ cannot produce a name the setting forbids,
-but a bookmark file can: written by the built-in bookmark
-package, by bookmark-gt under a different setting, or on another
-machine.
+A bookmark file can contain names the setting forbids, if it was
+written by the built-in bookmark package, by bookmark-gt with a
+different setting, or on another machine.  When such a file is
+loaded, the bookmarks the setting forbids are left out of
+~bookmark-alist~, and a warning shows each of them in full, since
+until the file is saved the warning is the only other copy.  The
+first bookmark with a given name is always kept, and under the
+default setting a later one is kept if it points somewhere no kept
+bookmark does.  The same check runs when the list buffer is opened
+or reverted and when the jump reader starts, so it also catches
+bookmarks created some other way, such as by ~bookmark-set~ called
+from Lisp.
 
-When such a file is loaded, the records the setting forbids are
-omitted from ~bookmark-alist~ and a warning lists them in full —
-the whole record, since until the file is saved that warning is
-the only copy you have.  The first record of a name is always
-kept; under the default a later one is kept when it points
-somewhere no kept record does.
+The bookmarks left out are still in the file, and they are removed
+from it the next time it is saved.  To keep them, set the option to
+~always~ and load the file again before saving.  Leaving them out
+does not by itself cause the file to be saved.
 
-The same check runs when the list buffer is opened or reverted
-and when the jump reader is read, so a record added some other
-way — the built-in ~bookmark-set~, called from Lisp — is caught
-as well.  It does not run while the list buffer is being drawn:
-a redraw follows every change, and drawing a buffer must not
-delete anything.
+*** When you expect two bookmarks and see one
 
-*The omission is in memory only.*  Those bookmarks are still in
-the file, and stay there until it is next saved — at which point
-they are gone from it too.  To keep them, set the option to
-~always~ and reload before saving.
-
-Omitting them is not counted as a change, so it never schedules a
-save on its own.
-
-*** If you expected two records and see one
-
-A record can be stored and still be absent from the list
-buffer, so there are two possible causes.  Count the stored
-records to determine which one applies:
+First count the bookmarks with that name:
 
 #+BEGIN_SRC emacs-lisp
 (seq-filter (lambda (r)
@@ -936,313 +660,186 @@ records to determine which one applies:
             bookmark-alist)
 #+END_SRC
 
-*Two records.*  Both were stored; the list buffer is not
-displaying one of them.  Either:
+If there are two, the list buffer is not showing one of them,
+either because a filter is active (filters can be kept from an
+earlier session; ~V~ removes them), or because one of them is
+temporary and temporary bookmarks are hidden (~H~ shows them;
+~T~ is different, it makes the bookmark at point temporary or
+permanent).
 
-- *A filter is active.*  Filters on tags, group, or type
-  restrict which records ~bookmark-gt-list~ prints;
-  ~bookmark-alist~ is unmodified.  Filters persist across
-  sessions via ~bookmark-gt-list-state-file~, so a filter set
-  in an earlier session is still in effect.  ~V~ resets the
-  view to the defaults; ~/~ sets a filter.
-- *One record is temporary and temporary records are
-  hidden.*  Temporary records are omitted from the display,
-  not from ~bookmark-alist~, and they remain reachable by
-  ~bookmark-gt-jump~.  ~H~ toggles their visibility.  (~T~
-  changes whether the record at point is temporary, which
-  modifies the record — it is not a display toggle.)
+If there is one, the second was never stored: either
+~bookmark-gt-create~ refused it, with an error at the time, or it
+was left out when the file was loaded, with a warning listing it
+(see the previous section).
 
-*One record.*  Only one was stored under that name.  Either
-~bookmark-gt-create~ refused the second, because
-~bookmark-gt-allow-same-name-bookmarks~ forbade it — the error
-says so at the time — or it was omitted when the bookmark file
-was loaded, which produces a warning listing the records left
-out.  See Loading a file that breaks the setting.
+*** Which command acts on which bookmark
 
-*** Which command reaches which record
+The built-in ~bookmark-get-bookmark~ looks a name up with ~assoc~,
+so the built-in commands act on the first bookmark with that name.
+bookmark-gt's commands work with records: given a record, they act
+on it, and given a name that several bookmarks share, they ask which
+one.  Selecting the second of two ~todo~ bookmarks in the jump
+reader or the list buffer therefore jumps to, renames, relocates or
+deletes that bookmark, and the jump counts as a visit to it.
 
-~bookmark-get-bookmark~ resolves a name with ~assoc~ and returns
-the *first* record carrying it.  Anything built on that reaches
-only one of a set of namesakes, and which one depends on the
-order records sit in ~bookmark-alist~.
-
-*bookmark-gt's commands resolve a reference properly.*  Given a
-record they act on it; given a name shared by several bookmarks
-they ask which one rather than choosing.  The jump reader and
-the list buffer work from records throughout, so selecting the
-second of two same-named bookmarks jumps to, renames, relocates
-or deletes that one.  Jumping also increments the visit count on
-the record you jumped to, so most-recently-used ordering stays
-right when names repeat.
-
-*The built-in commands are remapped while ~bookmark-gt-mode~ is
-on*, so ~M-x bookmark-delete~, ~bookmark-rename~,
-~bookmark-jump~ and ~bookmark-set~ reach bookmark-gt's versions
-and inherit that.  Turning the mode off restores the built-ins,
-which act on the first match — Emacs's own ~bookmark-delete~
-docstring says it "removes only the first instance of a bookmark
-with that name".
-
-*Only the commands are remapped.*  The functions are unchanged,
-because packages call them from Lisp and depend on what they do:
-~org-capture~ and ~org-refile~ store onto a fixed name on every
-capture and rely on ~bookmark-set~ overwriting by name.  Such a
-name is a singleton by construction, so first-match resolution
-is right for it.
-
-From Lisp, ~bookmark-gt-jump-record~, ~bookmark-gt-rename-record~
-and ~bookmark-gt-delete-record~ take a record and signal if given
-a name, so a caller holding a record cannot act on a different
-one.
+While ~bookmark-gt-mode~ is on, ~M-x bookmark-delete~,
+~bookmark-rename~, ~bookmark-jump~ and ~bookmark-set~ run
+bookmark-gt's versions.  The functions themselves are not changed,
+because packages depend on their behavior: ~org-capture~ and
+~org-refile~, for example, store a bookmark under a fixed name each
+time and rely on ~bookmark-set~ replacing the previous one.  From
+Lisp, ~bookmark-gt-jump-record~, ~bookmark-gt-rename-record~ and
+~bookmark-gt-delete-record~ take a record, and signal an error when
+given a name.
 
 *** Record identity
 
-Each record carries a ~bookmark-gt-id~ — a symbol assigned when
-the bookmark is created, and to records that lack one when the
-bookmark file is loaded, the list buffer redraws, or the jump
-reader opens.  It is what lets a reference survive a rename: a
-sequence bookmark stores its members by id rather than by name.
-
-The id is internal.  Nothing asks you to type one, and it
-appears only in ~i~ (describe record) in the list buffer and in
-the bookmark file itself.  The built-in bookmark package ignores
-the key, so a file bookmark-gt has written still loads there.
-
-Records written by other packages have no id until bookmark-gt
-next reads them, and a file copied between machines can hold the
-same id twice.  Both cases are expected: a bookmark is resolved
-by id when it has one and by name otherwise.
+Each bookmark has a ~bookmark-gt-id~, a symbol assigned when the
+bookmark is created; bookmarks that lack one (for example, because
+another package wrote them) get one when the bookmark file is
+loaded, the list buffer is drawn or the jump reader starts.  The id
+lets a reference outlive a rename, which is why sequence bookmarks
+store their members by id.  You never type an id; it appears only in
+~i~ in the list buffer and in the bookmark file, and the built-in
+bookmark package ignores it.  A file copied between machines can
+contain the same id twice; a bookmark is looked up by its id when it
+has one, and by its name otherwise.
 
 ** Changing an existing bookmark
 
-Three commands change a bookmark rather than create one.  Which
-to reach for depends on what you are changing and where you are
-standing.
+| Command              | Changes                                  | Run it from      |
+|----------------------+------------------------------------------+------------------|
+| ~bookmark-gt-update~   | where it points: to point                | the new location |
+| ~bookmark-gt-relocate~ | where it points: to a file or URL you type | anywhere         |
+| ~bookmark-gt-rename~   | its name                                 | anywhere         |
 
-| Command              | Changes                             | You are          |
-|----------------------+-------------------------------------+------------------|
-| ~bookmark-gt-update~   | where it points, to here            | at the new place |
-| ~bookmark-gt-relocate~ | where it points, to a path you type | anywhere         |
-| ~bookmark-gt-rename~   | its name                            | anywhere         |
+Each command takes a bookmark record, name or id, and prompts when
+given none.  Given a name that several bookmarks share, it asks
+which one.
 
-Each takes a bookmark record, a name, or an id, and prompts when
-given none.  Given a name shared by several bookmarks they ask
-which one rather than picking the first.
+*** ~bookmark-gt-update~
 
-*** ~bookmark-gt-update~ — point it at where I am
+~bookmark-gt-update~ records the current location and stores it in
+the existing bookmark.  The bookmark keeps its name, id, tags,
+annotation, creation time and visit history; everything that
+describes where it points is replaced, so data left from its
+previous type (a PDF page, an Org heading id, Dired marks) is
+removed.  It asks for confirmation before changing the bookmark's
+type, for example from PDF to Org.  It cannot update URL, function,
+keyboard-macro or sequence bookmarks, since they have no location
+in a buffer; use ~bookmark-gt-relocate~ for those.
 
-Re-captures the location and puts it on the existing record.
-The bookmark keeps its name, its id, its tags, its annotation,
-its creation time and its visit history; everything describing
-where it points is replaced.  Replacing all of it is what
-removes a previous type's leftovers — a PDF record's page data,
-an org record's heading id, a Dired record's marks.
+*** ~bookmark-gt-relocate~
 
-It asks before changing a bookmark's type, since turning a PDF
-bookmark into an org one is a large change to something you
-already have.
-
-It signals for bookmarks with no buffer location — URL,
-function, kmacro and sequence — because there is nothing at
-point to capture for them.  Use ~bookmark-gt-relocate~ for
-those.
-
-*** ~bookmark-gt-relocate~ — point it somewhere I name
-
-Reads the new target instead of capturing it, so it works
-without visiting anything, and it is the only way to change a
-bookmark that has no buffer location:
-
-- File records prompt with ~read-file-name~, defaulting to the
-  current filename, so fixing a moved file is a matter of
-  editing the path.  ~position~ is left alone — the usual
-  reason to relocate is a file that moved, and the offset is
-  still good.
-- URL records — including browser-tab bookmarks — prompt for
-  the new URL.
-- Records with neither raise a ~user-error~.
-
-It refuses a target of a different type: pointing a PDF bookmark
-at an org file would leave a handler that cannot open what it
-now points at.  Changing type is what ~bookmark-gt-update~ is
-for.
-
-In the list buffer, ~R~ relocates the row's record.
+~bookmark-gt-relocate~ asks for the new target instead of recording
+the current location, so it works without visiting the target.  For
+a file bookmark it reads a file name, starting from the current one,
+and keeps the position, since the usual reason to relocate is a file
+that was moved.  For a URL bookmark, including a browser-tab
+bookmark, it reads a URL.  Other bookmarks cannot be relocated.  It
+refuses a target of a different type (an Org file for a PDF
+bookmark, for example), because the bookmark's handler could not
+open it; use ~bookmark-gt-update~ to change the type.  In the list
+buffer, ~R~ relocates the bookmark at point.
 
 *** ~bookmark-gt-rename~
 
-Renames the bookmark given, not the first one sharing its name.
-The new name is checked the same way a new bookmark's is, so
-renaming cannot produce something creating could not — see
-Bookmarks that share a name.
-
-In the list buffer, ~r~ renames the row's record.
+~bookmark-gt-rename~ renames the bookmark you select, not the first
+one with its name.  The new name is checked the same way as a new
+bookmark's name (see [[Bookmarks that share a name]]).  In the list
+buffer, ~r~ renames the bookmark at point.
 
 ** Deleting
 
-~M-x bookmark-gt-delete~ deletes the bookmark given rather than
-the first record sharing its name.  Before deleting it reports
-any sequence bookmark that referenced it, since that reference
-is about to stop resolving and that is worth knowing now rather
-than at the next jump.
+~M-x bookmark-gt-delete~ deletes the bookmark you select, not the
+first one with its name.  If a sequence bookmark refers to it, the
+command tells you before deleting, since that reference will no
+longer work.  In the list buffer, ~d~ flags rows and ~x~ deletes
+them.
 
-In the list buffer, ~d~ flags a row and ~x~ deletes what is
-flagged.
+* Bookmarks in the buffer
 
-* In-file behaviors
+** Cycling through a file's bookmarks
 
-** In-buffer cycling
-
-Two autoloaded commands iterate over the bookmarks whose file
-matches the current buffer's file, sorted by position:
-
-- ~M-x bookmark-gt-cycle-next~ — jump to the next bookmark
-  position after point.
-- ~M-x bookmark-gt-cycle-prev~ — jump to the previous one.
-
-Both wrap around at the ends of the sequence.  Print the
-bookmark's name via ~message~ so the destination bookmark is
-identified.  No overlay dependency — cycling uses record data
-directly, so it works whether or not
-~bookmark-gt-highlight-enable~ is on.
-
-Records without a numeric ~position~ (e.g. Dired records) are
-skipped; bookmarks pointing at other files are ignored.
-
-Convenient bindings (in your init):
+~M-x bookmark-gt-cycle-next~ and ~M-x bookmark-gt-cycle-prev~ move
+point to the next or previous bookmark in the current file, ordered
+by position, wrapping around at either end and showing the
+bookmark's name.  Bookmarks without a numeric position, such as
+Dired bookmarks, are skipped.  Cycling does not depend on
+highlighting being on.  Example bindings:
 
 #+begin_src emacs-lisp
 (global-set-key (kbd "C-c n") #'bookmark-gt-cycle-next)
 (global-set-key (kbd "C-c p") #'bookmark-gt-cycle-prev)
 #+end_src
 
-** Per-bookmark highlighting
+** Highlighting
 
-When ~bookmark-gt-mode~ is on, every file-visiting buffer gets
-an overlay per bookmark that points at that file.  Overlays
-use ~bookmark-gt-face-highlight~ (inherits ~hl-line~ by
-default) and span:
+While ~bookmark-gt-mode~ is on, each bookmark is highlighted in the
+buffers that visit its file, using ~bookmark-gt-face-highlight~
+(which inherits from ~hl-line~).  A bookmark at a point highlights
+its line, and a region bookmark highlights the lines of its region;
+moving the mouse over the highlight shows the bookmark's name.
 
-- The bookmark's line, for point bookmarks.
-- The whole region (from ~position~ line-start to
-  ~end-position~ line-end), for region bookmarks.
-
-Hovering shows the bookmark name via ~help-echo~.
-
-Triggers:
-- ~find-file-hook~ creates overlays as files are opened.
-- ~bookmark-gt-record-changed-hook~ refreshes overlays after any
-  mutation.  Targeted single-file refresh when the mutation
-  affects a specific record; full refresh only when a batch
-  operation runs the hook with the ~nil~ sentinel.
-- ~bookmark-after-jump-hook~ records the point after the jump
-  in a buffer-local hash so records that carry no numeric
-  ~position~ (e.g. org-heading bookmarks, whose target is
-  resolved by ~org-bookmark-heading-jump~ at jump time) still
-  get an overlay after the user visits them.  The recorded
-  position is consulted by
-  ~bookmark-gt-highlight--effective-position~ as a fallback
-  when ~position~ is absent.
-
-Customization:
-- ~bookmark-gt-highlight-enable~ (default ~t~) — opt out.  Set
-  to nil to suppress highlighting even while the mode is on.
-- ~bookmark-gt-face-highlight~ — face for the overlay.
-  Rebind to a subtler / stronger color as you prefer.
-
-Overlays are process-scoped display state; they are removed
-when the buffer is killed, and are cleared entirely when
-~bookmark-gt-mode~ turns off.  Nothing is written to disk.
-The post-jump position hash is likewise buffer-local and
-transient.
+Highlights are added when a file is visited and updated after each
+change to a bookmark.  A bookmark without a numeric position, such
+as an Org heading bookmark, is highlighted at the place its last
+jump arrived, once you have jumped to it.  Highlights are not saved,
+and they are removed when the mode is turned off.  To turn them off
+while keeping the mode on, set ~bookmark-gt-highlight-enable~ to
+nil.
 
 ** Region bookmarks
 
-When ~bookmark-gt-mode~ is on and the region is active on
-~M-x bookmark-gt-create~, the record captures both anchors plus
-context strings so the region can be re-selected on jump:
+If the region is active when you run ~bookmark-gt-create~, the
+bookmark stores the region and selects it again after a jump.  The
+record stores the start in ~position~ and the end in
+~end-position~, plus ~bookmark-gt-region-context-size~ characters
+(default 40) before and after the end, under
+~front-context-region-string~ and ~rear-context-region-string~,
+which locate the end again if the text has changed.  These keys are
+the ones bookmark+ uses; the built-in bookmark package ignores them
+and jumps to ~position~.  To neither store nor restore regions, set
+~bookmark-gt-use-region~ to nil.
 
-- ~position~ = ~(region-beginning)~
-- ~end-position~ = ~(region-end)~
-- ~front-context-region-string~ = ~N~ characters preceding
-  ~end-position~ (for re-anchoring)
-- ~rear-context-region-string~ = ~N~ characters following
-  ~end-position~
-- ~front-context-string~ / ~rear-context-string~ = the built-in
-  standard re-anchor strings around the start
+* Tracking
 
-Alist-key names match bookmark+ so records round-trip losslessly.
-The built-in ~bookmark.el~ ignores the extra keys and jumps to
-~position~ only.
+** Visits
 
-On jump, a hook on ~bookmark-after-jump-hook~ pushes the mark
-at ~end-position~ (adjusted by the delta between the record's
-raw ~position~ and the actual point after built-in re-anchoring)
-and activates it — the region reappears highlighted.
+Every jump increments the bookmark's ~visits~ count and sets its
+~last-visited~ time, which is what the jump reader's ~mru~ and
+~visits~ sorting use.  These changes do not mark the bookmark file
+as modified, so jumping never causes a save; they are written the
+next time the file is saved for another reason.
 
-Customization:
-- ~bookmark-gt-use-region~ (default ~t~) — opt out of capture
-  and restore.  Records that already carry region info keep it;
-  this flag only gates the set/restore paths.
-- ~bookmark-gt-region-context-size~ (default 40) — chars of
-  context captured around ~end-position~.
+** File renames
 
-* Trackers
+While ~bookmark-gt-mode~ is on, renaming a file with ~rename-file~,
+which Dired's ~R~ also uses, changes every bookmark that points at
+the old file name to point at the new one.  Renaming a directory
+changes only bookmarks that point at the directory itself, not at
+files inside it.  Renames to a backup file name are ignored, because
+Emacs renames a file to its backup name when it saves it, and the
+bookmark should stay with the file.  To turn rename tracking off,
+set ~bookmark-gt-track-renames~ to nil.
 
-** Visit tracker
-
-When ~bookmark-gt-mode~ is on, an entry on
-~bookmark-after-jump-hook~ increments each jumped bookmark's
-~visits~ property by one and refreshes its ~last-visited~ prop
-to the current time.  The hook runs on every jump, including
-jumps handled by URL and browser-tab handlers.
-
-Enables ~:sort-by 'mru~ and ~:sort-by 'visits~ in the jump
-reader for every bookmark type without user action.
-
-Visit tracking does NOT bump ~bookmark-alist-modification-count~,
-so a jump does not trigger an auto-save.  Changes persist to
-disk at the next explicit ~bookmark-save~ (or on Emacs exit).
-
-** File-rename tracker
-
-When ~bookmark-gt-mode~ is on, an ~:around~ on ~rename-file~
-rewrites any bookmark whose ~filename~ matches the source path
-to the destination.  Intercepts Dired renames (~R~) as well,
-since Dired uses ~rename-file~ internally.
-
-Two guards:
-
-- ~bookmark-gt-track-renames~ — user opt-out, default ~t~.  Set
-  to nil to disable tracking entirely; the flag is read at call
-  time so changes take effect immediately.
-- ~backup-file-name-p~ on the destination — always skipped.
-  Emacs's default save mode renames ORIG → ORIG~ before writing
-  new content; without this guard the bookmark would follow the
-  rename and end up pointing at your backup file.
-
-Directory renames update only bookmarks whose ~filename~ equals
-the directory exactly.  Children are NOT rewritten.
-
-* Extension API
+* Extending bookmark-gt
 
 ** Handler registry
 
-~bookmark-gt-handler-alist~ is a flat alist keyed by handler
-symbol.  Each entry:
+~bookmark-gt-handler-alist~ maps each handler function to a
+description of its bookmark type:
 
 #+begin_src emacs-lisp
 (HANDLER . (:type TYPE-SYMBOL :name STRING :group GROUP-SYMBOL
             :face FACE :doc STRING))
 #+end_src
 
-Multiple handler symbols may share the same ~:type~ (URL has
-three handler-symbol aliases, browser-tab has two, etc.).
-Entries are included for: file, URL, EWW, Dired, Info, Org,
-Org-roam (org-roam-gt), PDF, browser-tab, Magit, Help, Image,
-EPUB (nov.el).
-
-Register a new handler (or an alias for an existing type):
+Several handlers can share a type; URL bookmarks, for example, have
+three handler names.  bookmark-gt registers file, URL, EWW, Dired,
+Info, Org, Org-roam (org-roam-gt), PDF, browser tab, Magit, Help,
+Image and EPUB (nov.el) bookmarks.  To register a new handler, or
+another name for an existing type:
 
 #+begin_src emacs-lisp
 (bookmark-gt-handler-register
@@ -1253,44 +850,32 @@ Register a new handler (or an alias for an existing type):
        :preview #'my-preview-fn))   ; optional
 #+end_src
 
-The optional ~:preview~ key overrides what
-~bookmark-gt-list-preview~ (bound to ~TAB~ in the list buffer)
-does for that handler.  Called with the record; runs inside
-~save-selected-window~ so it can pop up a preview buffer
-without moving point away from the list.  When absent, preview
-falls back to ~bookmark-jump-other-window~ on the record's own
-jump handler — the current default.  Useful for e.g.
-rendering a URL in an EWW buffer as preview while ~RET~ still
-opens the external browser.
+The optional ~:preview~ function is what ~TAB~ in the list buffer
+calls with the record, inside ~save-selected-window~; without it,
+~TAB~ jumps to the bookmark in another window.  A preview function
+lets you, for example, show a URL in EWW while ~RET~ still opens it
+in the external browser.
 
-Unknown handler symbols are auto-classified.  When the handler
-declares a type name in its ~bookmark-handler-type~ symbol
-property (the property ~bookmark-bmenu-list~ reads), that name
-is the type: a ~foo-bookmark-jump~ that declares "Foo notes"
-shows up as type "Foo notes".  An autoloaded handler is loaded
-first to read the property.  Otherwise the fallback strips
-common suffixes (~-bookmark-jump-handler~, ~-bookmark-jump~,
-~-jump-handler~, ~--handle-bookmark~) and title-cases the leading
-segment, so ~foo-bookmark-jump~ shows up as type "Foo" without
-any registration.  Either way, the group defaults to ~other~.
+A handler that is not registered is classified automatically.  If
+it has a ~bookmark-handler-type~ property, as ~bookmark-bmenu-list~
+expects, that is its type name.  Otherwise its name is used without
+the usual suffixes (~-bookmark-jump-handler~, ~-bookmark-jump~,
+~-jump-handler~, ~--handle-bookmark~), so ~foo-bookmark-jump~ is
+shown as type "Foo".  Either way, its group is ~other~.
 
-Type predicates — one per registered type:
+Each registered type has a predicate:
 ~bookmark-gt-handler-file-p~, ~-url-p~, ~-eww-p~, ~-dired-p~,
 ~-info-p~, ~-org-p~, ~-org-roam-p~, ~-pdf-p~, ~-browser-tab-p~,
 ~-magit-p~, ~-help-p~, ~-image-p~, ~-epub-p~, ~-function-p~,
-~-sequence-p~, ~-kmacro-p~, ~-view-p~.  Each does
+~-sequence-p~, ~-kmacro-p~ and ~-view-p~, each equivalent to
 ~(eq (bookmark-gt-handler-type record) 'TYPE)~.
 
 ** Group registry
 
-Groups aggregate multiple types so users can filter or narrow
-by an aggregate category (e.g. "web" covers URL + EWW +
-browser-tab) rather than one type at a time.
-
-Groups are DERIVED from the handler registry at classification
-time — they are not stored on the record, never written to disk.
-
-Six built-in groups are provided:
+Groups combine several types into one category, so that you can
+filter by "web" instead of by URL, EWW and browser tab separately.
+A bookmark's group is computed from its handler's registration and
+is not stored in the record.
 
 | Symbol  | Name  | Types                                |
 |---------+-------+--------------------------------------|
@@ -1299,242 +884,166 @@ Six built-in groups are provided:
 | ~doc~   | Doc   | info, org, org-roam, pdf, help, epub |
 | ~code~  | Code  | magit                                |
 | ~media~ | Media | image                                |
-| ~other~ | Other | catch-all for unregistered handlers  |
+| ~other~ | Other | everything else                      |
 
-~bookmark-gt-group-alist~ is the registry (group symbol →
-:name/:doc plist).  Register a new group:
+~bookmark-gt-group-alist~ holds the groups.  To add one:
 
 #+begin_src emacs-lisp
 (bookmark-gt-group-register
- 'science '(:name "Sci"
-            :doc "Science / research bookmarks."))
+ 'science '(:name "Sci" :doc "Science and research bookmarks."))
 #+end_src
 
-The list buffer shows a ~Group~ column (after ~Type~).  In the
-jump reader, the ~+GROUP~ orderless particle narrows by group —
-~+Web~ shows every web bookmark regardless of type — and ~@TYPE~
-narrows by type.  Filter in the list via ~/~ → ~by-group~.
+The group is shown in the list buffer's Group column, can be
+filtered with ~/~, and is matched by the ~+GROUP~ particle in the
+jump reader.  ~(bookmark-gt-handler-group RECORD)~ returns a
+record's group.
 
-Accessor: ~(bookmark-gt-handler-group RECORD)~ returns the group
-symbol (or ~other~ when the handler is unregistered).
+** Hooks and registries
 
-** Extension points
-
-Every non-trivial mechanism is expected to have an extension point:
-
-- ~bookmark-gt-create-name-reader-hook~ — runs once inside
-  ~bookmark-gt-create~, before the name prompt is displayed to the
-  user.  Each hook is called with ~(default-name context)~ and
-  returns either a string (which replaces the default) or nil
-  (to defer).  The first non-nil return wins.
-- ~bookmark-gt-create-tag-reader-hook~ — the last step of the
-  tag pipeline, which runs when a creation command is called
-  interactively or with TAGS ~t~ (see [[*Tag reader][Tag reader]]); not run by
-  ~bookmark-gt-create-non-file~.  Chained: each hook is called
-  with ~(record seed-tags)~ and returns a new seed-tags list,
-  which becomes the input to the next hook.  The hook is empty
-  by default.  Its first input is the tag list produced by
-  ~bookmark-gt-default-tags-mode~ (when on) and then the
-  interactive tag reader (when
-  ~bookmark-gt-prompt-for-tags-flag~ is non-nil); neither of
-  those is on the hook.
-- ~bookmark-gt-record-changed-hook~ — runs at the end of every
-  change to a bookmark record.  Called with two arguments: the
-  record, and a symbol naming what happened — ~create~,
-  ~update~, ~relocate~, ~rename~, ~tags~, ~temp~,
-  ~auto-update~ or ~delete~.  An observer interested in one
-  operation tests the symbol; one interested in all of them
-  ignores it.
-
-  One hook rather than one per command: an observer wanting
-  every change would otherwise have to register into all of
-  them.  bookmark-gt's own list-buffer refresh does not go
-  through it.
-- ~bookmark-gt-jump-before-read-hook~ — runs once inside
-  ~bookmark-gt-jump~, ~bookmark-gt-jump-other-window~, and
-  ~bookmark-gt-jump-tagged~, immediately before the reader
-  displays.  Fires only when the entry point is going to
-  prompt the user (i.e. ~:BOOKMARK~ was not supplied) and does
-  not re-fire on tag-filter restart within the same call.
-  Called with no arguments; each function runs synchronously in
-  the order added.  ~bookmark-gt-browser-tabs-mode~ registers
-  ~bookmark-gt-browser-tabs-refresh~ here so live browser tabs
-  are current at each read.  Register your own pool refreshers
-  (auto-update sweep, remote-tab poll, ...) here.
-- ~bookmark-gt-list-before-read-hook~ — runs when
-  ~bookmark-gt-list~ opens the list buffer and when the buffer is
-  reverted (~g~), before the rows are drawn.  Called with no
-  arguments.  ~bookmark-gt-browser-tabs-mode~ adds
-  ~bookmark-gt-browser-tabs-refresh~ and
-  ~bookmark-gt-auto-update-mode~ adds ~bookmark-gt-auto-update-tick~,
-  so the list shows current tabs and auto-update positions.
-- ~bookmark-gt-session-only-props~ — list of record keys whose
-  values identify an object owned by another process (a browser
-  tab id, a client name).  Clearing the temp flag (with
-  ~bookmark-gt-toggle-temp~ or ~bookmark-gt-temp-set~) removes
-  every registered key from the record, so the keys are never
-  written to the bookmark file.
-  ~bookmark-gt-browser-tabs-mode~ registers the three keys its
-  tab records carry.  Register a key here at load time.
-- ~bookmark-gt-filter-alist~ — filter registry for the list
-  buffer's ~/~ command.
-- ~bookmark-gt-sort-alist~ — sort registry (includes name and
-  type entries).
+- ~bookmark-gt-create-name-reader-hook~ runs in ~bookmark-gt-create~
+  before the name prompt.  Each function is called with the
+  suggested name and the new record's data, and can return a
+  different suggestion; the first non-nil value is used.
+- ~bookmark-gt-create-tag-reader-hook~ is the last step of the tag
+  computation (see [[*Tag reader][Tag reader]]); it does not run in
+  ~bookmark-gt-create-non-file~.  Each function is called with the
+  record and the tags so far, and returns the tags passed to the next
+  function.
+- ~bookmark-gt-record-changed-hook~ runs after every change to a
+  bookmark, with the record and a symbol naming the change:
+  ~create~, ~update~, ~relocate~, ~rename~, ~tags~, ~temp~,
+  ~auto-update~ or ~delete~.
+- ~bookmark-gt-jump-before-read-hook~ runs once each time
+  ~bookmark-gt-jump~, ~bookmark-gt-jump-other-window~ or
+  ~bookmark-gt-jump-tagged~ is about to prompt (not when ~:BOOKMARK~
+  is given, and not again when a tag filter restarts the read).  Use
+  it to rebuild bookmarks that must be current when the reader
+  shows them; ~bookmark-gt-browser-tabs-mode~ adds
+  ~bookmark-gt-browser-tabs-refresh~ to it.
+- ~bookmark-gt-list-before-read-hook~ runs when the list buffer is
+  opened or reverted, before the rows are drawn.
+  ~bookmark-gt-browser-tabs-mode~ adds
+  ~bookmark-gt-browser-tabs-refresh~ to it, and
+  ~bookmark-gt-auto-update-mode~ adds ~bookmark-gt-auto-update-tick~.
+- ~bookmark-gt-session-only-props~ lists record keys whose values
+  are valid only while another program is running, such as a browser
+  tab id.  When a temporary bookmark is made permanent, these keys
+  are removed from it, so they are never saved.
+  ~bookmark-gt-browser-tabs-mode~ registers the three keys its tab
+  bookmarks use.
+- ~bookmark-gt-filter-alist~ and ~bookmark-gt-sort-alist~ hold the
+  list buffer's filters (for ~/~) and sort orders.
 
 * Compatibility
 
-** Data compat with bookmark+
+** Data compatibility with bookmark+
 
-bookmark-gt reads and writes alist entries under the same keys
-bookmark+ uses, so a file written by either carries the same
-meaning to the other:
+bookmark-gt reads and writes these record keys with the same meaning
+as bookmark+, so either package can read the other's bookmark file:
 
-| Key           | Meaning                        |
-|---------------+--------------------------------|
-| ~tags~          | List of tag strings            |
-| ~bmkp-temp~     | Temp-record marker             |
-| ~auto-update~   | Auto-tracking flag             |
-| ~visits~        | Visit count                    |
-| ~last-visited~  | Last visit timestamp           |
-| ~created~       | Record creation timestamp      |
-| ~last-modified~ | Record last-mutation timestamp |
+| Key           | Meaning                         |
+|---------------+---------------------------------|
+| ~tags~          | List of tag strings             |
+| ~bmkp-temp~     | The bookmark is temporary       |
+| ~auto-update~   | The position is kept up to date |
+| ~visits~        | Number of visits                |
+| ~last-visited~  | Time of the last visit          |
+| ~created~       | Time of creation                |
+| ~last-modified~ | Time of the last change         |
 
-Two shape differences we accommodate on read:
-
-- Bookmark+ writes the placeholder string ~"   - no file -"~ into
-  ~filename~ for non-file records.  ~bookmark-gt-filename-of~
-  treats it as nil.  Bookmark-gt records omit ~filename~ entirely
-  for non-file records.
-- Bookmark+ URL records store the URL under ~location~.
-  Bookmark-gt writes it under ~url~.  Both are read by
-  ~bookmark-gt-url-of~.
-
-bookmark-gt adds one key of its own, ~bookmark-gt-id~ (see
-Record identity).  Neither bookmark+ nor the built-in bookmark
-package knows it, and both ignore keys they do not know.
+Two differences are handled when reading.  bookmark+ stores the
+string ~"   - no file -"~ in ~filename~ for bookmarks without a file,
+which ~bookmark-gt-filename-of~ treats as no file name; bookmark-gt
+omits ~filename~ for such bookmarks.  bookmark+ stores a URL under
+~location~, while bookmark-gt uses ~url~; ~bookmark-gt-url-of~ reads
+both.  bookmark-gt adds one key of its own, ~bookmark-gt-id~ (see
+[[Record identity]]), which bookmark+ and the built-in bookmark
+package ignore.
 
 ** Migrating from bookmark+
 
-Records saved by bookmark+ carry handler symbols
-(~bmkp-jump-dired~, ~bmkp-jump-url-browse~,
-~bmkp-jump-url-browse-other-window~,
-~bmkp-gt-browsel-tabs-jump~) that are unbound when bookmark+
-is not loaded.  bookmark-gt registers these symbols as
-classification aliases so the list buffer's Type column and
-the jump reader's narrow menu work regardless — but jumping
-still calls ~(funcall <symbol> record)~ and fails when the
-function is not defined.
-
-Fix once with ~bookmark-gt-migrate~:
+Bookmarks saved by bookmark+ name handler functions that exist only
+when bookmark+ is loaded (~bmkp-jump-dired~, ~bmkp-jump-url-browse~,
+~bmkp-jump-url-browse-other-window~ and ~bmkp-gt-browsel-tabs-jump~).
+bookmark-gt classifies them correctly in the list buffer and the jump
+reader, but jumping to them fails because the function is not
+defined.  ~M-x bookmark-gt-migrate-from-bookmark-plus~ converts them
+once:
 
 #+begin_src emacs-lisp
-;; One-time; not autoloaded — load explicitly.
-(require 'bookmark-gt-migrate)
-;; Preview mutates `bookmark-alist' in memory only.
+;; Changes `bookmark-alist' only; the file is not written.
 (bookmark-gt-migrate-from-bookmark-plus)
-;; Inspect via `M-x bookmark-gt-list' — verify the migrated
-;; rows show the expected Type and jump correctly — then commit:
+;; Check the result in M-x bookmark-gt-list, then save:
 (bookmark-save)
 #+end_src
 
-What the migration does per record:
-
-- Rewrites the ~handler~ symbol to the bookmark-gt equivalent.
-- For URL records, copies ~location~ to ~url~ (bookmark-gt's
-  convention) and drops ~location~.
-- Strips bookmark+ bookkeeping props that have no bookmark-gt
-  meaning: ~bmkp-gt-load-index~, ~buffer-name~,
-  ~front-context-region-string~,
-  ~rear-context-region-string~, empty ~annotation~, empty
-  ~tags~.
-- Removes ~filename~ when it holds bookmark+'s non-file
-  placeholder ~"   - no file -"~, so the migrated record has
-  no ~filename~ key, which is how bookmark-gt writes non-file
-  records.
-- Preserves ~filename~ when it names a real file, along with
-  ~position~, ~front-context-string~, ~rear-context-string~,
-  ~visits~, ~last-visited~, ~created~, ~last-modified~.
-- Preserves the Dired state keys ~dired-directory~,
-  ~dired-marked~, ~dired-subdirs~, ~dired-hidden-dirs~,
-  ~dired-switches~ — bookmark-gt's Dired handler consumes
-  them the same way bookmark+ did.
-
-Records already in bookmark-gt form (or plain file bookmarks
-with a nil handler) are left untouched.  Keep a copy of the
-bookmark file before running.
+For each bookmark+ record, the migration replaces the handler with
+bookmark-gt's, moves a URL from ~location~ to ~url~, and removes the
+~"   - no file -"~ placeholder from ~filename~.  It also removes keys
+that bookmark-gt does not use: ~bmkp-gt-load-index~, ~buffer-name~,
+~front-context-region-string~, ~rear-context-region-string~, and an
+empty ~annotation~ or ~tags~.  It keeps a real ~filename~,
+~position~, ~front-context-string~, ~rear-context-string~, ~visits~,
+~last-visited~, ~created~, ~last-modified~ and the Dired keys, which
+bookmark-gt's Dired handler reads the same way bookmark+'s did.
+Records already in bookmark-gt's form, and plain file bookmarks, are
+not changed.  Keep a copy of your bookmark file before migrating.
 
 * Reference
 
-** Selected customization
+** Selected options
 
-| Variable                              | Default                                                          | What it does                                                                                                                                                                                                                                                                               |
-|---------------------------------------+------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| ~bookmark-gt-list-name-width~           | ~32~                                                               | Character width of the Name column in ~*Bookmarks-gt List*~.  Longer names are truncated with an ellipsis.                                                                                                                                                                                   |
-| ~bookmark-gt-list-type-width~           | ~12~                                                               | Character width of the Type column.                                                                                                                                                                                                                                                        |
-| ~bookmark-gt-list-tags-width~           | ~24~                                                               | Character width of the Tags column.                                                                                                                                                                                                                                                        |
-| ~bookmark-gt-list-buffer-name~          | ~"*Bookmarks-gt List*"~                                              | Name of the buffer opened by ~M-x bookmark-gt-list~.                                                                                                                                                                                                                                         |
-| ~bookmark-gt-list-selection-mark~       | ~?*~                                                               | Character shown in the mark column for rows marked with ~m~ (a bulk action target).                                                                                                                                                                                                          |
-| ~bookmark-gt-list-deletion-mark~        | ~?D~                                                               | Character shown in the mark column for rows flagged with ~d~; ~x~ deletes every row bearing this mark.                                                                                                                                                                                         |
-| ~bookmark-gt-list-default-show-temp~    | ~t~                                                                | Whether new list buffers show temporary bookmarks by default; toggle per-buffer with ~H~ (~bookmark-gt-list-show-temp~).                                                                                                                                                                       |
-| —                                     | —                                                                | (View bookmarks: no defcustom; save via ~M-x bookmark-gt-create~ inside the list buffer.)                                                                                                                                                                                                    |
-| ~bookmark-gt-jump-name-max-width~       | ~58~                                                               | Width at which the jump reader truncates bookmark names, so a long name does not push the annotation columns off the window.                                                                                                                                                               |
-| ~bookmark-gt-jump-location-max-width~   | ~100~                                                              | Maximum width of the location field in the jump annotation.  The field takes the columns the candidate, tag and type fields leave free, so it widens on a wide frame and narrows on a small one; this value bounds it.  An integer is a column count, a float is a fraction of ~marginalia-field-width~, ~nil~ applies no bound beyond the free space.                                          |
-| ~bookmark-gt-jump-default-sort~         | ~'mru~                                                          | Sort order used by ~bookmark-gt-jump~ when no ~:sort-by~ is given.  Values: ~'mru~ (most recently used), ~'visits~, ~nil~ (pool order).                                                                                                                                                              |
-| ~bookmark-gt-dired-virtual-max-size~    | ~524288~                                                           | Maximum bytes of a virtual-dired buffer to inline in a Dired bookmark.  Exceeding this on ~bookmark-gt-create~ signals ~user-error~.                                                                                                                                                           |
-| ~bookmark-gt-auto-update-interval~      | ~60~                                                               | Seconds of idle time between ticks of ~bookmark-gt-auto-update-mode~; each tick refreshes bookmarks carrying ~auto-update~.                                                                                                                                                                    |
-| ~bookmark-gt-track-renames~             | ~t~                                                                | When non-nil, ~rename-file~ rewrites any bookmark whose ~filename~ matched the source path to the destination.                                                                                                                                                                                 |
-| ~bookmark-gt-default-tags~              | ~nil~                                                              | Under ~bookmark-gt-default-tags-mode~, seeds the tag reader.  Value can be a string, a list of strings, or a function of the record; see the mode's section.                                                                                                                                 |
-| ~bookmark-gt-prompt-for-tags-flag~      | ~t~                                                                | Whether the tag pipeline prompts with the tag reader.  Off creates bookmarks without the tag prompt; default tags and ~bookmark-gt-create-tag-reader-hook~ still apply.                                                                                                                        |
-| ~bookmark-gt-allow-same-name-bookmarks~ | ~different-destination~                                            | When ~bookmark-gt-create~ may reuse a name already in use: ~never~, ~different-destination~ (allowed when the two point at different files or URLs), or ~always~.  A refusal is an error, never a renamed bookmark.  See Bookmarks that share a name.                                              |
-| ~bookmark-gt-highlight-enable~          | ~t~                                                                | Per-bookmark line overlays in file-visiting buffers.  Off suppresses the overlays even while ~bookmark-gt-mode~ is on.                                                                                                                                                                       |
-| ~bookmark-gt-auto-temp-names~           | ~("\\`org-capture-last-stored\\'" "\\`org-refile-last-stored\\'")~ | Names (regexps) marked temporary when stored, so they are never written to the bookmark file.  Covers the bookmarks ~org-capture~ and ~org-refile~ re-store on every capture and refile.                                                                                                       |
-| ~bookmark-gt-unique-names~              | ~("\\`org-capture-last-stored\\'" "\\`org-refile-last-stored\\'")~ | Names (regexps) that may identify only one bookmark, whatever ~bookmark-gt-allow-same-name-bookmarks~ says.  Independent of the option above: a name can be unique without being temporary.                                                                                                  |
-| ~bookmark-gt-unique-name-handlers~           | ~(burly-bookmark-handler)~                                         | Handlers whose bookmarks are one per name: re-storing one replaces the record of the same handler rather than adding another.  Applies only between records of that handler; a collision with a different kind of bookmark is decided by the same-name setting.                            |
-| ~bookmark-gt-file-type-handlers~        | ~nil~                                                              | Alist mapping filename regexp to a handler function; when a file bookmark's ~filename~ matches, the function is called with the record instead of the built-in ~find-file~ path.                                                                                                               |
-| ~bookmark-gt-browser-tabs-browsers~     | ~nil~                                                              | List of browser-gt browser client names to query for tabs (e.g. ~'("chrome" "firefox")~), or ~nil~ to query every browser browser-gt is connected to.                                                                                                                                          |
-| ~bookmark-gt-browser-tabs-filter~       | ~nil~                                                              | Filter applied to each fetched tab before it is stored.  ~nil~ = accept every tab; a regexp = keep tabs whose URL matches; a function = called with the tab plist, kept when it returns non-nil.                                                                                             |
+| Variable                              | Default                                                          | Description                                                                                                                                                                                       |
+|---------------------------------------+------------------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ~bookmark-gt-list-name-width~           | ~32~                                                               | Width of the list buffer's Name column; longer names are truncated.                                                                                                                                 |
+| ~bookmark-gt-list-type-width~           | ~12~                                                               | Width of the Type column.                                                                                                                                                                         |
+| ~bookmark-gt-list-tags-width~           | ~24~                                                               | Width of the Tags column.                                                                                                                                                                         |
+| ~bookmark-gt-list-buffer-name~          | ~"*Bookmarks-gt List*"~                                              | Name of the list buffer.                                                                                                                                                                          |
+| ~bookmark-gt-list-selection-mark~       | ~?*~                                                               | Character shown for rows marked with ~m~.                                                                                                                                                           |
+| ~bookmark-gt-list-deletion-mark~        | ~?D~                                                               | Character shown for rows flagged with ~d~.                                                                                                                                                          |
+| ~bookmark-gt-list-default-show-temp~    | ~t~                                                                | Whether a new list buffer shows temporary bookmarks; ~H~ changes it per buffer.                                                                                                                     |
+| ~bookmark-gt-list-persist-state~        | ~nil~                                                              | Whether the list buffer's view is saved across sessions.                                                                                                                                          |
+| ~bookmark-gt-jump-name-max-width~       | ~58~                                                               | Width at which the jump reader truncates names, so that long names leave room for the annotation.                                                                                                 |
+| ~bookmark-gt-jump-location-max-width~   | ~100~                                                              | Limit on the width of the location in the jump annotation: columns (integer), a fraction of ~marginalia-field-width~ (float), or no limit (nil).                                                     |
+| ~bookmark-gt-jump-default-sort~         | ~mru~                                                              | Sort order of ~bookmark-gt-jump~ when ~:sort-by~ is not given: ~mru~, ~visits~, or nil for the list's order.                                                                                              |
+| ~bookmark-gt-dired-virtual-max-size~    | ~524288~                                                           | Largest virtual Dired listing, in bytes, that a bookmark can store.                                                                                                                                |
+| ~bookmark-gt-auto-update-interval~      | ~60~                                                               | Seconds of idle time between updates of auto-update bookmarks.                                                                                                                                    |
+| ~bookmark-gt-track-renames~             | ~t~                                                                | Whether renaming a file updates the bookmarks pointing at it.                                                                                                                                     |
+| ~bookmark-gt-default-tags~              | ~nil~                                                              | Tags proposed by ~bookmark-gt-default-tags-mode~: a string, a list of strings, or a function of the record.                                                                                         |
+| ~bookmark-gt-prompt-for-tags-flag~      | ~t~                                                                | Whether creating a bookmark interactively prompts for tags; default tags and ~bookmark-gt-create-tag-reader-hook~ apply either way.                                                                 |
+| ~bookmark-gt-allow-same-name-bookmarks~ | ~different-destination~                                            | When a new bookmark may reuse a name: ~never~, ~different-destination~ or ~always~.                                                                                                                     |
+| ~bookmark-gt-unique-names~              | ~("\\`org-capture-last-stored\\'" "\\`org-refile-last-stored\\'")~ | Regexps of names that always identify a single bookmark, whatever the previous option says.                                                                                                       |
+| ~bookmark-gt-unique-name-handlers~      | ~(burly-bookmark-handler)~                                         | Handlers whose bookmarks are one per name: storing one replaces the existing bookmark of that name and handler.                                                                                   |
+| ~bookmark-gt-auto-temp-names~           | ~("\\`org-capture-last-stored\\'" "\\`org-refile-last-stored\\'")~ | Regexps of names whose bookmarks are made temporary when stored.                                                                                                                                  |
+| ~bookmark-gt-highlight-enable~          | ~t~                                                                | Whether bookmarks are highlighted in the buffers visiting their files.                                                                                                                            |
+| ~bookmark-gt-file-type-handlers~        | ~nil~                                                              | File-name regexps mapped to the functions that open matching file bookmarks.                                                                                                                      |
+| ~bookmark-gt-browser-tabs-browsers~     | ~nil~                                                              | Browser clients asked for tabs, such as ~("chrome" "firefox")~; nil asks every connected browser.                                                                                                   |
+| ~bookmark-gt-browser-tabs-filter~       | ~nil~                                                              | Which tabs to keep: nil for all, a regexp the URL must match, or a predicate called with the tab.                                                                                                 |
 
 * Acknowledgements
 
-bookmark-gt owes a substantial debt to [[https://www.emacswiki.org/emacs/DrewsElispLibraries][Drew Adams]] and his
-[[https://www.emacswiki.org/emacs/BookmarkPlus][bookmark+]] package, both in design and in code.  Most of the
-features bookmark-gt provides — tags, non-file bookmark types
-(URL, EWW, region, function, sequence, kmacro), temporary
-bookmarks, visit tracking, per-bookmark highlighting, and
-tag-driven filtering — were first introduced in bookmark+.
+bookmark-gt owes a great deal to [[https://www.emacswiki.org/emacs/DrewsElispLibraries][Drew Adams]] and his
+[[https://www.emacswiki.org/emacs/BookmarkPlus][bookmark+]] package, in design and in code.  Most of its features
+(tags, URL, EWW, region, function, sequence and keyboard-macro
+bookmarks, temporary bookmarks, visit tracking, highlighting and
+filtering by tag) first appeared in bookmark+.
 
-Concretely reused:
+The URL handler (~bookmark-gt-handler-url-jump~) and the Dired
+handler (~bookmark-gt-handler-dired-jump~) were adapted from
+bookmark+'s ~bmkp-jump-url-browse~ and ~bmkp-jump-dired~.  The record
+keys ~tags~, ~bmkp-temp~, ~auto-update~, ~visits~, ~last-visited~,
+~location~, ~front-context-region-string~ and
+~rear-context-region-string~ are bookmark+'s, so these fields are
+kept when a bookmark file is used by both packages.  The one
+exception is the ~"   - no file -"~ placeholder, which bookmark-gt
+reads but does not write (see [[Data compatibility with bookmark+]]);
+whether bookmark+ accepts a record without ~filename~ has not been
+tested.
 
-- *Handler bodies.*  The URL bookmark handler
-  (~bookmark-gt-handler-url-jump~) and the Dired handler
-  (~bookmark-gt-handler-dired-jump~) were copied from
-  bookmark+'s corresponding handlers (~bmkp-jump-url-browse~ and
-  ~bmkp-jump-dired~) and lightly adapted — same jump semantics,
-  same record-shape expectations, minor changes to fit
-  bookmark-gt's registry.
-- *Record schema.*  The on-disk alist keys — ~tags~,
-  ~bmkp-temp~, ~auto-update~, ~visits~, ~last-visited~,
-  ~location~ (URL alias), and ~front-context-region-string~ /
-  ~rear-context-region-string~ (region bookmarks) — are
-  adopted from bookmark+'s format verbatim: bookmark-gt reads
-  and writes them under the same names, so a bookmark file
-  moves between the two packages without losing these fields.
-
-  One item of that format is read but not written: the
-  ~"   - no file -"~ string bookmark+ stores in ~filename~ on
-  a non-file record.  Bookmark-gt omits ~filename~ on such
-  records instead, and ~bookmark-gt-filename-of~ reads the
-  placeholder as absent (see [[Data compat with bookmark+]]).
-  Whether bookmark+ in turn accepts a record with no
-  ~filename~ key has not been tested — bookmark-gt has no
-  dependency on it and the test suite does not install it.
-
-=bookmark-gt= is a rewrite with different architectural
-choices (no advice on other packages, a single registry per
-axis, tabulated-list-mode instead of custom rendering), not a
-fork.  But the user-visible features, the design ideas, and
-the handler code included in this package all originate from
-Drew's work.
+bookmark-gt is a rewrite, not a fork: it is built on
+~tabulated-list-mode~ and on registries of handlers, groups, filters
+and sort orders.  Its features, its design ideas and the handler code
+it adapts come from Drew's work.
 
 * License
 

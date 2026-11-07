@@ -34,11 +34,11 @@ EL_FILES = bookmark-gt.el \
 # lint, checkdoc and check-declare run without them, as MELPA does.
 DEPS = marginalia consult orderless
 
-# `bookmark-gt-jump--read-with-consult' calls `consult--read' and
-# `consult--type-narrow': consult offers no public reader with narrow
-# keys.  Those forward declarations are allowed; any other package's
-# private symbol fails `check-forward-declares'.
-PRIVATE_OK = bookmark-gt-|consult--
+# `bookmark-gt-jump--read-with-consult' calls `consult--read', which
+# consult's README recommends to package authors.  That forward
+# declaration is allowed; any other package's private symbol fails
+# `check-forward-declares'.
+PRIVATE_OK = bookmark-gt-|consult--read
 
 INFO_SRC = readme.org
 
