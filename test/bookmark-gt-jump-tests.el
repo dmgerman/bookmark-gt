@@ -237,6 +237,23 @@ for the aligning space."
         (bookmark-gt-jump--read "prompt"))
       (should (= count 1)))))
 
+;;;; Annotation alignment
+
+(ert-deftest bookmark-gt-jump-test-annotation-aligns-itself ()
+  "The annotation starts with a `space :align-to' at the name column.
+No private marginalia text property is used."
+  (skip-unless (featurep 'marginalia))
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-create-non-file "u" 'bookmark-gt-handler-url-jump
+                              '((url . "https://example.org")))
+    (let* ((bookmark-gt-jump--name-column 40)
+           (ann (bookmark-gt-jump-annotate
+                 (bookmark-gt-jump-candidate-default (car bookmark-alist)))))
+      (should (equal (get-text-property 0 'display ann)
+                     '(space :align-to (+ left 40))))
+      (should-not (text-property-any 0 (length ann)
+                                     'marginalia--align t ann)))))
+
 ;;;; Annotation follows the candidate's record
 
 (ert-deftest bookmark-gt-jump-test-annotates-a-suffixed-candidate ()
@@ -337,13 +354,15 @@ the wrong one."
   "With no read in progress, the name column comes from the defcustom."
   (let ((bookmark-gt-jump--name-column nil)
         (bookmark-gt-jump-name-max-width 58))
-    ;; 58 rounds up to marginalia's next candidate-width step.
+    ;; 58 rounds up to the next multiple of the column step.
     (should (= 60 (bookmark-gt-jump--align-column)))))
 
 (ert-deftest bookmark-gt-jump-location-width-test-column-rounds-up ()
-  "The alignment column is a multiple of marginalia's step."
+  "The column is the smallest multiple of the step greater than WIDTH.
+A name exactly as wide as a multiple still gets one column of space."
   (should (= 60 (bookmark-gt-jump--column-for 51)))
-  (should (= 60 (bookmark-gt-jump--column-for 60)))
+  (should (= 60 (bookmark-gt-jump--column-for 59)))
+  (should (= 70 (bookmark-gt-jump--column-for 60)))
   (should (= 70 (bookmark-gt-jump--column-for 61))))
 
 ;;;; Field formatting

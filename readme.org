@@ -490,10 +490,14 @@ leave free:
 
 : window width − annotation start column − tags − type − separators
 
-Marginalia positions annotations at a fixed column past the
-widest candidate, and bookmark-gt caps candidate names at
+bookmark-gt starts the annotation at a column it computes from
+the widest candidate in the read: the smallest multiple of 10
+greater than that candidate's width, so at least one column
+separates the two.  Candidate names are capped at
 ~bookmark-gt-jump-name-max-width~, so the free width is known
-and the location field uses it.  It therefore widens on a wide
+and the location field uses it.  Because bookmark-gt sets the
+column itself, ~marginalia-align~ and ~marginalia-align-offset~
+do not apply to the jump reader's rows.  It therefore widens on a wide
 frame and narrows on a small one, without a fixed fraction.
 The width is measured once per read, so every row of one
 display computes the same layout.
@@ -533,8 +537,7 @@ This is also a deliberate departure from marginalia's own
 policy.  Marginalia keeps annotations within half the window so
 that a wide annotation cannot displace the candidate names,
 which it must do conservatively because it does not know how
-wide the candidates are: it computes the alignment column after
-the annotators have run.  bookmark-gt does know — names are
+wide the candidates are.  bookmark-gt does know — names are
 capped by ~bookmark-gt-jump-name-max-width~ and the candidate
 list is complete before the read opens — so it measures the free
 space instead, and the location field may extend past half the
@@ -1477,7 +1480,7 @@ bookmark file before running.
 | ~bookmark-gt-list-deletion-mark~        | ~?D~                                                               | Character shown in the mark column for rows flagged with ~d~; ~x~ deletes every row bearing this mark.                                                                                                                                                                                         |
 | ~bookmark-gt-list-default-show-temp~    | ~t~                                                                | Whether new list buffers show temporary bookmarks by default; toggle per-buffer with ~H~ (~bookmark-gt-list-show-temp~).                                                                                                                                                                       |
 | —                                     | —                                                                | (View bookmarks: no defcustom; save via ~M-x bookmark-gt-create~ inside the list buffer.)                                                                                                                                                                                                    |
-| ~bookmark-gt-jump-name-max-width~       | ~58~                                                               | Width at which the jump reader truncates bookmark names, so a long name does not push the annotation columns off the window.  Avoid multiples of 10: marginalia rounds its alignment column up to a multiple of 10, so such a value leaves the widest rows no room for the aligning space. |
+| ~bookmark-gt-jump-name-max-width~       | ~58~                                                               | Width at which the jump reader truncates bookmark names, so a long name does not push the annotation columns off the window.                                                                                                                                                               |
 | ~bookmark-gt-jump-location-max-width~   | ~100~                                                              | Maximum width of the location field in the jump annotation.  The field takes the columns the candidate, tag and type fields leave free, so it widens on a wide frame and narrows on a small one; this value bounds it.  An integer is a column count, a float is a fraction of ~marginalia-field-width~, ~nil~ applies no bound beyond the free space.                                          |
 | ~bookmark-gt-jump-default-sort~         | ~'mru~                                                          | Sort order used by ~bookmark-gt-jump~ when no ~:sort-by~ is given.  Values: ~'mru~ (most recently used), ~'visits~, ~nil~ (pool order).                                                                                                                                                              |
 | ~bookmark-gt-dired-virtual-max-size~    | ~524288~                                                           | Maximum bytes of a virtual-dired buffer to inline in a Dired bookmark.  Exceeding this on ~bookmark-gt-create~ signals ~user-error~.                                                                                                                                                           |

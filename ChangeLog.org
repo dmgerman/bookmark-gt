@@ -32,6 +32,14 @@
   ~bookmark-gt-jump-candidate-format-function~ need not set it.
   The ~:narrow-char~ of groups and handlers is no longer read.
 
+- The jump reader positions its annotation itself, with a
+  ~space :align-to~ display property, instead of through
+  marginalia's private alignment.  ~marginalia-align~ and
+  ~marginalia-align-offset~ no longer apply to its rows.  The
+  annotation column is now always at least one column past the
+  widest name, so ~bookmark-gt-jump-name-max-width~ no longer
+  needs to avoid multiples of 10.
+
 ** Added
 
 - The ~+GROUP~ orderless particle in the jump reader narrows to
