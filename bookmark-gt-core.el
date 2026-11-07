@@ -916,12 +916,14 @@ cannot go to a different bookmark that shares RECORD's name.
 DISPLAY-FUNC defaults to `pop-to-buffer-same-window'.
 
 RECORD's name, not RECORD, is added to `bookmark-history':
-`bookmark-jump' would push the record there, and that history
-holds strings."
+`bookmark-jump' called from Lisp adds its argument, here the
+record, and that history holds strings.  Other additions to
+`bookmark-history' made during the jump are not kept."
   (unless (consp record)
     (error "Not a bookmark record: %S" record))
-  (add-to-history 'bookmark-history (bookmark-name-from-full-record record))
-  (bookmark--jump-via record (or display-func #'pop-to-buffer-same-window)))
+  (let ((bookmark-history bookmark-history))
+    (bookmark-jump record display-func))
+  (add-to-history 'bookmark-history (bookmark-name-from-full-record record)))
 
 (defun bookmark-gt-delete-record (record)
   "Delete RECORD from `bookmark-alist' by identity.

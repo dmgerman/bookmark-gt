@@ -413,6 +413,18 @@ the visit is counted on that record, not on the first."
                                        'bookmark-handle-bookmark)))
       (bookmark-gt-mode (if was-enabled 1 -1)))))
 
+(ert-deftest bookmark-gt-test-jump-record-adds-name-to-history ()
+  "`bookmark-gt-jump-record' adds the record's name, not the record."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-create-non-file
+     "hist" 'bookmark-gt-core-tests--handler-that-opens-buffer nil)
+    (let ((bookmark-history nil))
+      (unwind-protect
+          (bookmark-gt-jump-record (bookmark-get-bookmark "hist"))
+        (let ((buf (get-buffer " *bg-target-test*")))
+          (when (buffer-live-p buf) (kill-buffer buf))))
+      (should (equal bookmark-history '("hist"))))))
+
 ;;;; Suggested name is independent of `bookmark-current-bookmark'
 
 (ert-deftest bookmark-gt-test-set-ignores-current-bookmark-for-name ()
