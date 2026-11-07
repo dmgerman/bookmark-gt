@@ -827,9 +827,9 @@ Returns the stored (NAME . DATA) pair."
   "Bookmark handler for keyboard-macro bookmark BOOKMARK.
 Replays the record's `kmacro' prop (a vector of key events) via
 `execute-kbd-macro'.  Honors `current-prefix-arg' as the repeat
-count.  Whatever buffer the macro leaves current is what the
-jump-via display step will show; if the record has an
-annotation, it pops up as usual."
+count.  Whatever buffer the macro leaves current is the buffer
+the jump displays; if the record has an annotation, it pops up as
+usual."
   (let ((mac (bookmark-prop-get bookmark 'kmacro)))
     (unless mac
       (user-error "Kmacro bookmark has no `kmacro' property"))
@@ -942,8 +942,8 @@ Returns the stored (NAME . DATA) pair."
 (defun bookmark-gt-handler-sequence-jump (bookmark)
   "Bookmark handler for sequence bookmark BOOKMARK.
 Jump to each member of the record's `sequence' prop in order.
-Whatever buffer the last jump leaves current is what the
-jump-via display step will show.
+Whatever buffer the last jump leaves current is the buffer the
+jump displays.
 
 Members are ids (symbols) or, for sequences written before ids
 existed, names.  Every member is resolved before the first jump,

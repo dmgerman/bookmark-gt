@@ -101,7 +101,7 @@ be wrong:
 | Function | Why it cannot prompt |
 |---|---|
 | `bookmark-gt-record-visit` | runs from `bookmark-after-jump-hook`, mid-jump |
-| the `bookmark--jump-via` override | records what the caller passed, mid-jump |
+| `bookmark-gt--handle-bookmark-advice` | records what the caller passed, mid-jump |
 | `bookmark-gt-tags-set`, `-temp-set`, `-auto-update-set` | mutation chokepoints, called in batches and from timers |
 
 These accept a record or a name and resolve a name with

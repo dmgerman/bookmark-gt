@@ -6,9 +6,8 @@
 
 ;;; Commentary:
 ;;
-;; Tests for `bookmark-gt-record-visit', the after-jump-hook, and
-;; the direct calls URL / browser-tab handlers make before their
-;; skip-post-handler throw.
+;; Tests for `bookmark-gt-record-visit' and the after-jump-hook that
+;; calls it.
 
 ;;; Code:
 
@@ -90,9 +89,8 @@
 (ert-deftest bookmark-gt-visit-test-url-handler-records-visit ()
   "URL bookmarks get their visit counted on jump.
 Verifies the after-jump-hook path: with `bookmark-gt-mode' on,
-`bookmark--jump-via' is overridden so
-`bookmark-after-jump-hook' runs even when the URL handler
-throws `bookmark-gt-skip-post-handler'."
+`bookmark-after-jump-hook' records the visit for a handler that
+opens an external target."
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-create-non-file
      "u" 'bookmark-gt-handler-url-jump

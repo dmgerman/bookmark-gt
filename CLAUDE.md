@@ -107,10 +107,9 @@ patch bindings via `define-key`.
 ### Adding a new bookmark type / handler
 
 1. Define `bookmark-gt-handler-<type>-jump` in the right module
-   (or in `bookmark-gt-handlers.el` if it's generic).  Handlers
-   that open an external target should call
-   `bookmark-gt-record-visit` and then
-   `bookmark-gt-skip-post-handler` at the end of their body.
+   (or in `bookmark-gt-handlers.el` if it's generic).  The
+   handler does not record the visit: `bookmark-after-jump-hook`
+   does that for every jump.
 2. Register in `bookmark-gt-handler-alist` via
    `bookmark-gt-handler-register`.  Include any handler-symbol
    aliases (bookmark+ variants, ecosystem packages) that should

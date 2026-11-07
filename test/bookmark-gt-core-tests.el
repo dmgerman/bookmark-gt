@@ -360,59 +360,58 @@ suffix is computed, and the file holds the names as typed."
                          (bookmark-get-bookmark "org-capture-last-stored"))))
         (advice-remove 'bookmark-store #'bookmark-gt--auto-temp-advice)))))
 
-;;;; jump-via override: skip only annotation, not display
+;;;; Recording the record jumped to
 
 (defun bookmark-gt-core-tests--handler-that-opens-buffer (_bookmark)
-  "Test handler: switch to a fresh buffer, then throw skip-post-handler.
-Emulates the shape of the kmacro / function handlers: they leave
-`current-buffer' pointing at their target, then throw.  The
-override must still call the display-function on that target
-after the throw."
-  (let ((buf (generate-new-buffer " *bg-target-test*")))
-    (switch-to-buffer buf)
-    (insert "target")
-    (bookmark-gt-skip-post-handler 'test)))
+  "Test handler: switch to a fresh buffer named \" *bg-target-test*\"."
+  (switch-to-buffer (get-buffer-create " *bg-target-test*")))
 
-(ert-deftest bookmark-gt-jump-via-override-displays-buffer-after-throw ()
-  "The override's throw must not skip the display step.
-Regression test for the reported bug where a kmacro bookmark
-that ran `find-file' did open the target Dired buffer but the
-buffer was never displayed because the throw jumped out of
-`bookmark--jump-via' before `funcall display-function' ran."
+(ert-deftest bookmark-gt-test-jump-records-the-record-jumped-to ()
+  "Jumping to the second of two same-named records records that one.
+`bookmark-gt-current-bookmark' is set in the target buffer, and
+the visit is counted on that record, not on the first."
   (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-create-non-file
-     "bg-throw" 'bookmark-gt-core-tests--handler-that-opens-buffer nil)
-    (let ((was-enabled bookmark-gt-mode))
-      (unwind-protect
-          (progn
-            (unless was-enabled (bookmark-gt-mode 1))
-            (bookmark-jump "bg-throw")
-            (let ((buf (get-buffer " *bg-target-test*")))
-              (unwind-protect
-                  (progn
-                    (should (buffer-live-p buf))
-                    (should (eq (window-buffer (selected-window)) buf)))
-                (when (buffer-live-p buf) (kill-buffer buf)))))
-        (unless was-enabled (bookmark-gt-mode -1))))))
+    (let ((bookmark-gt-allow-same-name-bookmarks 'always)
+          (was-enabled bookmark-gt-mode))
+      (bookmark-gt-create-non-file
+       "same" 'bookmark-gt-core-tests--handler-that-opens-buffer
+       '((filename . "/tmp/a")))
+      (bookmark-gt-create-non-file
+       "same" 'bookmark-gt-core-tests--handler-that-opens-buffer
+       '((filename . "/tmp/b")))
+      (let ((second (seq-find (lambda (r) (equal (bookmark-gt-filename-of r)
+                                                 "/tmp/a"))
+                              bookmark-alist)))
+        (unwind-protect
+            (progn
+              (unless was-enabled (bookmark-gt-mode 1))
+              (bookmark-gt-jump-record second)
+              (should (eq (buffer-local-value
+                           'bookmark-gt-current-bookmark
+                           (get-buffer " *bg-target-test*"))
+                          second))
+              (should (= 1 (or (bookmark-prop-get second 'visits) 0)))
+              (should-not (bookmark-prop-get
+                           (seq-find (lambda (r) (not (eq r second)))
+                                     bookmark-alist)
+                           'visits)))
+          (let ((buf (get-buffer " *bg-target-test*")))
+            (when (buffer-live-p buf) (kill-buffer buf)))
+          (unless was-enabled (bookmark-gt-mode -1)))))))
 
-(ert-deftest bookmark-gt-jump-via-override-runs-after-jump-hook-after-throw ()
-  "The override's throw must not skip `bookmark-after-jump-hook'."
-  (bookmark-gt-test-with-clean-bookmarks
-    (bookmark-gt-create-non-file
-     "bg-throw-hook"
-     'bookmark-gt-core-tests--handler-that-opens-buffer nil)
-    (let ((was-enabled bookmark-gt-mode)
-          (ran nil))
-      (unwind-protect
-          (progn
-            (unless was-enabled (bookmark-gt-mode 1))
-            (add-hook 'bookmark-after-jump-hook
-                      (lambda () (setq ran t)))
-            (bookmark-jump "bg-throw-hook")
-            (should ran))
-        (let ((buf (get-buffer " *bg-target-test*")))
-          (when (buffer-live-p buf) (kill-buffer buf)))
-        (unless was-enabled (bookmark-gt-mode -1))))))
+(ert-deftest bookmark-gt-test-mode-advises-handle-bookmark-only ()
+  "The mode advises `bookmark-handle-bookmark', not `bookmark--jump-via'."
+  (let ((was-enabled bookmark-gt-mode))
+    (unwind-protect
+        (progn
+          (bookmark-gt-mode 1)
+          (should (advice-member-p #'bookmark-gt--handle-bookmark-advice
+                                   'bookmark-handle-bookmark))
+          (should-not (fboundp 'bookmark-gt--jump-via-override))
+          (bookmark-gt-mode -1)
+          (should-not (advice-member-p #'bookmark-gt--handle-bookmark-advice
+                                       'bookmark-handle-bookmark)))
+      (bookmark-gt-mode (if was-enabled 1 -1)))))
 
 ;;;; Suggested name is independent of `bookmark-current-bookmark'
 

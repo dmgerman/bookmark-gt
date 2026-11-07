@@ -873,32 +873,20 @@ list buffer and any other observers refresh."
              (if current "Cleared" "Set")
              (bookmark-name-from-full-record record))))
 
-;;;; jump-via override
+;;;; Recording the record jumped to
 ;;
-;; Built-in `bookmark--jump-via' runs, in order:
-;;   1. `save-window-excursion' around `bookmark-handle-bookmark',
-;;      capturing the handler's final buffer + point;
-;;   2. `funcall' DISPLAY-FUNCTION on that buffer;
-;;   3. `set-window-point' on the displayed window;
-;;   4. fringe-mark;
-;;   5. `run-hooks' `bookmark-after-jump-hook';
-;;   6. `bookmark-show-annotation' when
-;;      `bookmark-automatically-show-annotations' is non-nil.
-;;
-;; This override behaves identically EXCEPT that a handler which
-;; throws `bookmark-gt-skip-post-handler' suppresses only step 6.
-;; Steps 2-5 always run.  This exists as an extension point for
-;; third-party handlers whose target is external (a URL opened
-;; via `browse-url', a browser tab focused via a bridge) and
-;; whose annotation popup would move window-manager focus off the
-;; external target back to Emacs.  No handler shipped in
-;; bookmark-gt itself calls the macro — the mechanism is retained
-;; for third-party use only.
+;; `bookmark-gt-mode' adds `bookmark-gt--handle-bookmark-advice' as
+;; `:around' advice on `bookmark-handle-bookmark', the function every
+;; built-in jump uses to run a bookmark's handler.  When the handler
+;; returns, the current buffer is the jump's target, and the advice
+;; records there which record was jumped to.  The functions on
+;; `bookmark-after-jump-hook' (visit tracker, region restore,
+;; highlighting) read that record.
 
 (defvar-local bookmark-gt-current-bookmark nil
   "Record of the bookmark most recently used in this buffer.
-Set by `bookmark-gt--jump-via-override' after the handler runs,
-and by `bookmark-gt--push-record' on store.  Holds the record
+Set by `bookmark-gt--handle-bookmark-advice' after the handler
+runs, and by `bookmark-gt--push-record' on store.  Holds the record
 itself, not its name.
 
 Built-in `bookmark-current-bookmark' holds a *name*, so every
@@ -911,42 +899,15 @@ May hold a record that is no longer in `bookmark-alist' if the
 bookmark file was reloaded since the jump; readers must
 tolerate that rather than assume membership.")
 
-(defun bookmark-gt--jump-via-override (bookmark-name-or-record display-function)
-  "Override of `bookmark--jump-via'.
-Handle BOOKMARK-NAME-OR-RECORD, then call DISPLAY-FUNCTION on
-the buffer left current by the handler.  Same behavior as the
-built-in EXCEPT that a handler which throws
-`bookmark-gt-skip-post-handler' suppresses only
-`bookmark-show-annotation'; display, `set-window-point',
-fringe mark, and `bookmark-after-jump-hook' all still run."
-  (let (buf point skip)
-    (save-window-excursion
-      (setq skip (catch 'bookmark-gt-skip-post-handler
-                   (bookmark-handle-bookmark bookmark-name-or-record)
-                   nil))
-      (setq buf (current-buffer)
-            point (point))
-      ;; Record what was actually jumped to, in the buffer the
-      ;; handler left current, before `bookmark-after-jump-hook'
-      ;; runs.  When the caller passed a record this is exact;
-      ;; when it passed a name the ambiguity is the caller's.
-      (setq-local bookmark-gt-current-bookmark
-                  (bookmark-get-bookmark bookmark-name-or-record
-                                         'noerror)))
-    (funcall display-function buf)
-    (when-let* ((win (get-buffer-window buf 0)))
-      (set-window-point win point))
-    (when bookmark-fringe-mark
-      (let ((overlays (overlays-in (pos-bol) (1+ (pos-bol))))
-            temp found)
-        (while (and (not found) (setq temp (pop overlays)))
-          (when (eq 'bookmark (overlay-get temp 'category))
-            (setq found t)))
-        (unless found
-          (bookmark--set-fringe-mark))))
-    (run-hooks 'bookmark-after-jump-hook)
-    (when (and bookmark-automatically-show-annotations (not skip))
-      (bookmark-show-annotation bookmark-name-or-record))))
+(defun bookmark-gt--handle-bookmark-advice (orig bookmark-name-or-record)
+  "Call ORIG on BOOKMARK-NAME-OR-RECORD and record the record jumped to.
+`:around' advice on `bookmark-handle-bookmark'.  After the handler
+returns, sets `bookmark-gt-current-bookmark' in the buffer the
+handler left current.  When BOOKMARK-NAME-OR-RECORD is a name,
+the record is the first one carrying that name."
+  (prog1 (funcall orig bookmark-name-or-record)
+    (setq-local bookmark-gt-current-bookmark
+                (bookmark-get-bookmark bookmark-name-or-record 'noerror))))
 
 (defun bookmark-gt-jump-record (record &optional display-func)
   "Jump to RECORD, a cons from `bookmark-alist'.
@@ -989,23 +950,6 @@ RECORD, whose car is now NEW-NAME."
   (bookmark-set-name record new-name)
   (bookmark-gt--after-mutation record 'rename)
   record)
-
-(defmacro bookmark-gt-skip-post-handler (value)
-  "Throw VALUE to suppress this jump's annotation popup.
-Extension point for third-party handlers.  A handler that calls
-this at its tail prevents `bookmark-show-annotation' from
-opening after the jump.  Intended for handlers whose target is
-external (a browser URL, a browser tab, an OS application):
-opening the annotation buffer would move window-manager focus
-from the external target back to Emacs.
-Does NOT skip display, `set-window-point', fringe mark, or
-`bookmark-after-jump-hook'; the buffer-display flow and the
-visit-tracker hook always run.  Safe to call when the enclosing
-override is not installed — a `no-catch' signal is swallowed.
-No handler shipped with bookmark-gt calls this macro."
-  `(condition-case nil
-       (throw 'bookmark-gt-skip-post-handler ,value)
-     (no-catch nil)))
 
 ;;;; Per-bookmark highlighting
 ;;
@@ -1352,10 +1296,8 @@ propagates to the end anchor."
 ;; `:sort-by 'mru' and `:sort-by 'visits' features.
 ;;
 ;; Wiring: `bookmark-after-jump-hook' runs
-;; `bookmark-gt--on-jump-record-visit' after every jump.  Under
-;; `bookmark-gt--jump-via-override' the after-jump-hook always
-;; runs, so handlers do not need to call
-;; `bookmark-gt-record-visit' themselves.
+;; `bookmark-gt--on-jump-record-visit' after every jump, so handlers
+;; do not need to call `bookmark-gt-record-visit' themselves.
 ;;
 ;; Mutation does NOT bump `bookmark-alist-modification-count' —
 ;; visit tracking on every jump should not trigger an auto-save
@@ -1380,8 +1322,8 @@ disk write per jump."
 (defun bookmark-gt--on-jump-record-visit ()
   "Hook for `bookmark-after-jump-hook'.
 Records the visit against `bookmark-gt-current-bookmark', the
-record `bookmark-gt--jump-via-override' set before this hook
-ran.  Runs on every jump under that override."
+record `bookmark-gt--handle-bookmark-advice' set before this hook
+ran."
   (when bookmark-gt-current-bookmark
     (bookmark-gt-record-visit bookmark-gt-current-bookmark)))
 

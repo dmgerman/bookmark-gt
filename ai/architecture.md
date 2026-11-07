@@ -428,24 +428,23 @@ their own handlers (EWW's `eww-bookmark-jump`, PDF's
 `org-bookmark-heading-jump`, etc.) do not need this treatment
 — the record's `handler` field already identifies the type.
 
-## Skip post-handler mechanism
+## Recording the record jumped to
 
-Handlers that open external targets (URL bookmarks, browser
-tabs) throw `bookmark-gt-skip-post-handler` at the end of
-their body, via the macro of the same name.  An `:around`
-advice on `bookmark--jump-via` wraps its body in a catch for
-that tag, so the throw skips the built-in
-`bookmark-after-jump-hook` and the annotation-buffer popup.
+The visit tracker, region restore and highlighting run from
+`bookmark-after-jump-hook` and must act on the record that was
+jumped to, not on the first record with its name.
+`bookmark-gt-mode` adds `bookmark-gt--handle-bookmark-advice` as
+`:around` advice on the public `bookmark-handle-bookmark`; after
+the handler returns, the advice sets the buffer-local
+`bookmark-gt-current-bookmark` in the buffer the handler left
+current, and the hook functions read it.
 
-When `bookmark-gt-mode` is off, the advice isn't installed and
-the throw signals `no-catch`, which the macro's
-`condition-case` swallows.  Handlers can call the macro
-unconditionally.
-
-Handlers that throw also call `bookmark-gt-record-visit`
-themselves at their tail — they're bypassing the after-jump
-hook so the visit tracker (which lives on that hook) wouldn't
-otherwise run.
+This replaced an `:override` of the private `bookmark--jump-via`,
+which was a copy of that function's body plus the recording step
+and a `bookmark-gt-skip-post-handler` throw that suppressed the
+annotation popup.  The copy would not have followed changes Emacs
+makes to `bookmark--jump-via`, and it applied to every jump in the
+session.  The throw had no users and was removed with it.
 
 ## Refresh policy
 

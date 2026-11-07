@@ -30,6 +30,12 @@
   ~+GROUP~ orderless particle instead (~+Web~).  Candidates no
   longer carry the ~consult--type~ text property; a custom
   ~bookmark-gt-jump-candidate-format-function~ need not set it.
+- Removed: the macro ~bookmark-gt-skip-post-handler~.  No handler
+  used it.  ~bookmark-gt-mode~ no longer overrides the built-in
+  ~bookmark--jump-via~; it adds advice to the public
+  ~bookmark-handle-bookmark~ instead, so jumps run the built-in
+  display, fringe mark, after-jump hook and annotation steps
+  unchanged.
 - Removed: the ~:narrow-char~ key of the group and handler
   registries, and the function ~bookmark-gt-group-narrow-char~.
   Nothing read them after the consult narrow keys were removed.
