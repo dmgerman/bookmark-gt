@@ -32,6 +32,9 @@
 #   INFO_FILE        generated manual (default: $(PACKAGE).info)
 #   EXTRA_LOAD_PATH  extra -L arguments for every Emacs invocation
 #   CHECK_EXTRA      targets appended to `check'
+#   CHECK_MELPAZOID  `melpazoid' (default) to include it in `check';
+#                    `check-ci' and `check-all' set it empty in their
+#                    per-version runs and run melpazoid once at the end
 #   DEFAULT_EXTRA    targets appended to `default'
 #   EXTRA_CLEAN      additional files removed by `clean'
 #   HELP_EXTRA       lines printed after the standard help table
@@ -363,8 +366,12 @@ check-forward-declares:
 	fi; \
 	echo "check-forward-declares: none"
 
+# melpazoid always runs under MELPAZOID_EMACS, whatever EMACS is, so
+# a multi-version run needs it only once.
+CHECK_MELPAZOID ?= melpazoid
+
 check: compile lint checkdoc check-declare check-forward-declares test \
-       melpazoid \
+       $(CHECK_MELPAZOID) \
        $(if $(strip $(INFO_SRC)),info) $(CHECK_EXTRA)
 
 # CI-mirror check.  EMACS_30 / EMACS_31 match the GitHub Actions matrix
@@ -389,8 +396,9 @@ check-ci:
 	fi
 	@for e in $(CI_EMACS_LIST); do \
 	  echo "==> check-ci under $$e ($$($$e --version | head -1))"; \
-	  $(MAKE) EMACS=$$e check || exit 1; \
+	  $(MAKE) EMACS=$$e CHECK_MELPAZOID= check || exit 1; \
 	done
+	@$(MAKE) melpazoid
 
 # Per-version families.  Each delegates back into $(MAKE) with EMACS
 # pinned so the sub-invocation's EMACS_BATCH picks up that binary.
@@ -407,7 +415,12 @@ endef
 
 check-30:      ; $(call assert-emacs,EMACS_30) ; $(MAKE) EMACS=$(EMACS_30) check
 check-31:      ; $(call assert-emacs,EMACS_31) ; $(MAKE) EMACS=$(EMACS_31) check
-check-all:     check-30 check-31
+check-all:
+	$(call assert-emacs,EMACS_30)
+	$(call assert-emacs,EMACS_31)
+	$(MAKE) EMACS=$(EMACS_30) CHECK_MELPAZOID= check
+	$(MAKE) EMACS=$(EMACS_31) CHECK_MELPAZOID= check
+	$(MAKE) melpazoid
 
 lint-30:       ; $(call assert-emacs,EMACS_30) ; $(MAKE) EMACS=$(EMACS_30) lint
 lint-31:       ; $(call assert-emacs,EMACS_31) ; $(MAKE) EMACS=$(EMACS_31) lint
@@ -441,7 +454,7 @@ ifneq ($(strip $(INFO_SRC)),)
 	@echo "  make info           rebuild $(INFO_FILE) and $(INFO_DIR) from $(INFO_SRC)"
 endif
 	@echo "  make check          all of the above$(if $(strip $(CHECK_EXTRA)), + $(CHECK_EXTRA))"
-	@echo "  make check-ci       run check under every Emacs in CI_EMACS_LIST"
-	@echo "  make check-all      check-30 + check-31"
+	@echo "  make check-ci       run check under every Emacs in CI_EMACS_LIST, melpazoid once"
+	@echo "  make check-all      check under EMACS_30 and EMACS_31, melpazoid once"
 	@echo "  make clean          remove *.elc"
 	@$(if $(strip $(HELP_EXTRA)),printf '%s\n' $(HELP_EXTRA))

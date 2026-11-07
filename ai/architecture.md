@@ -315,7 +315,7 @@ runs `bookmark-gt--maybe-auto-save` once at the end
 ## Handler registry
 
 `bookmark-gt-handler-alist` maps handler symbols to display
-metadata (`:type`, `:name`, `:group`, `:face`, `:narrow-char`,
+metadata (`:type`, `:name`, `:group`, `:face`,
 `:doc`, optional `:preview`).  Two roles:
 
 - **Own handlers**: bookmark-gt ships handler bodies for URL,

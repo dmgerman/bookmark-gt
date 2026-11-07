@@ -336,8 +336,8 @@ File: bookmark-gt.info,  Node: bookmark-gt-default-tags-mode,  Next: bookmark-gt
 -------------------------------------
 
 Seeds the tag reader with context-appropriate tags when a bookmark is
-created interactively (see *note Tag reader: Tag reader. for when the
-tag pipeline runs).  Configured via a small DSL:
+created interactively (see *note Tag reader:: for when the tag pipeline
+runs).  Configured via a small DSL:
 
      (setq bookmark-gt-default-tags "work")                    ; single tag
      (setq bookmark-gt-default-tags '("work" "urgent"))        ; list
@@ -1516,7 +1516,7 @@ File: bookmark-gt.info,  Node: Handler registry,  Next: Group registry,  Up: Ext
 Each entry:
 
      (HANDLER . (:type TYPE-SYMBOL :name STRING :group GROUP-SYMBOL
-                 :face FACE :narrow-char CHAR :doc STRING))
+                 :face FACE :doc STRING))
 
    Multiple handler symbols may share the same ‘:type’ (URL has three
 handler-symbol aliases, browser-tab has two, etc.).  Entries are
@@ -1528,7 +1528,7 @@ PDF, browser-tab, Magit, Help, Image, EPUB (nov.el).
      (bookmark-gt-handler-register
       '(my-custom-jump my-legacy-jump-handler)
       (list :type 'custom :name "Custom" :group 'other
-            :face 'bookmark-gt-face-file :narrow-char ?c
+            :face 'bookmark-gt-face-file
             :doc "My custom bookmark type."
             :preview #'my-preview-fn))   ; optional
 
@@ -1572,29 +1572,26 @@ they are not stored on the record, never written to disk.
 
    Six built-in groups are provided:
 
-Symbol    Name    Narrow char   Types
------------------------------------------------------------------------
-‘web’     Web     ‘w’           url, eww, browser-tab
-‘file’    File    ‘f’           file, dired
-‘doc’     Doc     ‘d’           info, org, org-roam, pdf, help, epub
-‘code’    Code    ‘c’           magit
-‘media’   Media   ‘m’           image
-‘other’   Other   ‘o’           catch-all for unregistered handlers
+Symbol    Name    Types
+---------------------------------------------------------
+‘web’     Web     url, eww, browser-tab
+‘file’    File    file, dired
+‘doc’     Doc     info, org, org-roam, pdf, help, epub
+‘code’    Code    magit
+‘media’   Media   image
+‘other’   Other   catch-all for unregistered handlers
 
-   ‘bookmark-gt-group-alist’ is the registry (group symbol →
-:name/:narrow-char/:doc plist).  Register a new group:
+   ‘bookmark-gt-group-alist’ is the registry (group symbol → :name/:doc
+plist).  Register a new group:
 
      (bookmark-gt-group-register
-      'science '(:name "Sci" :narrow-char ?s
+      'science '(:name "Sci"
                  :doc "Science / research bookmarks."))
 
    The list buffer shows a ‘Group’ column (after ‘Type’).  In the jump
 reader, the ‘+GROUP’ orderless particle narrows by group — ‘+Web’ shows
 every web bookmark regardless of type — and ‘@TYPE’ narrows by type.
 Filter in the list via ‘/’ → ‘by-group’.
-
-   The ‘:narrow-char’ of a group or handler entry is stored but not read
-by bookmark-gt.
 
    Accessor: ‘(bookmark-gt-handler-group RECORD)’ returns the group
 symbol (or ‘other’ when the handler is unregistered).
@@ -1614,11 +1611,11 @@ Every non-trivial mechanism is expected to have an extension point:
      defer).  The first non-nil return wins.
    • ‘bookmark-gt-create-tag-reader-hook’ — the last step of the tag
      pipeline, which runs when a creation command is called
-     interactively or with TAGS ‘t’ (see *note Tag reader: Tag reader.);
-     not run by ‘bookmark-gt-create-non-file’.  Chained: each hook is
-     called with ‘(record seed-tags)’ and returns a new seed-tags list,
-     which becomes the input to the next hook.  The hook is empty by
-     default.  Its first input is the tag list produced by
+     interactively or with TAGS ‘t’ (see *note Tag reader::); not run by
+     ‘bookmark-gt-create-non-file’.  Chained: each hook is called with
+     ‘(record seed-tags)’ and returns a new seed-tags list, which
+     becomes the input to the next hook.  The hook is empty by default.
+     Its first input is the tag list produced by
      ‘bookmark-gt-default-tags-mode’ (when on) and then the interactive
      tag reader (when ‘bookmark-gt-prompt-for-tags-flag’ is non-nil);
      neither of those is on the hook.
@@ -1861,57 +1858,57 @@ Node: Master switch bookmark-gt-mode7264
 Node: Opt-in modes10278
 Node: bookmark-gt-auto-update-mode10629
 Node: bookmark-gt-default-tags-mode11615
-Node: bookmark-gt-browser-tabs-mode12832
-Node: User interface16364
-Node: The *Bookmarks-gt List* buffer16621
-Node: Columns17194
-Node: Keys18432
-Node: Acting on several bookmarks at once20320
-Node: Persisting view state24176
-Node: Jump to a bookmark bookmark-gt-jump25135
-Node: The annotation26894
-Ref: Relationship to marginalia-field-width28757
-Node: Elisp signatures30208
-Node: Non-file bookmark types33216
-Node: URL bookmarks — bookmark-gt-create-url33801
-Node: Dired bookmarks — bookmark-gt-handler-dired-jump34603
-Ref: Virtual dired36179
-Node: Function bookmarks — bookmark-gt-create-function37392
-Node: Keyboard-macro bookmarks — bookmark-gt-create-kmacro38226
-Node: Sequence bookmarks — bookmark-gt-create-sequence39905
-Node: File-type handlers — override the file-jump path per pattern40676
-Node: View bookmarks — save the list buffer's current view42052
-Node: Setting bookmarks43220
-Node: Tag reader43476
-Node: Bookmarks that share a name45569
-Node: Telling them apart on screen47242
-Node: Loading a file that breaks the setting47899
-Node: If you expected two records and see one49403
-Node: Which command reaches which record51191
-Node: Record identity53149
-Node: Changing an existing bookmark54142
-Node: bookmark-gt-update — point it at where I am55193
-Node: bookmark-gt-relocate — point it somewhere I name56179
-Node: bookmark-gt-rename57342
-Node: Deleting57824
-Node: In-file behaviors58319
-Node: In-buffer cycling58548
-Node: Per-bookmark highlighting59548
-Node: Region bookmarks61511
-Node: Trackers63035
-Node: Visit tracker63211
-Node: File-rename tracker63955
-Node: Extension API64942
-Node: Handler registry65143
-Node: Group registry67702
-Node: Extension points69438
-Node: Compatibility73146
-Node: Data compat with bookmark+73347
-Node: Migrating from bookmark+74690
-Node: Reference77034
-Node: Selected customization77197
-Node: Acknowledgements84345
-Node: License86679
+Node: bookmark-gt-browser-tabs-mode12821
+Node: User interface16353
+Node: The *Bookmarks-gt List* buffer16610
+Node: Columns17183
+Node: Keys18421
+Node: Acting on several bookmarks at once20309
+Node: Persisting view state24165
+Node: Jump to a bookmark bookmark-gt-jump25124
+Node: The annotation26883
+Ref: Relationship to marginalia-field-width28746
+Node: Elisp signatures30197
+Node: Non-file bookmark types33205
+Node: URL bookmarks — bookmark-gt-create-url33790
+Node: Dired bookmarks — bookmark-gt-handler-dired-jump34592
+Ref: Virtual dired36168
+Node: Function bookmarks — bookmark-gt-create-function37381
+Node: Keyboard-macro bookmarks — bookmark-gt-create-kmacro38215
+Node: Sequence bookmarks — bookmark-gt-create-sequence39894
+Node: File-type handlers — override the file-jump path per pattern40665
+Node: View bookmarks — save the list buffer's current view42041
+Node: Setting bookmarks43209
+Node: Tag reader43465
+Node: Bookmarks that share a name45558
+Node: Telling them apart on screen47231
+Node: Loading a file that breaks the setting47888
+Node: If you expected two records and see one49392
+Node: Which command reaches which record51180
+Node: Record identity53138
+Node: Changing an existing bookmark54131
+Node: bookmark-gt-update — point it at where I am55182
+Node: bookmark-gt-relocate — point it somewhere I name56168
+Node: bookmark-gt-rename57331
+Node: Deleting57813
+Node: In-file behaviors58308
+Node: In-buffer cycling58537
+Node: Per-bookmark highlighting59537
+Node: Region bookmarks61500
+Node: Trackers63024
+Node: Visit tracker63200
+Node: File-rename tracker63944
+Node: Extension API64931
+Node: Handler registry65132
+Node: Group registry67657
+Node: Extension points69134
+Node: Compatibility72830
+Node: Data compat with bookmark+73031
+Node: Migrating from bookmark+74374
+Node: Reference76718
+Node: Selected customization76881
+Node: Acknowledgements84029
+Node: License86363
 
 End Tag Table
 

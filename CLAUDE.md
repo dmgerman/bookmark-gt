@@ -77,8 +77,9 @@ remove a warning: that hides the warning MELPA reports.
 reviewers' container does (needs network).  Its output is what
 the MELPA PR review shows.
 
-`make check-all` runs `check-30` and `check-31` — do this before
-you say the change is safe on both Emacs versions.
+`make check-all` runs `check` under Emacs 30 and Emacs 31, then
+melpazoid once (melpazoid always runs under Emacs 31.1) — do this
+before you say the change is safe on both Emacs versions.
 
 ### Live-reload during interactive development
 

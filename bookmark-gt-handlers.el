@@ -27,7 +27,7 @@
 ;;
 ;; Handler registry (`bookmark-gt-handler-alist').  Flat alist
 ;; keyed by bookmark handler symbol; each entry is a plist with
-;; `:type', `:name', `:face', `:narrow-char', `:doc'.  Multiple
+;; `:type', `:name', `:group', `:face', `:doc'.  Multiple
 ;; handler symbols may share the same `:type' when they represent
 ;; the same kind of thing (e.g. our own URL handler and bookmark+'s
 ;; `bmkp-jump-url-browse' both map to :type url).
@@ -160,12 +160,11 @@ records a distinguishable but calm appearance."
 
 (defvar bookmark-gt-group-alist nil
   "Registry mapping group symbols to display metadata.
-Each element is (GROUP . PLIST) where PLIST carries `:name',
-`:narrow-char', and `:doc'.  Populated by
+Each element is (GROUP . PLIST) where PLIST carries `:name' and
+`:doc'.  Populated by
 `bookmark-gt-group-register' calls in this file and by user
 extensions.  Read for the list buffer's Group column, the
-`by-group' filter, and the jump reader's `+GROUP' particle.
-`:narrow-char' is stored but not read by bookmark-gt.")
+`by-group' filter, and the jump reader's `+GROUP' particle.")
 
 (defun bookmark-gt-group-register (group plist)
   "Register GROUP with display PLIST.
@@ -181,34 +180,29 @@ registered."
   (or (plist-get (alist-get group bookmark-gt-group-alist) :name)
       (and group (capitalize (symbol-name group)))))
 
-(defun bookmark-gt-group-narrow-char (group)
-  "Return the narrow character for GROUP, or the first char of its name."
-  (or (plist-get (alist-get group bookmark-gt-group-alist) :narrow-char)
-      (aref (downcase (bookmark-gt-group-name group)) 0)))
-
 ;; Built-in groups.
 (bookmark-gt-group-register
- 'web '(:name "Web" :narrow-char ?w
+ 'web '(:name "Web"
         :doc "URL / EWW / browser-tab bookmarks."))
 
 (bookmark-gt-group-register
- 'file '(:name "File" :narrow-char ?f
+ 'file '(:name "File"
          :doc "Filesystem-backed bookmarks (files, directories)."))
 
 (bookmark-gt-group-register
- 'doc '(:name "Doc" :narrow-char ?d
+ 'doc '(:name "Doc"
         :doc "Documentation and reading (Info, Org, PDF, EPUB, Help)."))
 
 (bookmark-gt-group-register
- 'code '(:name "Code" :narrow-char ?c
+ 'code '(:name "Code"
          :doc "Development-tool bookmarks (Magit, etc.)."))
 
 (bookmark-gt-group-register
- 'media '(:name "Media" :narrow-char ?m
+ 'media '(:name "Media"
           :doc "Image / audio / video bookmarks."))
 
 (bookmark-gt-group-register
- 'other '(:name "Other" :narrow-char ?o
+ 'other '(:name "Other"
           :doc "Bookmarks whose handler is unregistered or unclassified."))
 
 ;;;; Registry
@@ -221,7 +215,6 @@ Each element is (HANDLER . PLIST) where PLIST carries:
   :name        display string.
   :group       group symbol (see `bookmark-gt-group-alist').
   :face        face for the Name column.
-  :narrow-char char; stored but not read by bookmark-gt.
   :doc         one-line explanation.
   :preview     optional — a function called with the record to
                preview the bookmark, invoked by
@@ -288,7 +281,6 @@ lowercase symbol.  `:face' falls back to `default'."
           (list :type (intern (downcase name))
                 :name name
                 :face 'default
-                :narrow-char (aref (downcase name) 0)
                 :doc "Auto-detected type."))))
 
 ;;;; Lookup
@@ -666,7 +658,7 @@ Returns the stored (NAME . DATA) pair."
 (bookmark-gt-handler-register
  '(nil bookmark-default-handler)
  (list :type 'file :name "File" :group 'file
-       :face 'bookmark-gt-face-file :narrow-char ?f
+       :face 'bookmark-gt-face-file
        :doc "Standard file+position bookmark."))
 
 ;; URL — our own handler plus bookmark+'s URL variants.
@@ -675,14 +667,14 @@ Returns the stored (NAME . DATA) pair."
    bmkp-jump-url-browse
    bmkp-jump-url-browse-other-window)
  (list :type 'url :name "URL" :group 'web
-       :face 'bookmark-gt-face-url :narrow-char ?u
+       :face 'bookmark-gt-face-url
        :doc "Web URL opened with `browse-url'."))
 
 ;; EWW.
 (bookmark-gt-handler-register
  '(eww-bookmark-jump)
  (list :type 'eww :name "EWW" :group 'web
-       :face 'bookmark-gt-face-eww :narrow-char ?e
+       :face 'bookmark-gt-face-eww
        :doc "Page bookmarked from EWW."))
 
 ;; Dired — our own handler (canonical, works without bookmark+)
@@ -693,14 +685,14 @@ Returns the stored (NAME . DATA) pair."
    dired-bookmark-jump
    bmkp-jump-dired)
  (list :type 'dired :name "Dired" :group 'file
-       :face 'bookmark-gt-face-dired :narrow-char ?d
+       :face 'bookmark-gt-face-dired
        :doc "Directory bookmarked from Dired."))
 
 ;; Info.
 (bookmark-gt-handler-register
  '(Info-bookmark-jump)
  (list :type 'info :name "Info" :group 'doc
-       :face 'bookmark-gt-face-info :narrow-char ?i
+       :face 'bookmark-gt-face-info
        :doc "Node bookmarked from Info."))
 
 ;; Org — three variants ship in Emacs and org-mode.
@@ -709,7 +701,7 @@ Returns the stored (NAME . DATA) pair."
    org-bookmark-heading-jump
    org-agenda-bookmark-jump)
  (list :type 'org :name "Org" :group 'doc
-       :face 'bookmark-gt-face-org :narrow-char ?o
+       :face 'bookmark-gt-face-org
        :doc "Heading or item bookmarked from Org mode."))
 
 ;; Org-roam — node bookmarks from org-roam-gt, found by node id.
@@ -718,14 +710,14 @@ Returns the stored (NAME . DATA) pair."
 (bookmark-gt-handler-register
  '(org-roam-gt-bookmark-jump)
  (list :type 'org-roam :name "Org-roam" :group 'doc
-       :face 'bookmark-gt-face-org :narrow-char ?r
+       :face 'bookmark-gt-face-org
        :doc "Node bookmarked from org-roam-gt."))
 
 ;; PDF.
 (bookmark-gt-handler-register
  '(pdf-view-bookmark-jump-handler)
  (list :type 'pdf :name "PDF" :group 'doc
-       :face 'bookmark-gt-face-pdf :narrow-char ?p
+       :face 'bookmark-gt-face-pdf
        :doc "Location bookmarked from pdf-tools."))
 
 ;; Browser tab — our own handler plus the two ecosystem variants
@@ -736,35 +728,35 @@ Returns the stored (NAME . DATA) pair."
  '(bmkp-gt-browsel-tabs-jump
    browser-gt-tab-manager-bookmark-jump)
  (list :type 'browser-tab :name "BrowserTab" :group 'web
-       :face 'bookmark-gt-face-url :narrow-char ?b
+       :face 'bookmark-gt-face-url
        :doc "Browser tab bookmarked from browser-gt or its ecosystem."))
 
 ;; Third-party types worth showing by default (all follow the
 ;; standard naming convention, so the derive fallback would also
-;; work — but explicit registration lets us pick a stable
-;; `:narrow-char' and a nicer name).
+;; work — but explicit registration sets the display name and the
+;; group).
 (bookmark-gt-handler-register
  '(magit--handle-bookmark)
  (list :type 'magit :name "Magit" :group 'code
-       :face 'bookmark-gt-face-file :narrow-char ?m
+       :face 'bookmark-gt-face-file
        :doc "State bookmarked from Magit."))
 
 (bookmark-gt-handler-register
  '(help-bookmark-jump)
  (list :type 'help :name "Help" :group 'doc
-       :face 'bookmark-gt-face-file :narrow-char ?h
+       :face 'bookmark-gt-face-file
        :doc "*Help* page bookmark."))
 
 (bookmark-gt-handler-register
  '(image-bookmark-jump)
  (list :type 'image :name "Image" :group 'media
-       :face 'bookmark-gt-face-file :narrow-char ?I
+       :face 'bookmark-gt-face-file
        :doc "Location bookmarked from image-mode."))
 
 (bookmark-gt-handler-register
  '(nov-bookmark-jump-handler)
  (list :type 'epub :name "EPUB" :group 'doc
-       :face 'bookmark-gt-face-file :narrow-char ?E
+       :face 'bookmark-gt-face-file
        :doc "Location bookmarked from nov.el."))
 
 ;; Function bookmarks — bookmark-gt owns both the handler and
@@ -773,21 +765,21 @@ Returns the stored (NAME . DATA) pair."
 (bookmark-gt-handler-register
  '(bookmark-gt-handler-function-jump)
  (list :type 'function :name "Function" :group 'other
-       :face 'bookmark-gt-face-function :narrow-char ?F
+       :face 'bookmark-gt-face-function
        :doc "Bookmark that calls a function on jump."))
 
 ;; Sequence bookmarks — jump each of a list of bookmarks in order.
 (bookmark-gt-handler-register
  '(bookmark-gt-handler-sequence-jump)
  (list :type 'sequence :name "Sequence" :group 'other
-       :face 'bookmark-gt-face-sequence :narrow-char ?Q
+       :face 'bookmark-gt-face-sequence
        :doc "Bookmark that jumps each of a list of bookmarks in order."))
 
 ;; Keyboard-macro bookmarks — jump replays a stored key vector.
 (bookmark-gt-handler-register
  '(bookmark-gt-handler-kmacro-jump)
  (list :type 'kmacro :name "Kmacro" :group 'other
-       :face 'bookmark-gt-face-kmacro :narrow-char ?K
+       :face 'bookmark-gt-face-kmacro
        :doc "Bookmark that replays a keyboard macro on jump."))
 
 ;;;; Function bookmarks — jump runs an arbitrary callable

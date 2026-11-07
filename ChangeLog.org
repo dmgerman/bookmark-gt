@@ -30,7 +30,10 @@
   ~+GROUP~ orderless particle instead (~+Web~).  Candidates no
   longer carry the ~consult--type~ text property; a custom
   ~bookmark-gt-jump-candidate-format-function~ need not set it.
-  The ~:narrow-char~ of groups and handlers is no longer read.
+- Removed: the ~:narrow-char~ key of the group and handler
+  registries, and the function ~bookmark-gt-group-narrow-char~.
+  Nothing read them after the consult narrow keys were removed.
+  A ~:narrow-char~ in a third-party registration is ignored.
 
 - The jump reader positions its annotation itself, with a
   ~space :align-to~ display property, instead of through

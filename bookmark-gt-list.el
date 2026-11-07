@@ -1290,7 +1290,7 @@ The special KEY `unfilter' clears every active filter."
 (bookmark-gt-handler-register
  '(bookmark-gt-handler-view-jump)
  (list :type 'bookmark-gt-view :name "BkView" :group 'other
-       :face 'bookmark-gt-face-view :narrow-char ?V
+       :face 'bookmark-gt-face-view
        :doc "Saved view of the *Bookmarks-gt List* buffer."))
 
 (defun bookmark-gt-handler-view-jump (bookmark)

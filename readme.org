@@ -1233,7 +1233,7 @@ symbol.  Each entry:
 
 #+begin_src emacs-lisp
 (HANDLER . (:type TYPE-SYMBOL :name STRING :group GROUP-SYMBOL
-            :face FACE :narrow-char CHAR :doc STRING))
+            :face FACE :doc STRING))
 #+end_src
 
 Multiple handler symbols may share the same ~:type~ (URL has
@@ -1248,7 +1248,7 @@ Register a new handler (or an alias for an existing type):
 (bookmark-gt-handler-register
  '(my-custom-jump my-legacy-jump-handler)
  (list :type 'custom :name "Custom" :group 'other
-       :face 'bookmark-gt-face-file :narrow-char ?c
+       :face 'bookmark-gt-face-file
        :doc "My custom bookmark type."
        :preview #'my-preview-fn))   ; optional
 #+end_src
@@ -1292,21 +1292,21 @@ time — they are not stored on the record, never written to disk.
 
 Six built-in groups are provided:
 
-| Symbol  | Name  | Narrow char | Types                                |
-|---------+-------+-------------+--------------------------------------|
-| ~web~   | Web   | ~w~         | url, eww, browser-tab                |
-| ~file~  | File  | ~f~         | file, dired                          |
-| ~doc~   | Doc   | ~d~         | info, org, org-roam, pdf, help, epub |
-| ~code~  | Code  | ~c~         | magit                                |
-| ~media~ | Media | ~m~         | image                                |
-| ~other~ | Other | ~o~         | catch-all for unregistered handlers  |
+| Symbol  | Name  | Types                                |
+|---------+-------+--------------------------------------|
+| ~web~   | Web   | url, eww, browser-tab                |
+| ~file~  | File  | file, dired                          |
+| ~doc~   | Doc   | info, org, org-roam, pdf, help, epub |
+| ~code~  | Code  | magit                                |
+| ~media~ | Media | image                                |
+| ~other~ | Other | catch-all for unregistered handlers  |
 
 ~bookmark-gt-group-alist~ is the registry (group symbol →
-:name/:narrow-char/:doc plist).  Register a new group:
+:name/:doc plist).  Register a new group:
 
 #+begin_src emacs-lisp
 (bookmark-gt-group-register
- 'science '(:name "Sci" :narrow-char ?s
+ 'science '(:name "Sci"
             :doc "Science / research bookmarks."))
 #+end_src
 
@@ -1314,9 +1314,6 @@ The list buffer shows a ~Group~ column (after ~Type~).  In the
 jump reader, the ~+GROUP~ orderless particle narrows by group —
 ~+Web~ shows every web bookmark regardless of type — and ~@TYPE~
 narrows by type.  Filter in the list via ~/~ → ~by-group~.
-
-The ~:narrow-char~ of a group or handler entry is stored but not
-read by bookmark-gt.
 
 Accessor: ~(bookmark-gt-handler-group RECORD)~ returns the group
 symbol (or ~other~ when the handler is unregistered).
