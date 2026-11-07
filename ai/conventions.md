@@ -120,15 +120,22 @@ an absent one.  Signal.  Returning `nil` lets the caller treat
 it as "no bookmark" and continue, which turns a bug into wrong
 behavior somewhere else, later, with no diagnostic.
 
-### Internal hooks — direct calls
+### Cross-module calls and layer numbers
 
-Do not use bookmark-gt's own hooks
+Call functions of modules with a lower layer number directly.
+When a module must cause code in a module with a higher number to
+run, use a hook that the higher-numbered module adds to; never
+`declare-function` another bookmark-gt file's function, and never
+call a function of a higher-numbered module behind `fboundp`.
+The layer numbers, the hooks bookmark-gt code adds to, and the
+browser-tabs performance problem that led to the rule are in
+`ai/architecture.md` ("Module layering and hooks").
+
+Do not add bookmark-gt code to the third-party hooks
 (`bookmark-gt-record-changed-hook`,
 `bookmark-gt-create-tag-reader-hook`,
-`bookmark-gt-create-name-reader-hook`) for internal wiring —
-those are external extension points and ship empty.  See
-`ai/architecture.md` for the rationale and the browser-tabs
-performance incident that prompted the rule.
+`bookmark-gt-create-name-reader-hook`); they are empty when the
+package is installed.
 
 External hooks (Emacs's own — `find-file-hook`,
 `bookmark-after-jump-hook`, `kill-buffer-hook`, etc.) are the

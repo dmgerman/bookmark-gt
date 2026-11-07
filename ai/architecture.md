@@ -137,40 +137,94 @@ the record. `bookmark-gt--store-preserve-advice` carries the
 `bookmark-gt-preserved-props` set across, leaving the built-in's
 own behavior untouched.
 
-## Direct calls over hooks for internal wiring
+## Module layering and hooks
 
-Hooks in bookmark-gt are **external extension surface only**.
-Internal cross-module coordination is direct calls.  Rationale
-and history:
+Each module has a layer number:
 
-- The original design registered internal observers into
-  the after-set hook (the list refresh, the highlight
-  refresh), then had ephemeral sources (browser-tabs,
-  auto-update) fire a shared `bookmark-gt-ephemeral-refresh-hook`.
-  This produced invisible control flow: reading a mutator, you
-  couldn't tell what would run afterwards without grepping
-  `add-hook` calls across five files.
-- The performance bug this created was concrete: browser-tabs
-  refresh fired the after-hook with a `nil` sentinel to mean
-  "batch mutation," which cascaded into the highlighter's
-  full-buffer sweep — 840 ms per browser-tab refresh in a session
-  with ~130 file buffers and ~120 bookmarks.  A sentinel hack
-  patched the symptom but muddied the contract.
-- The refactor replaced the sentinel and the ephemeral hook
-  with direct calls.  `bookmark-gt--after-mutation (entry)` in
-  `bookmark-gt-core.el` is the single notifier — it refreshes
-  the list, refreshes the highlight for records with a
-  filename, then runs the public
-  `bookmark-gt-record-changed-hook`.  Every mutator calls it.
-  The browser-tabs refresh calls `bookmark-gt-list-refresh`
-  directly at the end of its batch.
-- End result: 840 ms → 40 ms browser-tab refresh, ~330 fewer lines
-  of code, and every internal action is visible at the call
-  site.
+| Layer | Files | Requires |
+|---|---|---|
+| 1 | `bookmark-gt-core.el` | `bookmark` |
+| 2 | `bookmark-gt-tags.el` | core |
+| 3 | `bookmark-gt-handlers.el` | core, tags |
+| 4 | `bookmark-gt-list.el`, `bookmark-gt-jump.el` | core, tags, handlers |
+| 5 | `bookmark-gt-auto-update.el` (core, list), `bookmark-gt-browser-tabs.el` (core, handlers, list), `bookmark-gt-migrate.el` (core) | as listed |
+| 6 | `bookmark-gt.el` | every module in layers 1–5 except migrate |
 
-**Test for future changes**: if you find yourself adding an
-`add-hook` on a bookmark-gt hook from bookmark-gt code, ask
-whether a direct call would work.  It almost always does.
+**Rule.**  A module calls only functions of modules it requires,
+and requires only modules with a lower layer number.  When a
+module must cause code in a module with a higher number to run,
+it runs a hook and the higher-numbered module adds its function,
+from its minor mode when it has one.  No bookmark-gt file
+forward-declares (`declare-function`) a function from another
+bookmark-gt file, and no file calls a function of a
+higher-numbered module behind an `fboundp` check.
+
+The MELPA reviewer of PR #10279 drew the package's dependency
+graph and marked each forward declaration between our own files
+as a call from a module to a module that depends on it.  There
+were four (core → tags, core → list, list → browser-tabs,
+list → auto-update).  Each was removed by moving the code into
+the module whose functions it calls, or by one of the hooks in
+the next table.
+
+### Hooks bookmark-gt code adds to
+
+| Hook | Defined in | Run by | Functions added, and by whom |
+|---|---|---|---|
+| `bookmark-gt--alist-changed-hook` (internal) | core | `bookmark-gt--after-mutation`; `bookmark-gt-migrate` | `bookmark-gt-list-refresh`, by `bookmark-gt-list-mode` when the first list buffer is created |
+| `bookmark-gt-list-before-read-hook` (public) | list | opening and reverting the list buffer | `bookmark-gt-browser-tabs-refresh`, by `bookmark-gt-browser-tabs-mode`; `bookmark-gt-auto-update-tick`, by `bookmark-gt-auto-update-mode` |
+| `bookmark-gt-jump-before-read-hook` (public) | jump | `bookmark-gt-jump*`, once per outer call | `bookmark-gt-browser-tabs-refresh`, by `bookmark-gt-browser-tabs-mode` |
+
+bookmark-gt code never adds to `bookmark-gt-record-changed-hook`,
+`bookmark-gt-create-name-reader-hook` or
+`bookmark-gt-create-tag-reader-hook`.  Those are for third
+parties and are empty when the package is installed, so a user
+who `setq`s one cannot remove
+bookmark-gt's own behavior.
+
+One call from a lower-numbered module to a higher-numbered one
+uses a function argument rather than a hook: the
+creation commands pass the tag pipeline to
+`bookmark-gt--create-record` as its TAGS argument.  See "Tag
+collection belongs to the commands".
+
+### History: why hooks were once forbidden internally
+
+The original design registered internal observers into the
+after-set hook (the list refresh, the highlight refresh), and
+ephemeral sources (browser-tabs, auto-update) ran a shared
+`bookmark-gt-ephemeral-refresh-hook`.  Two problems followed:
+
+- Control flow was not visible: reading a mutator, you could not
+  tell what would run afterwards without grepping `add-hook`
+  calls across five files.
+- A performance bug.  The browser-tabs refresh ran the after-hook
+  with a `nil` sentinel meaning "batch mutation", which triggered
+  the highlighter's full-buffer sweep: 840 ms per browser-tab
+  refresh in a session with ~130 file buffers and ~120
+  bookmarks.
+
+The fix replaced the sentinel and the ephemeral hook with direct
+calls (840 ms → 40 ms), and for a time the rule was "no
+bookmark-gt code adds to a bookmark-gt hook".  That rule produced
+the forward declarations the MELPA reviewer flagged: a module
+that calls a higher-numbered module directly has to
+forward-declare the function it calls.
+
+The current rule addresses both problems:
+
+- Every hook bookmark-gt code adds to is in the table in this
+  section, with each function on it and the code that adds it,
+  so a reader can find what a hook runs without searching for
+  `add-hook` calls.
+- Batches do not notify per record.  A batch passes `NO-NOTIFY`
+  and redraws once at the end; no hook carries a "batch"
+  sentinel.  Highlighting is called directly by core, not through
+  a hook.
+- Keep the number and cost of functions low on a hook that runs
+  on each user action (each jump, each list open); adding a second function
+  to `bookmark-gt-jump-before-read-hook` adds its cost to every
+  jump.
 
 ## Tag collection belongs to the commands
 
@@ -429,18 +483,3 @@ refreshes they caused rebuilt records nothing was about to
 display. `bookmark-gt-auto-update-mode`'s idle timer remains —
 it tracks a position in a buffer the user is editing, which has
 no read-time to attach to.
-
-### The jump hook is a deliberate exception to "direct calls over hooks"
-
-This is the one place bookmark-gt code adds to a bookmark-gt
-hook, contradicting the test stated above.  The reason is
-dependency direction: `bookmark-gt-jump.el` must not know the
-browser-tabs module exists, since that module is opt-in and
-requires an external package.  A direct call would invert the
-dependency.  The hook keeps the jump reader independent while
-letting an opt-in module participate.
-
-If a second module ever registers here, the cost becomes a
-per-jump refresh chain — the failure mode that motivated the
-direct-call rule.  Treat further registrations as needing
-justification.

@@ -11,7 +11,7 @@ this file is only for agents.
   and keybinding.  Read this before answering "does bookmark-gt
   support X?" or before adding a new user-facing feature.
 - `ai/architecture.md` — design decisions and non-obvious
-  constraints (records-only, direct calls vs hooks, handler
+  constraints (records-only, module layering and hooks, handler
   registry, mutation notification path).
 - `ai/conventions.md` — naming, docstring style, wording rules
   that apply here on top of the global user preferences.
@@ -24,14 +24,24 @@ this file is only for agents.
 2. **Confirm before implementing.**  Non-trivial edits: describe
    the approach in one or two sentences, wait for the go-ahead.
    Simple typos/renames/one-liners don't need this.
-3. **Hooks are for external extension, not for our own wiring.**
-   Public hooks (`bookmark-gt-set-after-hook`,
-   `bookmark-gt-set-name-reader-hook`,
-   `bookmark-gt-set-tag-reader-hook`) ship empty at
-   distribution.  Bookmark-gt's own cross-module coordination is
-   direct function calls, not `add-hook` on our own hooks.
-   `bookmark-gt--after-mutation` in `bookmark-gt-core.el` is the
-   central notifier; every internal mutator calls it directly.
+3. **A module calls only functions of modules it requires.**
+   Each module has a layer number: 1 core; 2 tags; 3 handlers;
+   4 list and jump; 5 auto-update, browser-tabs and migrate;
+   6 `bookmark-gt.el`.  A module requires only modules with a
+   lower number.  When a module must cause code in a module
+   with a higher number to run, it runs a hook and the
+   higher-numbered module adds its function to that hook — from
+   its minor mode when it has one, so turning the mode off
+   removes it.  Never `declare-function` a bookmark-gt function
+   from another bookmark-gt file, and never call a function of a
+   higher-numbered module behind an `fboundp` check.  Every hook
+   bookmark-gt code adds to is listed in `ai/architecture.md`
+   ("Module layering and hooks"); update that list when you add
+   one.  The public hooks
+   `bookmark-gt-record-changed-hook`,
+   `bookmark-gt-create-name-reader-hook` and
+   `bookmark-gt-create-tag-reader-hook` are for third parties
+   only: bookmark-gt code never adds to them.
 4. **Precise, non-metaphorical language everywhere** — code,
    docstrings, comments, commit messages, `readme.org`, chat
    replies.  No "clean", "elegant", "pragmatic", "surfaces",
@@ -131,7 +141,7 @@ patch bindings via `define-key`.
 | `bookmark-gt-tags.el` | Tag reader, tag mutation API, defcustom `bookmark-gt-prompt-for-tags-flag`, opt-in `bookmark-gt-default-tags-mode` that seeds the tag reader from context. |
 | `bookmark-gt-list.el` | `*Bookmarks-gt List*` buffer (tabulated-list-mode derivative). |
 | `bookmark-gt-jump.el` | Jump reader (consult / marginalia / orderless integrations, all soft-deps). |
-| `bookmark-gt-auto-update.el` | Opt-in mode that refreshes bookmarks with `auto-update` prop. |
+| `bookmark-gt-auto-update.el` | Opt-in mode that refreshes bookmarks with `auto-update` prop; `bookmark-gt-list-toggle-auto-update` (`^` in the list). |
 | `bookmark-gt-browser-tabs.el` | Opt-in mode that stores live browser tabs as temporary URL bookmarks (marker: `bookmark-gt-browser-tab`). |
 | `test/` | ERT suite.  Every test wraps its body in `bookmark-gt-test-with-clean-bookmarks`. |
 
@@ -140,20 +150,24 @@ patch bindings via `define-key`.
 - **Editing `bookmark-alist` directly** in a mutator: prefer
   `bookmark-prop-set` / `bookmark-gt-tags-set` / etc.  After
   mutation, call `bookmark-gt--after-mutation` (or use a
-  wrapper that does — `bookmark-gt-set`, `-set-non-file`,
-  `-relocate`, `bookmark-gt-tags-set`).
+  wrapper that does — `bookmark-gt-create`,
+  `bookmark-gt-create-non-file`, `bookmark-gt-relocate`,
+  `bookmark-gt-tags-set`).
 - **Batch mutations** (many records in one loop): pass
-  `NO-NOTIFY` non-nil to `bookmark-gt-set-non-file` inside the
-  loop and call the UI refresh once at end (browser-tabs is the
+  `NO-NOTIFY` non-nil to `bookmark-gt-create-non-file` inside the
+  loop and redraw once at the end (browser-tabs is the
   reference example).
-- **Byte-compile order**: `bookmark-gt-core.el` compiles before
-  the modules that define functions it calls at runtime.  Use
-  `declare-function` for cross-module calls (already in place
-  for `bookmark-gt-list-refresh`, `bookmark-gt-tags-read`,
-  `bookmark-gt-default-tags--hook`).
-- **Interactive `bookmark-gt-set` with no handler set by the
+- **Byte-compile order**: `EL_FILES` in `Makefile` lists the
+  files in increasing layer number.  A file that needs a
+  function from another bookmark-gt file requires that file;
+  if the other file has a higher layer number, see rule 3.
+- **Prompting from a Lisp API**: `bookmark-gt-create-non-file`
+  and `bookmark-gt--create-record` never prompt.  The tag
+  pipeline runs only when a creation command is called
+  interactively or with TAGS `t`.
+- **Interactive `bookmark-gt-create` with no handler set by the
   mode**: for modes bookmark-gt owns the canonical handler for
-  (currently: Dired), force the handler in `bookmark-gt-set`
+  (currently: Dired), force the handler at creation
   so classification is unambiguous on disk.  See the
   `derived-mode-p 'dired-mode` clause.
 - **Handler aliases in the registry**: symbols like
@@ -165,15 +179,18 @@ patch bindings via `define-key`.
 
 ## Extension surface (what third parties may add to)
 
-- `bookmark-gt-set-after-hook` — post-mutation observers.
-- `bookmark-gt-set-name-reader-hook` — refine the default name.
-- `bookmark-gt-set-tag-reader-hook` — contribute to the tag
+- `bookmark-gt-record-changed-hook` — post-mutation observers.
+- `bookmark-gt-create-name-reader-hook` — refine the default name.
+- `bookmark-gt-create-tag-reader-hook` — last step of the tag
   pipeline.
 - `bookmark-gt-jump-before-read-hook` — refresh a candidate
-  pool before the jump reader displays.  Fires once per outer
-  `bookmark-gt-jump*` call; contributors run synchronously in
-  order.  Used by `bookmark-gt-browser-tabs-mode` to refresh
-  live browser tabs per jump.
+  pool before the jump reader displays.  Runs once per outer
+  `bookmark-gt-jump*` call; functions run synchronously in
+  order.  `bookmark-gt-browser-tabs-mode` adds its refresh here.
+- `bookmark-gt-list-before-read-hook` — refresh records before
+  the list buffer is drawn (open and revert).
+  `bookmark-gt-browser-tabs-mode` and
+  `bookmark-gt-auto-update-mode` add their refresh here.
 - `bookmark-gt-handler-alist` — register a handler symbol under
   a type (via `bookmark-gt-handler-register`).
 - `bookmark-gt-group-alist` — register a new group.
@@ -182,6 +199,7 @@ patch bindings via `define-key`.
 - `bookmark-gt-jump-candidate-format-function` — replace the
   jump reader's row formatter.
 
-All of the above ship empty (or with only the bookmark-gt
-defaults) — no internal bookmark-gt code registers into the
-hooks.
+All of these are empty, or hold only bookmark-gt's defaults,
+when the package is installed.  bookmark-gt code adds only to
+the two `-before-read-hook`s, and only from the opt-in modes
+named in their entries.
