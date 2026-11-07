@@ -163,8 +163,9 @@ records a distinguishable but calm appearance."
 Each element is (GROUP . PLIST) where PLIST carries `:name',
 `:narrow-char', and `:doc'.  Populated by
 `bookmark-gt-group-register' calls in this file and by user
-extensions.  Consulted for the list buffer's Group column, the
-`by-group' filter, and the consult narrow rows.")
+extensions.  Read for the list buffer's Group column, the
+`by-group' filter, and the jump reader's `+GROUP' particle.
+`:narrow-char' is stored but not read by bookmark-gt.")
 
 (defun bookmark-gt-group-register (group plist)
   "Register GROUP with display PLIST.
@@ -185,8 +186,7 @@ registered."
   (or (plist-get (alist-get group bookmark-gt-group-alist) :narrow-char)
       (aref (downcase (bookmark-gt-group-name group)) 0)))
 
-;; Built-in groups.  Narrow chars are chosen distinct so consult's
-;; group-narrow menu is unambiguous.
+;; Built-in groups.
 (bookmark-gt-group-register
  'web '(:name "Web" :narrow-char ?w
         :doc "URL / EWW / browser-tab bookmarks."))
@@ -221,8 +221,7 @@ Each element is (HANDLER . PLIST) where PLIST carries:
   :name        display string.
   :group       group symbol (see `bookmark-gt-group-alist').
   :face        face for the Name column.
-  :narrow-char char (rarely consulted directly; consult narrow
-               uses the GROUP's narrow-char instead).
+  :narrow-char char; stored but not read by bookmark-gt.
   :doc         one-line explanation.
   :preview     optional — a function called with the record to
                preview the bookmark, invoked by

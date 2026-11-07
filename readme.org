@@ -89,7 +89,7 @@ without them):
 
 - ~marginalia~ — bookmark completion annotator (tags · type · path).
 - ~consult~ — jump reader UI (falls back to plain ~completing-read~).
-- ~orderless~ — enables the ~,@type~ / ~;tag~ narrowing particles.
+- ~orderless~ — enables the ~@type~ / ~+group~ / ~;tag~ narrowing particles.
 - ~browser-gt~ — required only for the browser-tabs feature. See below
 
 The bindings above rebind the standard ~C-x r m~, ~C-x r l~,
@@ -141,8 +141,8 @@ When enabled:
   replacement for the built-in ~bookmark-jump~.  It sorts
   candidates MRU-first using the ~visits~ / ~last-visited~
   values above, integrates with ~marginalia~ annotations
-  and the ~consult~ / ~orderless~ narrowing particles
-  (~,@TYPE~ / ~;TAG~) when those packages are loaded, and
+  and the ~orderless~ narrowing particles (~@TYPE~ / ~+GROUP~ /
+  ~;TAG~) when those packages are loaded, and
   supports a mid-read tag filter (~M-t~ adds, ~M-d~ pops,
   ~M-D~ clears).
 - *File-type dispatch.*  File bookmarks whose ~filename~
@@ -458,13 +458,19 @@ type / tag narrowing, MRU sort, or the mid-read tag filter
 should call this instead of ~bookmark-jump~.
 
 Uses ~consult--read~ when consult is loaded, falls back to
-~completing-read~ otherwise.  Both accept two narrowing
+~completing-read~ otherwise.  Both accept three narrowing
 particles when orderless is loaded:
 
-- ~,@TYPE~ — narrow to bookmarks of TYPE (~url~, ~eww~, ~file~,
+- ~@TYPE~ — narrow to bookmarks of TYPE (~url~, ~eww~, ~file~,
   ~dired~, ~info~, ~org~, ~pdf~, ~browser-tab~, ~magit~, ~help~,
   ~image~, ~epub~, or any registered/derived type).
+- ~+GROUP~ — narrow to bookmarks in GROUP (~web~, ~file~, ~doc~,
+  ~code~, ~media~, ~other~, or any registered group).
 - ~;TAG~ — narrow to bookmarks carrying TAG.
+
+Particles are matched case-sensitively unless
+~completion-ignore-case~ is non-nil: with the default value,
+type ~@URL~ and ~+Web~ as the names are displayed.
 
 Mid-read tag filter:
 
@@ -575,8 +581,8 @@ Candidate row layout is customizable via
 ~bookmark-gt-jump-candidate-format-function~ (default:
 ~bookmark-gt-jump-candidate-default~).  A custom function
 receives the record and must return a propertized string with
-the ~bookmark-gt-record~, ~bookmark-gt-name~, ~consult--type~,
-and (optional) ~bookmark-gt-particles~ text properties — see the
+the ~bookmark-gt-record~ and ~bookmark-gt-name~ text properties,
+and optionally ~bookmark-gt-particles~ — see the
 default function's docstring for the contract.
 
 ~bookmark-gt-record~ is what the reader uses to identify the
@@ -1301,11 +1307,13 @@ Six built-in groups are provided:
             :doc "Science / research bookmarks."))
 #+end_src
 
-The list buffer shows a ~Group~ column (after ~Type~).  The
-consult jump reader narrows by group — pressing ~w SPC~ shows
-every web bookmark regardless of type.  Per-type filtering
-remains available via the ~,@TYPE~ orderless particle.  Filter
-in the list via ~/~ → ~by-group~.
+The list buffer shows a ~Group~ column (after ~Type~).  In the
+jump reader, the ~+GROUP~ orderless particle narrows by group —
+~+Web~ shows every web bookmark regardless of type — and ~@TYPE~
+narrows by type.  Filter in the list via ~/~ → ~by-group~.
+
+The ~:narrow-char~ of a group or handler entry is stored but not
+read by bookmark-gt.
 
 Accessor: ~(bookmark-gt-handler-group RECORD)~ returns the group
 symbol (or ~other~ when the handler is unregistered).

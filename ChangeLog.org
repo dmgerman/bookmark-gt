@@ -24,7 +24,18 @@
   tags and ~bookmark-gt-create-tag-reader-hook~ are not applied.
   Browser-tab bookmarks therefore no longer receive default tags.
 
+- Breaking: the jump reader no longer passes narrowing keys to
+  consult, so consult's narrow keys (~w SPC~ for web bookmarks,
+  and so on) no longer work in ~bookmark-gt-jump~.  Use the new
+  ~+GROUP~ orderless particle instead (~+Web~).  Candidates no
+  longer carry the ~consult--type~ text property; a custom
+  ~bookmark-gt-jump-candidate-format-function~ need not set it.
+  The ~:narrow-char~ of groups and handlers is no longer read.
+
 ** Added
+
+- The ~+GROUP~ orderless particle in the jump reader narrows to
+  bookmarks in GROUP.
 
 - ~bookmark-gt-list-before-read-hook~, run when the list buffer is
   opened or reverted, before the rows are drawn.
@@ -33,6 +44,7 @@
 
 ** Documentation
 
+- The type particle is ~@TYPE~; the manual wrote it as ~,@TYPE~.
 - The manual now states the order of the tag pipeline: default
   tags, then the tag reader, then
   ~bookmark-gt-create-tag-reader-hook~.

@@ -29,15 +29,18 @@
 ;; consult is loaded, falls back to built-in `completing-read'
 ;; otherwise.  When marginalia is loaded, candidates get an
 ;; annotation column (tags, type, path).  When orderless is loaded,
-;; the reader accepts two narrowing particles:
+;; the reader accepts three narrowing particles:
 ;;
-;;   ,@TYPE   — narrow to bookmarks of TYPE (url, eww, file, ...).
+;;   @TYPE    — narrow to bookmarks of TYPE (url, eww, file, ...).
+;;   +GROUP   — narrow to bookmarks in GROUP (web, file, doc, ...).
 ;;   ;TAG     — narrow to bookmarks carrying TAG.
 ;;
-;; Both dispatchers work only for the length of one reader call —
-;; other consult / vertico invocations are unaffected.  Narrowing
-;; charset is derived from `bookmark-gt-handler-alist' at read
-;; time, so a user-registered handler type shows up automatically.
+;; The dispatcher is active only for the length of one reader call;
+;; other consult / vertico invocations are unaffected.  Type and
+;; group names come from `bookmark-gt-handler-alist' and
+;; `bookmark-gt-group-alist' when the candidates are built, so a
+;; user-registered type or group can be selected without further
+;; configuration.
 ;;
 ;; The reader also supports a mid-read tag filter: `M-t' in the
 ;; minibuffer reads a tag and re-runs the read with the filter
@@ -63,7 +66,6 @@
 
 ;; Compiler-visible declarations for the soft-dep functions we call.
 (declare-function consult--read "ext:consult")
-(declare-function consult--type-narrow "ext:consult")
 
 (defvar orderless-style-dispatchers)
 (defvar marginalia-annotators)
@@ -146,17 +148,17 @@ poll, etc.) — each is called synchronously in the order added.")
 
 (defcustom bookmark-gt-jump-candidate-format-function
   #'bookmark-gt-jump-candidate-default
-  "Function that builds one `consult--read' candidate string for the jump reader.
+  "Function that builds one candidate string for the jump reader.
 
 Called with one argument, the bookmark RECORD (a `(NAME . DATA)'
 cons from `bookmark-alist').  Must return a propertized string
 whose text properties carry:
 
   `bookmark-gt-name'       — the bare bookmark name (string).
-  `consult--type'          — the narrow char (fixnum).
+  `bookmark-gt-record'     — the record itself.
   `bookmark-gt-particles'  — optional space-separated
-                             `@Type ;tag ;tag' tokens for the
-                             orderless particle dispatcher.
+                             `@Type +Group ;tag ;tag' tokens for
+                             the orderless particle dispatcher.
 
 Customize this to control the visible row layout (e.g. add
 DOMAIN / KIND / TITLE columns).  See
@@ -164,32 +166,6 @@ DOMAIN / KIND / TITLE columns).  See
 implementation and the token contract."
   :type 'function
   :group 'bookmark-gt)
-
-;;;; Narrow chars derived from the handler registry
-;;
-;; `bookmark-gt-handler-alist' is keyed by handler symbol, so many
-;; entries share a `:type' (URL has three aliases, browser-tab has
-;; three, etc.).  The narrow alist must dedupe by `:type' — otherwise
-;; consult would show one narrow row per alias.
-
-(defun bookmark-gt-jump--narrow-alist ()
-  "Return (CHAR . NAME) alist for `consult--type-narrow' by GROUP.
-Now driven by `bookmark-gt-group-alist' rather than the handler
-registry — narrowing at the group level (web / file / doc /
-code / media / other) is coarser and matches how users think
-about categories.  Per-type filtering is still available via the
-orderless `,@Type' particle."
-  (mapcar (lambda (entry)
-            (cons (plist-get (cdr entry) :narrow-char)
-                  (plist-get (cdr entry) :name)))
-          bookmark-gt-group-alist))
-
-(defun bookmark-gt-jump--type-char (record)
-  "Return the narrow character for RECORD's group, or ?\\s if unknown.
-Consult's narrow menu operates at the group level, so each
-candidate's `consult--type' property is the GROUP's narrow
-char rather than the type's."
-  (bookmark-gt-group-narrow-char (bookmark-gt-handler-group record)))
 
 ;;;; Candidate construction
 
@@ -207,24 +183,29 @@ char rather than the type's."
     (and name (not (string= name "Unknown"))
          (concat "@" name))))
 
+(defun bookmark-gt-jump--group-token (record)
+  "Return the `+GroupName' particle string for RECORD's group."
+  (concat "+" (bookmark-gt-group-name (bookmark-gt-handler-group record))))
+
 (defun bookmark-gt-jump-candidate-default (record)
   "Default candidate formatter for RECORD in `bookmark-gt-jump'.
 Returns a propertized string with:
   `bookmark-gt-name'      — the raw record name.
-  `consult--type'         — the narrow char.
-  `bookmark-gt-particles' — the `@Type ;tag' tokens for the
+  `bookmark-gt-record'    — the record itself.
+  `bookmark-gt-particles' — the `@Type +Group ;tag' tokens for the
                              orderless dispatcher."
   (let* ((name (bookmark-gt-display-name-of record))
          (visible (bookmark-gt-jump--truncate-name name))
          (tags (bookmark-gt-tags-of record))
          (type-token (bookmark-gt-jump--type-token record))
+         (group-token (bookmark-gt-jump--group-token record))
          (tag-tokens (and tags (bookmark-gt-jump--tag-tokens tags)))
-         (particles (string-join (delq nil (list type-token tag-tokens))
+         (particles (string-join (delq nil (list type-token group-token
+                                                 tag-tokens))
                                  " ")))
     (propertize visible
                 'bookmark-gt-name name
                 'bookmark-gt-record record
-                'consult--type (bookmark-gt-jump--type-char record)
                 'bookmark-gt-particles
                 (and (not (string-empty-p particles)) particles))))
 
@@ -270,20 +251,26 @@ Candidates without the property are dropped."
   "Orderless matcher for `@'-prefixed COMPONENT."
   (bookmark-gt-jump--particle-matcher ?@ component))
 
+(defun bookmark-gt-jump-group-dispatch (component)
+  "Orderless matcher for `+'-prefixed COMPONENT."
+  (bookmark-gt-jump--particle-matcher ?+ component))
+
 (defun bookmark-gt-jump-tag-dispatch (component)
   "Orderless matcher for `;'-prefixed COMPONENT."
   (bookmark-gt-jump--particle-matcher ?\; component))
 
 (defun bookmark-gt-jump--orderless-dispatcher (component _index _total)
   "Style dispatcher for `bookmark-gt-jump'.
-Routes `@'-prefixed COMPONENT to `bookmark-gt-jump-type-dispatch'
-and `;'-prefixed COMPONENT to `bookmark-gt-jump-tag-dispatch'.
-Returns nil for any other component so orderless falls through
-to its default dispatchers and matching styles."
+Routes `@'-prefixed COMPONENT to `bookmark-gt-jump-type-dispatch',
+`+'-prefixed COMPONENT to `bookmark-gt-jump-group-dispatch', and
+`;'-prefixed COMPONENT to `bookmark-gt-jump-tag-dispatch'.
+Returns nil for any other component so orderless applies its
+default dispatchers and matching styles."
   (when (> (length component) 1)
     (pcase (aref component 0)
-      (?@  (cons #'bookmark-gt-jump-type-dispatch (substring component 1)))
-      (?\; (cons #'bookmark-gt-jump-tag-dispatch  (substring component 1))))))
+      (?@  (cons #'bookmark-gt-jump-type-dispatch  (substring component 1)))
+      (?+  (cons #'bookmark-gt-jump-group-dispatch (substring component 1)))
+      (?\; (cons #'bookmark-gt-jump-tag-dispatch   (substring component 1))))))
 
 ;;;; Marginalia annotator
 
@@ -545,7 +532,6 @@ Bound around the reader; outside a read, always nil.")
    :history 'bookmark-history
    :category 'bookmark
    :annotate #'bookmark-gt-jump-annotate
-   :narrow (consult--type-narrow (bookmark-gt-jump--narrow-alist))
    :keymap bookmark-gt-jump-minibuffer-map
    :lookup (lambda (selected cands &rest _)
              ;; Return the candidate itself, not its name: the
@@ -756,7 +742,8 @@ the reader prompts for the bookmark.
   via a one-shot `minibuffer-setup-hook'.
 
 Narrowing particles in the minibuffer (requires `orderless'):
-  `,@TYPE'   — narrow to bookmarks of TYPE.
+  `@TYPE'    — narrow to bookmarks of TYPE.
+  `+GROUP'   — narrow to bookmarks in GROUP.
   `;TAG'     — narrow to bookmarks carrying TAG.
 
 Minibuffer keys:

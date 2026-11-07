@@ -55,14 +55,37 @@ for the aligning space."
       (should (string-search ";proj" particles))
       (should (string-search ";urgent" particles)))))
 
-(ert-deftest bookmark-gt-jump-test-candidate-type-char ()
-  "The narrow char comes from the record's GROUP (not type) now."
+(ert-deftest bookmark-gt-jump-test-candidate-group-particle ()
+  "The particles carry `+Group' for the record's group."
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-create-non-file "u" 'bookmark-gt-handler-url-jump
                               '((url . "https://x")))
-    (let ((cand (bookmark-gt-jump-candidate-default (car bookmark-alist))))
-      ;; URL is in the `web' group whose narrow-char is ?w.
-      (should (eq (get-text-property 0 'consult--type cand) ?w)))))
+    (let* ((cand (bookmark-gt-jump-candidate-default (car bookmark-alist)))
+           (particles (get-text-property 0 'bookmark-gt-particles cand)))
+      ;; URL is in the `web' group.
+      (should (string-search "+Web" particles))
+      (should-not (get-text-property 0 'consult--type cand)))))
+
+(ert-deftest bookmark-gt-jump-test-orderless-group-matches ()
+  "The `+' matcher selects every bookmark in the group, of any type."
+  (bookmark-gt-test-with-clean-bookmarks
+    (bookmark-gt-create-non-file "u" 'bookmark-gt-handler-url-jump
+                              '((url . "https://x")))
+    (bookmark-gt-create-non-file "e" 'eww-bookmark-jump nil)
+    (bookmark-gt-create-non-file "i" 'Info-bookmark-jump nil)
+    (let ((cands (mapcar #'bookmark-gt-jump-candidate-default bookmark-alist))
+          (names (lambda (matcher cands)
+                   (sort (mapcar #'bookmark-gt-jump--candidate-name
+                                 (seq-filter matcher cands))
+                         #'string<))))
+      (let ((completion-ignore-case nil))
+        (should (equal (funcall names (bookmark-gt-jump-group-dispatch "Web")
+                                cands)
+                       '("e" "u"))))
+      (let ((completion-ignore-case t))
+        (should (equal (funcall names (bookmark-gt-jump-group-dispatch "web")
+                                cands)
+                       '("e" "u")))))))
 
 ;;;; Orderless dispatcher
 
@@ -87,24 +110,18 @@ for the aligning space."
       (should (= (length (seq-filter matcher cands)) 1)))))
 
 (ert-deftest bookmark-gt-jump-test-orderless-dispatcher-routes ()
-  "The dispatcher returns the right matcher for `@' vs `;' vs other."
+  "The dispatcher returns the right matcher for `@', `+', `;' and other."
   (let ((atprefix (bookmark-gt-jump--orderless-dispatcher "@url" 0 1))
+        (plus     (bookmark-gt-jump--orderless-dispatcher "+web" 0 1))
         (semi     (bookmark-gt-jump--orderless-dispatcher ";tag" 0 1))
         (plain    (bookmark-gt-jump--orderless-dispatcher "foo" 0 1)))
     (should (eq (car atprefix) #'bookmark-gt-jump-type-dispatch))
     (should (equal (cdr atprefix) "url"))
+    (should (eq (car plus) #'bookmark-gt-jump-group-dispatch))
+    (should (equal (cdr plus) "web"))
     (should (eq (car semi) #'bookmark-gt-jump-tag-dispatch))
     (should (equal (cdr semi) "tag"))
     (should (null plain))))
-
-;;;; Narrow-char registry derivation
-
-(ert-deftest bookmark-gt-jump-test-narrow-alist-from-groups ()
-  "The narrow alist has one entry per registered group."
-  (let ((alist (bookmark-gt-jump--narrow-alist)))
-    (should (assoc ?w alist))    ; web
-    (should (assoc ?f alist))    ; file
-    (should (assoc ?d alist))))  ; doc
 
 ;;;; Reader fallback path (no consult)
 
