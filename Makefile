@@ -14,7 +14,7 @@ PACKAGE = bookmark-gt
 #   3. bookmark-gt-tags.el     — tag storage, reader, default-tags DSL, tag pipeline
 #   4. bookmark-gt-handlers.el — handler registry + non-file handlers
 #   5. bookmark-gt-list.el     — *Bookmarks-gt List* buffer (tabulated-list-mode)
-#   6. bookmark-gt-jump.el     — consult reader, marginalia annotator, orderless
+#   6. bookmark-gt-jump.el     — completing-read reader, marginalia annotator, orderless
 #   7. bookmark-gt-auto-update.el — idle timer, per-record state, refresh triggers
 #   8. bookmark-gt-browser-tabs.el — browser tabs as temp bookmarks
 EL_FILES = bookmark-gt.el \
@@ -28,17 +28,11 @@ EL_FILES = bookmark-gt.el \
            bookmark-gt-migrate.el
 
 # bookmark-gt has NO hard runtime dependencies beyond Emacs itself (per
-# Package-Requires); marginalia, consult, and orderless are optional
+# Package-Requires); marginalia and orderless are optional
 # soft-deps loaded with `(require 'foo nil t)'.  They are installed only
 # into the test ELPA, so the tests exercise the integrations; compile,
 # lint, checkdoc and check-declare run without them, as MELPA does.
-DEPS = marginalia consult orderless
-
-# `bookmark-gt-jump--read-with-consult' calls `consult--read', which
-# consult's README recommends to package authors.  That forward
-# declaration is allowed; any other package's private symbol fails
-# `check-forward-declares'.
-PRIVATE_OK = bookmark-gt-|consult--read
+DEPS = marginalia orderless
 
 INFO_SRC = readme.org
 

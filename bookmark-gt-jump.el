@@ -1,4 +1,4 @@
-;;; bookmark-gt-jump.el --- Jump reader (consult, marginalia, orderless)  -*- lexical-binding: t; -*-
+;;; bookmark-gt-jump.el --- Jump reader (marginalia, orderless)  -*- lexical-binding: t; -*-
 
 ;; Copyright (C) 2026 Daniel M. German <dmg@turingmachine.org>
 
@@ -25,18 +25,19 @@
 
 ;;; Commentary:
 ;;
-;; `bookmark-gt-jump' — a jump reader that uses `consult--read' when
-;; consult is loaded, falls back to built-in `completing-read'
-;; otherwise.  When marginalia is loaded, candidates get an
-;; annotation column (tags, type, path).  When orderless is loaded,
-;; the reader accepts three narrowing particles:
+;; `bookmark-gt-jump' — a jump reader built on `completing-read', so
+;; it works with any completion interface (vertico, icomplete, the
+;; default *Completions* buffer).  When marginalia is loaded,
+;; candidates get an annotation column (tags, type, path).  When
+;; orderless is loaded, the reader accepts three narrowing
+;; particles:
 ;;
 ;;   @TYPE    — narrow to bookmarks of TYPE (url, eww, file, ...).
 ;;   +GROUP   — narrow to bookmarks in GROUP (web, file, doc, ...).
 ;;   ;TAG     — narrow to bookmarks carrying TAG.
 ;;
 ;; The dispatcher is active only for the length of one reader call;
-;; other consult / vertico invocations are unaffected.  Type and
+;; other completion commands are unaffected.  Type and
 ;; group names come from `bookmark-gt-handler-alist' and
 ;; `bookmark-gt-group-alist' when the candidates are built, so a
 ;; user-registered type or group can be selected without further
@@ -60,12 +61,10 @@
 ;; Optional soft-deps.  Each is loaded if present; every use site
 ;; below guards with `featurep' / `fboundp' so bookmark-gt works
 ;; without them installed.
-(require 'consult nil t)
 (require 'marginalia nil t)
 (require 'orderless nil t)
 
 ;; Compiler-visible declarations for the soft-dep functions we call.
-(declare-function consult--read "ext:consult")
 
 (defvar orderless-style-dispatchers)
 (defvar marginalia-annotators)
@@ -210,10 +209,10 @@ Returns a propertized string with:
 
 (defun bookmark-gt-jump--candidate-record (candidate records)
   "Return the record CANDIDATE stands for, from RECORDS.
-Prefers the `bookmark-gt-record' text property, which survives
-the consult path.  Text properties do not survive every
-`completing-read' return value, so falls back to matching
-CANDIDATE's name against RECORDS.
+Prefers the `bookmark-gt-record' text property, which CANDIDATE
+carries when it is a member of the reader's candidate list.
+Otherwise falls back to matching CANDIDATE's name against
+RECORDS.
 
 The fallback resolves to the first record of that name when
 several share one; making candidate strings unique is what
@@ -457,7 +456,7 @@ default.  No-op when marginalia is not loaded."
 
 ;;;; Mid-read tag filter machinery
 ;;
-;; A jump call is one or more consult reads composed by a restart
+;; A jump call is one or more reads composed by a restart
 ;; loop.  Between reads the caller checks the closure-captured
 ;; `active-filters' state; if a filter command set the restart
 ;; flag, the next iteration includes the new filter in the
@@ -522,37 +521,40 @@ Bound around the reader; outside a read, always nil.")
 
 ;;;; Reader
 
-(defun bookmark-gt-jump--read-with-consult (prompt candidates)
-  "Read a CANDIDATES member via `consult--read' under PROMPT."
-  (consult--read
-   candidates
-   :prompt (bookmark-gt-jump--prompt prompt)
-   :require-match t
-   :sort nil
-   :history 'bookmark-history
-   :category 'bookmark
-   :annotate #'bookmark-gt-jump-annotate
-   :keymap bookmark-gt-jump-minibuffer-map
-   :lookup (lambda (selected cands &rest _)
-             ;; Return the candidate itself, not its name: the
-             ;; record is stored in its text properties.
-             (or (car (member selected cands)) selected))))
+(defun bookmark-gt-jump--completion-table (candidates)
+  "Return a completion table over CANDIDATES for the jump reader.
+Its metadata gives category `bookmark', so marginalia and embark
+treat the candidates as bookmarks, annotates them with
+`bookmark-gt-jump-annotate', and keeps CANDIDATES in the order
+given."
+  (lambda (string predicate action)
+    (if (eq action 'metadata)
+        `(metadata (category . bookmark)
+                   (annotation-function
+                    . ,(lambda (cand)
+                         (or (bookmark-gt-jump-annotate cand) "")))
+                   (display-sort-function . identity)
+                   (cycle-sort-function . identity))
+      (complete-with-action action candidates string predicate))))
 
-(defun bookmark-gt-jump--read-plain (prompt candidates)
-  "Read a CANDIDATES member via built-in `completing-read' under PROMPT.
-Used when consult is not loaded.  The `M-t' filter keys still
-work because we let-bind `minibuffer-local-completion-map' via
-`make-composed-keymap'."
-  (let* ((completion-extra-properties
-          (list :annotation-function
-                (lambda (cand)
-                  (or (bookmark-gt-jump-annotate cand) ""))))
-         (map (make-composed-keymap
-               bookmark-gt-jump-minibuffer-map
-               minibuffer-local-completion-map))
-         (minibuffer-local-completion-map map))
-    (completing-read (bookmark-gt-jump--prompt prompt)
-                     candidates nil t nil 'bookmark-history)))
+(defun bookmark-gt-jump--install-keymap ()
+  "Add `bookmark-gt-jump-minibuffer-map' to the current minibuffer.
+The map is composed over the minibuffer's local map, so its keys
+take precedence over those of the completion map in use."
+  (use-local-map (make-composed-keymap bookmark-gt-jump-minibuffer-map
+                                       (current-local-map))))
+
+(defun bookmark-gt-jump--read-candidate (prompt candidates)
+  "Read a member of CANDIDATES under PROMPT with `completing-read'.
+Returns the member of CANDIDATES that was selected, which carries
+the text properties of the candidate, or the string read when it
+is not a member."
+  (let ((selected
+         (minibuffer-with-setup-hook #'bookmark-gt-jump--install-keymap
+           (completing-read (bookmark-gt-jump--prompt prompt)
+                            (bookmark-gt-jump--completion-table candidates)
+                            nil t nil 'bookmark-history))))
+    (or (car (member selected candidates)) selected)))
 
 (defvar bookmark-gt-jump--pool nil
   "Dynamic override for the candidate pool during `bookmark-gt-jump--read'.
@@ -644,9 +646,7 @@ scans `bookmark-alist'."
             (and (boundp 'orderless-style-dispatchers)
                  orderless-style-dispatchers))))
     (bookmark-gt-jump--candidate-record
-     (if (featurep 'consult)
-         (bookmark-gt-jump--read-with-consult prompt candidates)
-       (bookmark-gt-jump--read-plain prompt candidates))
+     (bookmark-gt-jump--read-candidate prompt candidates)
      records)))
 
 (defun bookmark-gt-jump--read (prompt)
@@ -712,7 +712,7 @@ minibuffer-setup hook when PRESELECT is a positive integer."
 (cl-defun bookmark-gt-jump
     (&key bookmark display-function bookmarks-list bookmarks-filter
           group (sort-by bookmark-gt-jump-default-sort) preselect)
-  "Jump to BOOKMARK, reading via consult (or `completing-read') when nil.
+  "Jump to BOOKMARK, reading it with `completing-read' when nil.
 
 All arguments are keyword.  Interactively, none are supplied —
 the reader prompts for the bookmark.

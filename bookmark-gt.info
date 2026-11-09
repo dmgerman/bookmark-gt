@@ -181,8 +181,6 @@ are installed and works without them:
 
    • ‘marginalia’ adds tags, type and location to each candidate in the
      jump reader;
-   • ‘consult’ provides the jump reader's interface (without it,
-     bookmark-gt uses ‘completing-read’);
    • ‘orderless’ enables the ‘@type’, ‘+group’ and ‘;tag’ narrowing
      particles in the jump reader;
    • ‘browser-gt’ is required only by ‘bookmark-gt-browser-tabs-mode’.
@@ -510,8 +508,9 @@ File: bookmark-gt.info,  Node: Jumping bookmark-gt-jump,  Next: Bookmark types b
 ===============================
 
 ‘bookmark-gt-jump’ replaces ‘bookmark-jump’, and ‘C-x r b’ runs it while
-‘bookmark-gt-mode’ is on.  It uses ‘consult--read’ when consult is
-loaded and ‘completing-read’ otherwise.  When orderless is loaded, three
+‘bookmark-gt-mode’ is on.  It reads the bookmark with ‘completing-read’,
+so it works with any completion interface, such as vertico or the
+default ‘*Completions*’ buffer.  When orderless is loaded, three
 particles narrow the candidates:
 
    • ‘@TYPE’ keeps bookmarks of TYPE (‘@URL’, ‘@Info’, ‘@PDF’, ...);
@@ -1423,62 +1422,62 @@ GPL-3.0-or-later.  See ‘LICENSE’.
 Tag Table:
 Node: Top205
 Node: Install3348
-Node: Which version is installed5035
-Node: Getting started5481
-Node: bookmark-gt-mode5667
-Node: Optional modes8276
-Node: bookmark-gt-auto-update-mode8576
-Node: bookmark-gt-default-tags-mode9440
-Node: bookmark-gt-browser-tabs-mode10741
-Node: User interface12777
-Node: The *Bookmarks-gt List* buffer13042
-Node: Columns13578
-Node: Keys14661
-Node: Acting on several bookmarks at once16417
-Node: Keeping the view18304
-Node: Jumping bookmark-gt-jump19116
-Node: The annotation20225
-Node: Using bookmark-gt from Lisp21771
-Node: Bookmark types besides files24459
-Node: URL bookmarks bookmark-gt-create-url24913
-Node: Dired bookmarks25503
-Ref: Virtual Dired26653
-Node: Function bookmarks bookmark-gt-create-function27352
-Node: Keyboard-macro bookmarks bookmark-gt-create-kmacro28016
-Node: Sequence bookmarks bookmark-gt-create-sequence29338
-Node: File-type handlers30221
-Node: View bookmarks31210
-Node: Creating and changing bookmarks31837
-Node: Tag reader32141
-Node: Bookmarks that share a name33920
-Node: Telling them apart35742
-Node: Loading a file that breaks the setting36195
-Node: When you expect two bookmarks and see one37455
-Node: Which command acts on which bookmark38488
-Node: Record identity39798
-Node: Changing an existing bookmark40615
-Node: bookmark-gt-update41496
-Node: bookmark-gt-relocate42247
-Node: bookmark-gt-rename43108
-Node: Deleting43543
-Node: Bookmarks in the buffer43970
-Node: Cycling through a file's bookmarks44235
-Node: Highlighting44923
-Node: Region bookmarks45860
-Node: Tracking46633
-Node: Visits46809
-Node: File renames47235
-Node: Extending bookmark-gt47871
-Node: Handler registry48100
-Node: Group registry50185
-Node: Hooks and registries51286
-Node: Compatibility53560
-Node: Data compatibility with bookmark+53776
-Node: Migrating from bookmark+55027
-Node: Reference56647
-Node: Selected options56804
-Node: Acknowledgements62058
-Node: License63528
+Node: Which version is installed4918
+Node: Getting started5364
+Node: bookmark-gt-mode5550
+Node: Optional modes8159
+Node: bookmark-gt-auto-update-mode8459
+Node: bookmark-gt-default-tags-mode9323
+Node: bookmark-gt-browser-tabs-mode10624
+Node: User interface12660
+Node: The *Bookmarks-gt List* buffer12925
+Node: Columns13461
+Node: Keys14544
+Node: Acting on several bookmarks at once16300
+Node: Keeping the view18187
+Node: Jumping bookmark-gt-jump18999
+Node: The annotation20172
+Node: Using bookmark-gt from Lisp21718
+Node: Bookmark types besides files24406
+Node: URL bookmarks bookmark-gt-create-url24860
+Node: Dired bookmarks25450
+Ref: Virtual Dired26600
+Node: Function bookmarks bookmark-gt-create-function27299
+Node: Keyboard-macro bookmarks bookmark-gt-create-kmacro27963
+Node: Sequence bookmarks bookmark-gt-create-sequence29285
+Node: File-type handlers30168
+Node: View bookmarks31157
+Node: Creating and changing bookmarks31784
+Node: Tag reader32088
+Node: Bookmarks that share a name33867
+Node: Telling them apart35689
+Node: Loading a file that breaks the setting36142
+Node: When you expect two bookmarks and see one37402
+Node: Which command acts on which bookmark38435
+Node: Record identity39745
+Node: Changing an existing bookmark40562
+Node: bookmark-gt-update41443
+Node: bookmark-gt-relocate42194
+Node: bookmark-gt-rename43055
+Node: Deleting43490
+Node: Bookmarks in the buffer43917
+Node: Cycling through a file's bookmarks44182
+Node: Highlighting44870
+Node: Region bookmarks45807
+Node: Tracking46580
+Node: Visits46756
+Node: File renames47182
+Node: Extending bookmark-gt47818
+Node: Handler registry48047
+Node: Group registry50132
+Node: Hooks and registries51233
+Node: Compatibility53507
+Node: Data compatibility with bookmark+53723
+Node: Migrating from bookmark+54974
+Node: Reference56594
+Node: Selected options56751
+Node: Acknowledgements62005
+Node: License63475
 
 End Tag Table
 

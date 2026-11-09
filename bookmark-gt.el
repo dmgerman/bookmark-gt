@@ -30,7 +30,7 @@
 ;; bookmark-gt is a bookmark manager layered on built-in `bookmark.el'
 ;; with tags, non-file bookmark types (URL, EWW, Dired, Info, Org
 ;; heading, PDF), a `tabulated-list-mode' buffer, and integration
-;; with consult / marginalia / orderless when they are available.
+;; with marginalia and orderless when they are available.
 ;;
 ;; Design principles: records are the only persistent mutable
 ;; state, one registry per axis (handlers, filters, sorts), and

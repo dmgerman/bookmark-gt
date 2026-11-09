@@ -67,8 +67,6 @@ they are installed and works without them:
 
 - ~marginalia~ adds tags, type and location to each candidate in
   the jump reader;
-- ~consult~ provides the jump reader's interface (without it,
-  bookmark-gt uses ~completing-read~);
 - ~orderless~ enables the ~@type~, ~+group~ and ~;tag~ narrowing
   particles in the jump reader;
 - ~browser-gt~ is required only by ~bookmark-gt-browser-tabs-mode~.
@@ -321,8 +319,9 @@ buffer is created.  Marks and the position of point are not saved.
 ** Jumping: ~bookmark-gt-jump~
 
 ~bookmark-gt-jump~ replaces ~bookmark-jump~, and ~C-x r b~ runs it
-while ~bookmark-gt-mode~ is on.  It uses ~consult--read~ when
-consult is loaded and ~completing-read~ otherwise.  When orderless
+while ~bookmark-gt-mode~ is on.  It reads the bookmark with
+~completing-read~, so it works with any completion interface,
+such as vertico or the default =*Completions*= buffer.  When orderless
 is loaded, three particles narrow the candidates:
 
 - ~@TYPE~ keeps bookmarks of TYPE (~@URL~, ~@Info~, ~@PDF~, ...);

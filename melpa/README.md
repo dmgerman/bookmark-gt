@@ -25,8 +25,6 @@ when absent, so they are *not* forced on every install:
 - `marginalia` — the jump reader registers a marginalia annotator
   when marginalia is loaded.  Without it, the reader still works;
   users just see plain candidate names.
-- `consult` — `bookmark-gt-jump` uses `consult--read` when consult
-  is loaded, and falls back to vanilla `completing-read` otherwise.
 - `orderless` — the `,@Type` / `;tag` narrowing dispatchers are
   registered into `orderless-style-dispatchers` when orderless is
   loaded.  Without it, users match by whatever completion style is

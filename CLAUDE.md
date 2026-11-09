@@ -68,7 +68,7 @@ its own.  Both must exit 0.
 Compile, lint, checkdoc, and check-declare run in `.elpa-melpa`,
 which holds only what MELPA's checker installs (Package-Requires
 plus package-lint and pkg-info).  The soft deps in `DEPS`
-(marginalia, consult, orderless) are installed only into `.elpa`
+(marginalia, orderless) are installed only into `.elpa`
 for the tests.  Do not add a soft dep to the MELPA environment to
 remove a warning: that hides the warning MELPA reports.
 
@@ -140,7 +140,7 @@ patch bindings via `define-key`.
 | `bookmark-gt-handlers.el` | Handler registry, groups, face definitions, URL / Dired / function / sequence handlers and setters, `bookmark-gt-relocate`. |
 | `bookmark-gt-tags.el` | Tag reader, tag mutation API, defcustom `bookmark-gt-prompt-for-tags-flag`, opt-in `bookmark-gt-default-tags-mode` that seeds the tag reader from context. |
 | `bookmark-gt-list.el` | `*Bookmarks-gt List*` buffer (tabulated-list-mode derivative). |
-| `bookmark-gt-jump.el` | Jump reader (consult / marginalia / orderless integrations, all soft-deps). |
+| `bookmark-gt-jump.el` | Jump reader (`completing-read`; marginalia / orderless integrations, both soft-deps). |
 | `bookmark-gt-auto-update.el` | Opt-in mode that refreshes bookmarks with `auto-update` prop; `bookmark-gt-list-toggle-auto-update` (`^` in the list). |
 | `bookmark-gt-browser-tabs.el` | Opt-in mode that stores live browser tabs as temporary URL bookmarks (marker: `bookmark-gt-browser-tab`). |
 | `test/` | ERT suite.  Every test wraps its body in `bookmark-gt-test-with-clean-bookmarks`. |

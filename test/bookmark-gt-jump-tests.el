@@ -63,8 +63,7 @@ for the aligning space."
     (let* ((cand (bookmark-gt-jump-candidate-default (car bookmark-alist)))
            (particles (get-text-property 0 'bookmark-gt-particles cand)))
       ;; URL is in the `web' group.
-      (should (string-search "+Web" particles))
-      (should-not (get-text-property 0 'consult--type cand)))))
+      (should (string-search "+Web" particles)))))
 
 (ert-deftest bookmark-gt-jump-test-orderless-group-matches ()
   "The `+' matcher selects every bookmark in the group, of any type."
@@ -123,25 +122,66 @@ for the aligning space."
     (should (equal (cdr semi) "tag"))
     (should (null plain))))
 
-;;;; Reader fallback path (no consult)
+;;;; Reader
 
-(ert-deftest bookmark-gt-jump-test-plain-reader-dispatches ()
-  "Without consult, `bookmark-gt-jump' still dispatches through `bookmark-jump'."
+(ert-deftest bookmark-gt-jump-test-reader-dispatches ()
+  "`bookmark-gt-jump' dispatches the selected record through `bookmark-jump'.
+`completing-read' returns the candidate text without its text
+properties."
   (bookmark-gt-test-with-clean-bookmarks
     (bookmark-gt-create-non-file "u" 'bookmark-gt-handler-url-jump
                               '((url . "https://example.org")))
     (let (seen)
       (cl-letf
-          (((symbol-function 'featurep)
-            (lambda (feat) (not (eq feat 'consult))))
-           ((symbol-function 'completing-read)
+          (((symbol-function 'completing-read)
             (lambda (&rest _)
-              ;; Return the visible candidate string.
-              (bookmark-gt-jump-candidate-default (car bookmark-alist))))
+              (substring-no-properties
+               (bookmark-gt-jump-candidate-default (car bookmark-alist)))))
            ((symbol-function 'browse-url)
             (lambda (url &rest _) (push url seen))))
         (bookmark-gt-jump))
       (should (equal seen '("https://example.org"))))))
+
+(ert-deftest bookmark-gt-jump-test-reader-truncated-name ()
+  "A candidate whose visible text is truncated resolves to its record."
+  (bookmark-gt-test-with-clean-bookmarks
+    (let ((long (make-string (* 2 bookmark-gt-jump-name-max-width) ?x)))
+      (bookmark-gt-create-non-file long 'bookmark-gt-handler-url-jump
+                                '((url . "https://long.example")))
+      (bookmark-gt-create-non-file "short" 'bookmark-gt-handler-url-jump
+                                '((url . "https://short.example")))
+      (let ((visible (bookmark-gt-jump-candidate-default
+                      (bookmark-get-bookmark long))))
+        (should-not (equal (substring-no-properties visible) long))
+        (cl-letf (((symbol-function 'completing-read)
+                   (lambda (&rest _) (substring-no-properties visible))))
+          (should (equal (bookmark-name-from-full-record
+                          (bookmark-gt-jump--read "Jump: "))
+                         long)))))))
+
+(ert-deftest bookmark-gt-jump-test-completion-table-metadata ()
+  "The reader's table reports category, annotation and given order."
+  (let* ((table (bookmark-gt-jump--completion-table '("b" "a")))
+         (md (completion-metadata "" table nil)))
+    (should (eq (completion-metadata-get md 'category) 'bookmark))
+    (should (functionp (completion-metadata-get md 'annotation-function)))
+    (should (equal (funcall (completion-metadata-get
+                             md 'display-sort-function)
+                            '("b" "a"))
+                   '("b" "a")))
+    (should (equal (all-completions "" table) '("b" "a")))))
+
+(ert-deftest bookmark-gt-jump-test-install-keymap ()
+  "The jump keys take precedence over the minibuffer's local map."
+  (with-temp-buffer
+    (let ((local (make-sparse-keymap)))
+      (keymap-set local "M-t" #'ignore)
+      (use-local-map local)
+      (bookmark-gt-jump--install-keymap)
+      (should (eq (keymap-lookup (current-local-map) "M-t")
+                  #'bookmark-gt-jump-add-tag-filter))
+      (should (eq (keymap-lookup (current-local-map) "M-d")
+                  #'bookmark-gt-jump-pop-tag-filter)))))
 
 ;;;; Filter state
 
