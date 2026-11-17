@@ -9,6 +9,8 @@
 #+TEXINFO_DIR_TITLE: bookmark-gt: (bookmark-gt)
 #+TEXINFO_DIR_DESC: Bookmark manager for Emacs.
 
+[[https://melpa.org/#/bookmark-gt][file:https://melpa.org/packages/bookmark-gt-badge.svg]]
+
 bookmark-gt extends the built-in =bookmark.el= and is fully compatible with it.  When enabled, the standard bookmark keys run the corresponding
 bookmark-gt commands.  Its bookmarks are ordinary =bookmark.el= records, thus a bookmark file
 written by bookmark-gt can still be read by the built-in bookmark package.
