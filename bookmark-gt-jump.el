@@ -594,7 +594,6 @@ The original list is not mutated."
                 (or (bookmark-prop-get b 'visits) 0)))))
     (_ records)))
 
-(declare-function vertico-next "ext:vertico")
 (defvar vertico-mode)
 
 (defun bookmark-gt-jump--preselect-advance ()
@@ -607,6 +606,7 @@ redisplays its candidate list after a command."
   (let ((n bookmark-gt-jump--preselect))
     (when (and (integerp n) (> n 0)
                (bound-and-true-p vertico-mode)
+               (fboundp 'vertico-next)
                (active-minibuffer-window))
       (with-selected-window (active-minibuffer-window)
         (vertico-next n)

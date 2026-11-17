@@ -302,11 +302,12 @@ refresh and deletes every record that still carries it."
 (ert-deftest bookmark-gt-browser-tabs-test-mode-adds-refresh-to-both-hooks ()
   "The mode adds its refresh to the jump and list hooks, and removes it."
   (bookmark-gt-test-with-clean-bookmarks
-    (dlet ((features (cons 'browser-gt features))
-           (bookmark-gt-jump-before-read-hook nil)
+    (dlet ((bookmark-gt-jump-before-read-hook nil)
            (bookmark-gt-list-before-read-hook nil)
            (bookmark-gt-browser-tabs-mode nil))
-      (cl-letf (((symbol-function 'browser-gt-connected-clients)
+      (cl-letf (((symbol-function 'browser-gt-browser-tabs)
+                 (lambda (&rest _) nil))
+                ((symbol-function 'browser-gt-connected-clients)
                  (lambda () nil)))
         (bookmark-gt-browser-tabs-mode 1)
         (should (memq #'bookmark-gt-browser-tabs-refresh
@@ -318,6 +319,24 @@ refresh and deletes every record that still carries it."
                           bookmark-gt-jump-before-read-hook))
         (should-not (memq #'bookmark-gt-browser-tabs-refresh
                           bookmark-gt-list-before-read-hook))))))
+
+;;;; Without browser-gt
+
+(ert-deftest bookmark-gt-browser-tabs-test-mode-refuses-without-browser-gt ()
+  "Enabling the mode without `browser-gt-browser-tabs' signals and stays off."
+  (bookmark-gt-test-with-clean-bookmarks
+    (dlet ((bookmark-gt-jump-before-read-hook nil)
+           (bookmark-gt-list-before-read-hook nil)
+           (bookmark-gt-browser-tabs-mode nil))
+      (cl-letf (((symbol-function 'browser-gt-browser-tabs) nil))
+        (should-error (bookmark-gt-browser-tabs-mode 1) :type 'user-error)
+        (should-not bookmark-gt-browser-tabs-mode)
+        (should-not bookmark-gt-jump-before-read-hook)))))
+
+(ert-deftest bookmark-gt-browser-tabs-test-fetch-without-browser-gt ()
+  "Fetching tabs without `browser-gt-browser-tabs' is a `user-error'."
+  (cl-letf (((symbol-function 'browser-gt-browser-tabs) nil))
+    (should-error (bookmark-gt-browser-tabs--fetch) :type 'user-error)))
 
 (provide 'bookmark-gt-browser-tabs-tests)
 ;;; bookmark-gt-browser-tabs-tests.el ends here

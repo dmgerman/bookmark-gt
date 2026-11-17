@@ -84,12 +84,10 @@
 
 (require 'browser-gt nil t)
 
-;; browser-gt is a soft-dep loaded at the top with (require 'browser-gt nil t).
-;; The `ext:' prefix on the FILE argument tells `check-declare' this
-;; symbol lives in an external package that need not be present at
-;; compile time, so it skips validation.
-(declare-function browser-gt-browser-tabs "ext:browser-gt")
-(declare-function browser-gt-connected-clients "ext:browser-gt")
+;; browser-gt is a soft dependency.  Each call to one of its functions
+;; is guarded by `fboundp' on that function, which checks at run time
+;; that the function exists and lets the byte-compiler accept the call
+;; without a `declare-function'.
 
 ;;;; Customization
 
@@ -132,16 +130,17 @@ Value shape:
 
 (defun bookmark-gt-browser-tabs--fetch ()
   "Return the browser tab list from browser-gt, or nil after warning."
-  (unless (featurep 'browser-gt)
-    (user-error "Package `browser-gt' is not loaded"))
-  (condition-case err
-      (browser-gt-browser-tabs bookmark-gt-browser-tabs-browsers)
-    (error
-     (display-warning 'bookmark-gt-browser-tabs
-                      (format "Cannot fetch tabs: %s"
-                              (error-message-string err))
-                      :warning)
-     nil)))
+  (if (fboundp 'browser-gt-browser-tabs)
+      (condition-case err
+          (browser-gt-browser-tabs bookmark-gt-browser-tabs-browsers)
+        (error
+         (display-warning 'bookmark-gt-browser-tabs
+                          (format "Cannot fetch tabs: %s"
+                                  (error-message-string err))
+                          :warning)
+         nil))
+    (user-error "Function `browser-gt-browser-tabs' is not available; \
+is browser-gt installed?")))
 
 (defun bookmark-gt-browser-tabs--accept-p (tab)
   "Return non-nil when TAB passes `bookmark-gt-browser-tabs-filter'."
@@ -344,19 +343,22 @@ marker; records from other browser-gt-related packages are
 untouched.
 
 Requires browser-gt to be installed.  Enable is a `user-error'
-no-op when browser-gt is not loaded."
+no-op when the function `browser-gt-browser-tabs' is not available."
   :global t
   :group 'bookmark-gt
   (cond
-   ((and bookmark-gt-browser-tabs-mode (not (featurep 'browser-gt)))
+   ((and bookmark-gt-browser-tabs-mode
+         (not (fboundp 'browser-gt-browser-tabs)))
     (setq bookmark-gt-browser-tabs-mode nil)
-    (user-error "Package `browser-gt' is not loaded"))
+    (user-error "Function `browser-gt-browser-tabs' is not available; \
+is browser-gt installed?"))
    (bookmark-gt-browser-tabs-mode
     (add-hook 'bookmark-gt-jump-before-read-hook
               #'bookmark-gt-browser-tabs-refresh)
     (add-hook 'bookmark-gt-list-before-read-hook
               #'bookmark-gt-browser-tabs-refresh)
-    (when (browser-gt-connected-clients)
+    (when (and (fboundp 'browser-gt-connected-clients)
+               (browser-gt-connected-clients))
       (bookmark-gt-browser-tabs-refresh)))
    (t
     (remove-hook 'bookmark-gt-jump-before-read-hook
